@@ -9,6 +9,9 @@ type BlackHole struct {
 
 	// If the player enters this radius then we apply the gravity force
 	OrbitRadius float32
+
+	// Image asset path for rendering
+	ImagePath string
 }
 
 func (bh *BlackHole) GetPosition() f32.Vec2 {

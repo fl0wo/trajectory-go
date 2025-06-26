@@ -2,6 +2,7 @@ package Models
 
 import (
 	"github.com/you/trajectory/constants"
+	"github.com/you/trajectory/space/resources"
 	"golang.org/x/image/math/f32"
 	"math"
 	"math/rand"
@@ -40,7 +41,7 @@ func NewSpaceGameWithLevel(levelNum int) (*SpaceGame, error) {
 
 	var player = &Player{
 		Position:     level.PlayerStart,
-		Radius:       0.02,           // Player radius for collision detection
+		Radius:       0.04,           // Player radius for collision detection
 		Velocity:     f32.Vec2{0, 0}, // No initial velocity
 		Acceleration: f32.Vec2{0, 0}, // No initial acceleration
 		State:        PlayerStateIdle,
@@ -410,6 +411,7 @@ func randomCelestialBodies(numBodies int, margin float32) []CelestialBody {
 				Mass:        mass,
 				Radius:      radius,
 				OrbitRadius: radius * 4.0, // orbit radius is 4x the blackhole radius
+				ImagePath:   resources.BlackHoleImage,
 			}
 		}
 	}

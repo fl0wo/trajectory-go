@@ -9,6 +9,9 @@ type WhiteHole struct {
 
 	// If the player enters this radius then we apply the gravity force
 	OrbitRadius float32
+
+	// Image asset path for rendering
+	ImagePath string
 }
 
 func (wh *WhiteHole) GetPosition() f32.Vec2 {

@@ -14,7 +14,10 @@ import (
 )
 
 var (
-	backgroundColor = color.Black
+	// #2F3262
+	backgroundColor = color.RGBA{
+		R: 19, G: 15, B: 64, A: 255,
+	}
 )
 
 const (
@@ -75,6 +78,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			if planet, ok := body.(*Models.Planet); ok && planet.ImagePath != "" {
 				imagePath = planet.ImagePath
 			}
+		case Models.CelestialBodyTypeBlackHole:
+			if blackHole, ok := body.(*Models.BlackHole); ok && blackHole.ImagePath != "" {
+				imagePath = blackHole.ImagePath
+			}
+		case Models.CelestialBodyTypeWhiteHole:
+			if whiteHole, ok := body.(*Models.WhiteHole); ok && whiteHole.ImagePath != "" {
+				imagePath = whiteHole.ImagePath
+			}
 		}
 
 		if imagePath != "" {
@@ -131,17 +142,29 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// Draw player trail
 	g.drawPlayerTrail(screen)
 
-	// Draw the player as a green circle with camera transform
+	// Draw the player using astronaut image
 	player := g.model.Player
 	playerScreenPos := camera.WorldToScreen(player.Position, constants.ScreenWidth, constants.ScreenHeight)
 	playerRadius := camera.RadiusToScreen(player.Radius, constants.ScreenWidth, constants.ScreenHeight)
 
-	vector.DrawFilledCircle(screen,
-		playerScreenPos[0],
-		playerScreenPos[1],
-		playerRadius,
-		color.RGBA{G: 255, A: 255}, true, // Green circle
-	)
+	// Try to render with astronaut image
+	astronautImg := resources.LoadImage(resources.AstronautImage)
+	if astronautImg != nil {
+		// Calculate rotation based on velocity direction
+		var rotation float64 = 0
+		if player.IsMoving() {
+			rotation = math.Atan2(float64(player.Velocity[1]), float64(player.Velocity[0]))
+		}
+		g.drawPlayerWithImage(screen, playerScreenPos, playerRadius, resources.AstronautImage, rotation)
+	} else {
+		// Fallback to green circle if image loading fails
+		vector.DrawFilledCircle(screen,
+			playerScreenPos[0],
+			playerScreenPos[1],
+			playerRadius,
+			color.RGBA{G: 255, A: 255}, true, // Green circle
+		)
+	}
 
 	// Draw trajectory arrow if dragging
 	dragInfo := g.input.GetDragInfo()
@@ -492,6 +515,44 @@ func (g *Game) drawCelestialBodyWithImage(screen *ebiten.Image, screenPos f32.Ve
 
 	// Move image center to origin for rotation/scaling
 	op.GeoM.Translate(-float64(imgSize.X)/2, -float64(imgSize.Y)/2)
+
+	// Scale the image to the desired size
+	op.GeoM.Scale(float64(scale), float64(scale))
+
+	// Move to final screen position
+	op.GeoM.Translate(float64(screenPos[0]), float64(screenPos[1]))
+
+	// Draw the image
+	screen.DrawImage(img, op)
+}
+
+// drawPlayerWithImage renders the player using an image texture with rotation based on movement
+func (g *Game) drawPlayerWithImage(screen *ebiten.Image, screenPos f32.Vec2, radius float32, imagePath string, rotation float64) {
+	// Load the image
+	img := resources.LoadImage(imagePath)
+	if img == nil {
+		// Fallback to circle if image loading fails
+		vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], radius, color.RGBA{G: 255, A: 255}, true)
+		return
+	}
+
+	// Calculate scaling to fit the desired radius
+	imgSize := img.Bounds().Size()
+	imgRadius := float32(imgSize.X) / 2.0 // Assume square images
+	if imgSize.Y > imgSize.X {
+		imgRadius = float32(imgSize.Y) / 2.0
+	}
+
+	scale := (radius * 2.0) / (imgRadius * 2.0) // Scale to fit diameter
+
+	// Create draw options
+	op := &ebiten.DrawImageOptions{}
+
+	// Move image center to origin for rotation/scaling
+	op.GeoM.Translate(-float64(imgSize.X)/2, -float64(imgSize.Y)/2)
+
+	// Apply rotation (astronaut points in direction of movement)
+	op.GeoM.Rotate(rotation)
 
 	// Scale the image to the desired size
 	op.GeoM.Scale(float64(scale), float64(scale))

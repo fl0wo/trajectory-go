@@ -16,6 +16,7 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.03,
 				Mass:        0.1,
 				OrbitRadius: 0.15,
+				ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 
@@ -35,6 +36,7 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.03,
 				Mass:        0.1,
 				OrbitRadius: 0.15,
+				ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 
@@ -65,6 +67,7 @@ var PredefinedLevels = map[int]*Level{
 					Radius:      0.03,
 					Mass:        0.1,
 					OrbitRadius: 0.15,
+					ImagePath:   resources.BlackHoleImage,
 				},
 			},
 			asteroids,
@@ -93,6 +96,7 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.03,
 				Mass:        0.1,
 				OrbitRadius: 0.15,
+				ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 
@@ -104,12 +108,14 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.04,
 				Mass:        float32((4.0 / 3.0) * math.Pi * 0.04 * 0.04 * 0.04 * 20),
 				OrbitRadius: 0.3,
+				ImagePath:   resources.BlackHoleImage,
 			},
 			&WhiteHole{
 				Position:    f32.Vec2{constants.AspectRatio - 0.15, 0.8},
 				Radius:      0.03,
 				Mass:        0.1,
 				OrbitRadius: 0.15,
+				ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 
@@ -142,6 +148,7 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.03,
 				Mass:        0.1,
 				OrbitRadius: 0.15,
+				ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 
@@ -174,12 +181,14 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.03,
 				Mass:        float32((4.0 / 3.0) * math.Pi * 0.03 * 0.03 * 0.03 * 25),
 				OrbitRadius: 0.2,
+				ImagePath:   resources.BlackHoleImage,
 			},
 			&WhiteHole{
 				Position:    f32.Vec2{constants.AspectRatio - 0.15, 0.6},
 				Radius:      0.03,
 				Mass:        0.1,
 				OrbitRadius: 0.15,
+				ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 
@@ -199,6 +208,7 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.025,
 				Mass:        0.1,
 				OrbitRadius: 0.1,
+				ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 
@@ -224,12 +234,14 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.04,
 				Mass:        float32((4.0 / 3.0) * math.Pi * 0.04 * 0.04 * 0.04 * 30),
 				OrbitRadius: 0.25,
+				ImagePath:   resources.BlackHoleImage,
 			},
 			&BlackHole{
 				Position:    f32.Vec2{1.0, 0.7},
 				Radius:      0.04,
 				Mass:        float32((4.0 / 3.0) * math.Pi * 0.04 * 0.04 * 0.04 * 30),
 				OrbitRadius: 0.25,
+				ImagePath:   resources.BlackHoleImage,
 			},
 			&Planet{
 				Name:        "Central Mass",
@@ -243,6 +255,7 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.025,
 				Mass:        0.1,
 				OrbitRadius: 0.12,
+				ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 }
