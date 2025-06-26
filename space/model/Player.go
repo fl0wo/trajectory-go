@@ -69,29 +69,30 @@ func (p *Player) IsMoving() bool {
 	return p.State == PlayerStateMoving
 }
 
-// Player.ApplyGravitationalForce applies gravity only if within planet.OrbitRadius
-func (p *Player) ApplyGravitationalForce(planet Planet) {
+// ApplyGravitationalForce applies gravity from any celestial body only if within its orbit radius
+func (p *Player) ApplyGravitationalForce(body CelestialBody) {
 	if p.State != PlayerStateMoving {
 		return
 	}
 
-	// vector from player → planet
-	dx := planet.Position[0] - p.Position[0]
-	dy := planet.Position[1] - p.Position[1]
+	// vector from player → celestial body
+	bodyPos := body.GetPosition()
+	dx := bodyPos[0] - p.Position[0]
+	dy := bodyPos[1] - p.Position[1]
 	distSq := dx*dx + dy*dy
 	if distSq == 0 || math.IsNaN(float64(distSq)) {
 		return
 	}
 
-	// if you're outside the planet's "orbit radius", skip it:
-	orbitR := planet.OrbitRadius
+	// if you're outside the celestial body's "orbit radius", skip it:
+	orbitR := body.GetOrbitRadius()
 	if distSq > (orbitR * orbitR) {
 		return
 	}
 
 	// F = G m1 m2 / r^2
 	const G = 0.01
-	force := G * p.Mass * planet.Mass / distSq
+	force := G * p.Mass * body.GetMass() / distSq
 
 	// now turn that into an accel vector: a = F/m1 * unitDir
 	// we'll need the actual distance for the unit vector:
@@ -104,6 +105,17 @@ func (p *Player) ApplyGravitationalForce(planet Planet) {
 
 	p.Acceleration[0] += ax
 	p.Acceleration[1] += ay
+}
+
+// CheckCollisionWithCelestialBody tests collision with any celestial body using squared radius test
+func (p *Player) CheckCollisionWithCelestialBody(body CelestialBody) bool {
+	bodyPos := body.GetPosition()
+	dx := bodyPos[0] - p.Position[0]
+	dy := bodyPos[1] - p.Position[1]
+	distSq := dx*dx + dy*dy
+
+	r := body.GetRadius() + p.Radius
+	return distSq <= r*r
 }
 
 // CheckCollisionWithPlanet is now just a squared‐radius test:

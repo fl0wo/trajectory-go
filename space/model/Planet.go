@@ -11,3 +11,23 @@ type Planet struct {
 	// If the player enters this radius then we apply the gravity force
 	OrbitRadius float32
 }
+
+func (p *Planet) GetPosition() f32.Vec2 {
+	return p.Position
+}
+
+func (p *Planet) GetRadius() float32 {
+	return p.Radius
+}
+
+func (p *Planet) GetOrbitRadius() float32 {
+	return p.OrbitRadius
+}
+
+func (p *Planet) GetMass() float32 {
+	return p.Mass * 250 // Scale mass for planets
+}
+
+func (p *Planet) GetType() CelestialBodyType {
+	return CelestialBodyTypePlanet
+}

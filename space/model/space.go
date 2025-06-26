@@ -8,21 +8,20 @@ import (
 )
 
 type SpaceGame struct {
-	Planets   []Planet
-	BlackHole *BlackHole
-	Player    *Player
-	Camera    *Camera2D
+	CelestialBodies []CelestialBody
+	Player          *Player
+	Camera          *Camera2D
 }
 
 // NewSpaceGame creates a new SpaceGame with the given size.
 func NewSpaceGame() (*SpaceGame, error) {
-	// Define some planets with their names, positions, and radii.
-	// pick a random number between 3 and 10 for the number of planets
-	var numPlanets = rand.Intn(2) + 3 // Random number between 3 and 10'
+	// Generate random celestial bodies (planets and blackholes)
+	// pick a random number between 3 and 10 for total celestial bodies
+	var numBodies = rand.Intn(8) + 3 // Random number between 3 and 10
 
-	const margin = 0.1 // Margin for positioning planets
+	const margin = 0.1 // Margin for positioning celestial bodies
 
-	planets := randomPlanets(numPlanets, margin)
+	celestialBodies := randomCelestialBodies(numBodies, margin)
 
 	var player = &Player{
 		Position:     f32.Vec2{margin, 0.5}, // Start near the left edge
@@ -40,19 +39,19 @@ func NewSpaceGame() (*SpaceGame, error) {
 	camera.SetTarget(player.Position)
 
 	return &SpaceGame{
-		Planets: planets,
-		Player:  player,
-		Camera:  camera,
+		CelestialBodies: celestialBodies,
+		Player:          player,
+		Camera:          camera,
 	}, nil
 }
 
-// Reset regenerates the entire game with new planets and resets player
+// Reset regenerates the entire game with new celestial bodies and resets player
 func (sg *SpaceGame) Reset() error {
-	// Generate new planets
-	var numPlanets = rand.Intn(2) + 3 // Random number between 3 and 10
-	const margin = 0.1                // Margin for positioning planets
+	// Generate new celestial bodies
+	var numBodies = rand.Intn(8) + 3 // Random number between 3 and 10
+	const margin = 0.1               // Margin for positioning celestial bodies
 
-	planets := randomPlanets(numPlanets, margin)
+	celestialBodies := randomCelestialBodies(numBodies, margin)
 
 	// Reset player to starting position
 	sg.Player.Position = f32.Vec2{margin, 0.5}
@@ -64,10 +63,50 @@ func (sg *SpaceGame) Reset() error {
 	sg.Camera.SetTarget(sg.Player.Position)
 	sg.Camera.Position = f32.Vec2{constants.AspectRatio / 2.0, 0.5}
 
-	// Update planets
-	sg.Planets = planets
+	// Update celestial bodies
+	sg.CelestialBodies = celestialBodies
 
 	return nil
+}
+
+func randomCelestialBodies(numBodies int, margin float32) []CelestialBody {
+	var bodies = make([]CelestialBody, numBodies)
+
+	// Use shared aspect ratio constant
+	aspectRatio := constants.AspectRatio
+
+	for i := 0; i < numBodies; i++ {
+		// Generate random position and radius for each celestial body
+		// X coordinate spans [0, aspectRatio], Y coordinate spans [0, 1]
+		x := margin + (rand.Float32() * (aspectRatio - margin*2)) // value between margin and aspectRatio-margin
+		y := margin + (rand.Float32() * (1 - margin*2))           // value between margin and 1-margin
+
+		// radius in [0, 1] in Y-coordinate scale
+		radius := rand.Float32() / 5.0 // smaller celestial bodies for better gameplay
+
+		// for fun: make mass proportional to volume of a sphere
+		mass := (4.0 / 3.0) * math.Pi * radius * radius * radius
+
+		// Randomly decide if this should be a planet or blackhole (70% planet, 30% blackhole)
+		if rand.Float32() < 0.7 {
+			bodies[i] = &Planet{
+				Name:        "Planet " + string(rune(i+1)),
+				Position:    f32.Vec2{x, y},
+				Mass:        mass, // scale mass for planets
+				Radius:      radius,
+				OrbitRadius: radius * 3.0, // orbit radius is 3x the planet radius
+			}
+		} else {
+			// Blackholes are typically more massive and have larger orbit radius
+			bodies[i] = &BlackHole{
+				Position:    f32.Vec2{x, y},
+				Mass:        mass,
+				Radius:      radius,
+				OrbitRadius: radius * 4.0, // orbit radius is 4x the blackhole radius
+			}
+		}
+	}
+	return bodies
 }
 
 func randomPlanets(numPlanets int, margin float32) []Planet {

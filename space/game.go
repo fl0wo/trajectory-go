@@ -31,10 +31,24 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	camera := g.model.Camera
 
-	// Draw planets with camera transform
-	for _, planet := range g.model.Planets {
-		screenPos := camera.WorldToScreen(planet.Position, constants.ScreenWidth, constants.ScreenHeight)
-		radius := camera.RadiusToScreen(planet.Radius, constants.ScreenWidth, constants.ScreenHeight)
+	// Draw celestial bodies with camera transform
+	for _, body := range g.model.CelestialBodies {
+		bodyPos := body.GetPosition()
+		screenPos := camera.WorldToScreen(bodyPos, constants.ScreenWidth, constants.ScreenHeight)
+		radius := camera.RadiusToScreen(body.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
+
+		// Choose colors based on celestial body type
+		var bodyColor color.RGBA
+		var orbitColor color.RGBA
+
+		switch body.GetType() {
+		case Models.CelestialBodyTypePlanet:
+			bodyColor = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White for planets
+			orbitColor = color.RGBA{R: 255, G: 255, B: 0, A: 128}  // Yellow orbit for planets
+		case Models.CelestialBodyTypeBlackHole:
+			bodyColor = color.RGBA{R: 128, G: 128, B: 128, A: 255} // Gray for blackholes
+			orbitColor = color.RGBA{R: 128, G: 0, B: 128, A: 128}  // Purple orbit for blackholes
+		}
 
 		// Only draw if on screen (simple culling)
 		//if screenPos[0] > -radius && screenPos[0] < ScreenWidth+radius && screenPos[1] > -radius && screenPos[1] < ScreenHeight+radius {
@@ -43,19 +57,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			screenPos[0],
 			screenPos[1],
 			radius,
-			color.White, true,
+			bodyColor, true,
 		)
-		// Draw planet's orbit radius as a dashed circle
-		orbitRadius := camera.RadiusToScreen(planet.OrbitRadius, constants.ScreenWidth, constants.ScreenHeight)
+		// Draw celestial body's orbit radius as a circle
+		orbitRadius := camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
 		if orbitRadius > 0 {
 			vector.StrokeCircle(
 				screen,
 				screenPos[0],
 				screenPos[1],
 				orbitRadius,
-				2,                                        // Line width
-				color.RGBA{R: 255, G: 255, B: 0, A: 128}, // Yellow with some transparency
-				true,                                     // Closed
+				2,          // Line width
+				orbitColor, // Color based on body type
+				true,       // Closed
 			)
 		}
 	}
@@ -186,13 +200,13 @@ func (g *Game) Update() error {
 	// Reset player acceleration for this frame
 	g.model.Player.ResetAcceleration()
 
-	// Apply gravitational forces from all planets
-	for _, planet := range g.model.Planets {
-		g.model.Player.ApplyGravitationalForce(planet)
+	// Apply gravitational forces from all celestial bodies
+	for _, body := range g.model.CelestialBodies {
+		g.model.Player.ApplyGravitationalForce(body)
 
-		// Check for collision with planet
-		if g.model.Player.CheckCollisionWithPlanet(planet) {
-			// Player hit a planet - reset the game
+		// Check for collision with celestial body
+		if g.model.Player.CheckCollisionWithCelestialBody(body) {
+			// Player hit a celestial body - reset the game
 			err := g.model.Reset()
 			if err != nil {
 				return err
