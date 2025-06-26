@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	ScreenWidth  = 2080
+	ScreenWidth  = 1080
 	ScreenHeight = 1080
 	RadiusScale  = 10.0 * 100.0 // Scale factor for planet radius to screen size
 )

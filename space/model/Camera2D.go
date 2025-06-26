@@ -111,16 +111,16 @@ func (c *Camera2D) RadiusToScreen(radius float32, screenWidth, screenHeight floa
 	// 1) apply zoom in world space
 	scaled := radius * c.Zoom
 
-	// 2) compute how many pixels one normalized unit is in X and Y
-	pxPerUnitX := screenWidth
-	pxPerUnitY := screenHeight
+	// 2) convert normalized radius to pixels
+	// Since our world coordinates are [0,1], we need to scale by screen dimensions
+	// Use the smaller dimension to maintain aspect ratio
+	screenScale := screenWidth
+	if screenHeight < screenWidth {
+		screenScale = screenHeight
+	}
 
-	// 3) map the zoomed radius into pixels on each axis
-	pixelRadiusX := scaled * pxPerUnitX
-	pixelRadiusY := scaled * pxPerUnitY
-
-	// 4) average them to keep the circle isotropic in pixel space
-	return (pixelRadiusX + pixelRadiusY) * 0.5
+	// 3) map the zoomed radius into pixels
+	return scaled * screenScale
 }
 
 // SetZoom sets the target zoom level (will be smoothly interpolated)
