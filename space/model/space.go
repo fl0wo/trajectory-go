@@ -75,7 +75,7 @@ func randomPlanets(numPlanets int, margin float32) []Planet {
 		y := margin + (rand.Float32() * (1 - margin*2)) // value between margin and 1-margin
 
 		// radius in [0, 1]
-		radius := rand.Float32() / 2 // value between 0 and 0.5
+		radius := rand.Float32() // value between 0 and 1
 
 		// for fun: make mass proportional to volume of a sphere
 		// mass := (4.0 / 3.0) * math.Pi * radius * radius * radius
@@ -83,7 +83,6 @@ func randomPlanets(numPlanets int, margin float32) []Planet {
 		mass := float32(math.Inf(1)) // infinite mass for simplicity
 
 		// ensure orbitRadius > radius and ≤ 1
-		orbitRadius := radius // value between radius and 1
 
 		planets[i] = Planet{
 			Name:     "Planet " + string(rune(i+1)),
@@ -92,7 +91,7 @@ func randomPlanets(numPlanets int, margin float32) []Planet {
 			Mass: mass,
 
 			Radius:      radius / 10.0,
-			OrbitRadius: orbitRadius,
+			OrbitRadius: radius / 2.0,
 		}
 	}
 	return planets
