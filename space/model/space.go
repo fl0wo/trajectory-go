@@ -218,8 +218,8 @@ func (sg *SpaceGame) CalculateProximityZoom() float32 {
 	playerPos := sg.Player.Position
 
 	// Zoom parameters
-	const maxZoomAtCenter = 1.15 // 1.25x zoom at center
-	const exponent = 1.15        // Same ease-in curve as time dilation
+	const maxZoomAtCenter = 1.05 // 1.25x zoom at center
+	const exponent = 1.05        // Same ease-in curve as time dilation
 
 	// Check proximity to all celestial bodies
 	for _, body := range sg.CelestialBodies {

@@ -8,10 +8,10 @@ import (
 
 var PredefinedLevels = map[int]*Level{
 	1: NewLevel("Level 1 - Simple Shot",
-		f32.Vec2{0.1, 0.5},
+		f32.Vec2{0.4, 0.5},
 		[]CelestialBody{
 			&WhiteHole{
-				Position:    f32.Vec2{constants.AspectRatio - 0.2, 0.5},
+				Position:    f32.Vec2{constants.AspectRatio / 2, 0.5},
 				Radius:      0.03,
 				Mass:        0.1,
 				OrbitRadius: 0.15,
@@ -19,7 +19,7 @@ var PredefinedLevels = map[int]*Level{
 		}),
 
 	2: NewLevel("Level 2 - Obstacle Course",
-		f32.Vec2{0.1, 0.5},
+		f32.Vec2{0.4, 0.5},
 		[]CelestialBody{
 			&Planet{
 				Name:        "Obstacle",
@@ -135,27 +135,27 @@ var PredefinedLevels = map[int]*Level{
 				Name:        "Cluster 1",
 				Position:    f32.Vec2{0.5, 0.3},
 				Radius:      0.04,
-				Mass:        float32((4.0 / 3.0) * math.Pi * 0.04 * 0.04 * 0.04 * 150),
+				Mass:        float32((4.0 / 3.0) * math.Pi * 0.04 * 0.04 * 0.04 * 5),
 				OrbitRadius: 0.12,
 			},
 			&Planet{
 				Name:        "Cluster 2",
 				Position:    f32.Vec2{0.7, 0.5},
 				Radius:      0.04,
-				Mass:        float32((4.0 / 3.0) * math.Pi * 0.04 * 0.04 * 0.04 * 150),
+				Mass:        float32((4.0 / 3.0) * math.Pi * 0.04 * 0.04 * 0.04 * 5),
 				OrbitRadius: 0.12,
 			},
 			&Planet{
 				Name:        "Cluster 3",
 				Position:    f32.Vec2{0.9, 0.7},
 				Radius:      0.04,
-				Mass:        float32((4.0 / 3.0) * math.Pi * 0.04 * 0.04 * 0.04 * 150),
+				Mass:        float32((4.0 / 3.0) * math.Pi * 0.04 * 0.04 * 0.04 * 15),
 				OrbitRadius: 0.12,
 			},
 			&BlackHole{
 				Position:    f32.Vec2{1.1, 0.4},
 				Radius:      0.03,
-				Mass:        float32((4.0 / 3.0) * math.Pi * 0.03 * 0.03 * 0.03),
+				Mass:        float32((4.0 / 3.0) * math.Pi * 0.03 * 0.03 * 0.03 * 25),
 				OrbitRadius: 0.2,
 			},
 			&WhiteHole{
@@ -173,11 +173,11 @@ var PredefinedLevels = map[int]*Level{
 				Name:        "Massive Planet",
 				Position:    f32.Vec2{constants.AspectRatio / 2, 0.5},
 				Radius:      0.15,
-				Mass:        float32((4.0 / 3.0) * math.Pi * 0.15 * 0.15 * 0.15 * 80),
+				Mass:        float32((4.0 / 3.0) * math.Pi * 0.15 * 0.15 * 0.15 * 5),
 				OrbitRadius: 0.5,
 			},
 			&WhiteHole{
-				Position:    f32.Vec2{constants.AspectRatio / 2, 0.1},
+				Position:    f32.Vec2{constants.AspectRatio / 2, 0.2},
 				Radius:      0.025,
 				Mass:        0.1,
 				OrbitRadius: 0.1,
