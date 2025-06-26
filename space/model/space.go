@@ -2,6 +2,7 @@ package Models
 
 import (
 	"golang.org/x/image/math/f32"
+	"math"
 	"math/rand"
 )
 
@@ -70,19 +71,28 @@ func randomPlanets(numPlanets int, margin float32) []Planet {
 	var planets = make([]Planet, numPlanets)
 	for i := 0; i < numPlanets; i++ {
 		// Generate random position and radius for each planet
-		x := margin + (rand.Float32() * (1 - margin*2))
-		y := margin + (rand.Float32() * (1 - margin*2))
-		radius := rand.Float32() + 3                              // Random radius between 1 and 2
-		orbitRadius := (1 + radius) * (2 + (10 * rand.Float32())) // Random orbit radius
+		x := margin + (rand.Float32() * (1 - margin*2)) // value between margin and 1-margin
+		y := margin + (rand.Float32() * (1 - margin*2)) // value between margin and 1-margin
+
+		// radius in [0, 1]
+		radius := rand.Float32() / 2 // value between 0 and 0.5
+
+		// for fun: make mass proportional to volume of a sphere
+		// mass := (4.0 / 3.0) * math.Pi * radius * radius * radius
+
+		mass := float32(math.Inf(1)) // infinite mass for simplicity
+
+		// ensure orbitRadius > radius and ≤ 1
+		orbitRadius := radius // value between radius and 1
 
 		planets[i] = Planet{
 			Name:     "Planet " + string(rune(i+1)),
 			Position: f32.Vec2{x, y},
 
-			Mass: radius,
+			Mass: mass,
 
-			Radius:      radius / 100,
-			OrbitRadius: orbitRadius / 100,
+			Radius:      radius / 10.0,
+			OrbitRadius: orbitRadius,
 		}
 	}
 	return planets

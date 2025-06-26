@@ -104,9 +104,23 @@ func (c *Camera2D) ScreenToWorld(screenPos f32.Vec2, screenWidth, screenHeight f
 	return worldPos
 }
 
+// RadiusToScreen converts a radius (in world units) to pixels.
+// It scales the radius by the camera zoom, then maps that
+// normalized size into screen pixels by averaging the X and Y scales.
 func (c *Camera2D) RadiusToScreen(radius float32, screenWidth, screenHeight float32) float32 {
-	// Convert radius from world to screen space based on current zoom
-	return radius * c.Zoom * (screenWidth + screenHeight) / 2.0 // Average of width and height for consistent scaling
+	// 1) apply zoom in world space
+	scaled := radius * c.Zoom
+
+	// 2) compute how many pixels one normalized unit is in X and Y
+	pxPerUnitX := screenWidth
+	pxPerUnitY := screenHeight
+
+	// 3) map the zoomed radius into pixels on each axis
+	pixelRadiusX := scaled * pxPerUnitX
+	pixelRadiusY := scaled * pxPerUnitY
+
+	// 4) average them to keep the circle isotropic in pixel space
+	return (pixelRadiusX + pixelRadiusY) * 0.5
 }
 
 // SetZoom sets the target zoom level (will be smoothly interpolated)

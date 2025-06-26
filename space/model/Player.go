@@ -69,58 +69,51 @@ func (p *Player) IsMoving() bool {
 	return p.State == PlayerStateMoving
 }
 
-// ApplyGravitationalForce calculates and applies gravitational force from a planet
+// Player.ApplyGravitationalForce applies gravity only if within planet.OrbitRadius
 func (p *Player) ApplyGravitationalForce(planet Planet) {
 	if p.State != PlayerStateMoving {
 		return
 	}
 
-	// Calculate distance vector from player to planet in normalized coordinates
+	// vector from player → planet
 	dx := planet.Position[0] - p.Position[0]
 	dy := planet.Position[1] - p.Position[1]
-	distance := float32(math.Sqrt(float64(dx*dx + dy*dy)))
-
-	// Only apply gravity if player is within orbit radius
-	// Both distance and OrbitRadius are now in the same normalized coordinate system
-	if distance > planet.OrbitRadius {
+	distSq := dx*dx + dy*dy
+	if distSq == 0 || math.IsNaN(float64(distSq)) {
 		return
 	}
 
-	// Prevent division by zero and extreme forces when very close
-	if distance < 0.01 {
-		distance = 0.01
+	// if you're outside the planet's "orbit radius", skip it:
+	orbitR := planet.OrbitRadius
+	if distSq > (orbitR * orbitR) {
+		return
 	}
 
-	// Calculate gravitational force using F = G * m1 * m2 / r^2
-	// We'll use planet radius as mass proxy and normalize constants
-	const gravitationalConstant = 0.01
-	planetMass := planet.Mass
-	force := gravitationalConstant * p.Mass * planetMass / (distance * distance)
+	// F = G m1 m2 / r^2
+	const G = 0.01
+	force := G * p.Mass * planet.Mass / distSq
 
-	// Calculate unit vector pointing toward planet
-	unitX := dx / distance
-	unitY := dy / distance
+	// now turn that into an accel vector: a = F/m1 * unitDir
+	// we'll need the actual distance for the unit vector:
+	invDist := 1.0 / float32(math.Sqrt(float64(distSq)))
+	ux := dx * invDist
+	uy := dy * invDist
 
-	// Calculate acceleration (F = m * a, so a = F / m)
-	accelerationX := force * unitX / p.Mass
-	accelerationY := force * unitY / p.Mass
+	ax := force * ux / p.Mass
+	ay := force * uy / p.Mass
 
-	// Apply the acceleration
-	p.Acceleration[0] += accelerationX
-	p.Acceleration[1] += accelerationY
+	p.Acceleration[0] += ax
+	p.Acceleration[1] += ay
 }
 
-// CheckCollisionWithPlanet checks if player collides with planet surface
+// CheckCollisionWithPlanet is now just a squared‐radius test:
 func (p *Player) CheckCollisionWithPlanet(planet Planet) bool {
 	dx := planet.Position[0] - p.Position[0]
 	dy := planet.Position[1] - p.Position[1]
-	distance := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+	distSq := dx*dx + dy*dy
 
-	// Convert radii to normalized coordinates
-	planetRadius := planet.Radius
-	playerRadius := p.Radius
-
-	return distance < (planetRadius + playerRadius)
+	r := planet.Radius + p.Radius
+	return distSq <= r*r
 }
 
 // ResetAcceleration clears all accumulated accelerations
