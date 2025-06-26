@@ -43,7 +43,7 @@ var PredefinedLevels = map[int]*Level{
 				Name:        "Jupiter",
 				Position:    f32.Vec2{constants.AspectRatio / 3, 0.5},
 				Radius:      0.12,
-				Mass:        float32((4.0 / 3.0) * math.Pi * 0.12 * 0.12 * 0.12 * 10),
+				Mass:        float32((4.0 / 3.0) * math.Pi * 0.12 * 0.12 * 0.12 * 1),
 				OrbitRadius: 0.4,
 			},
 			&WhiteHole{

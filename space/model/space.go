@@ -22,6 +22,8 @@ type SpaceGame struct {
 	CurrentLevel    *Level
 	CurrentLevelNum int
 	CameraMode      CameraMode // Camera follow mode setting
+	TimeScale       float32    // Current time dilation scale (1.0 = normal, 0.1 = 10x slower)
+	TargetTimeScale float32    // Target time scale for smooth interpolation
 }
 
 // NewSpaceGame creates a new SpaceGame starting with level 1.
@@ -53,6 +55,8 @@ func NewSpaceGameWithLevel(levelNum int) (*SpaceGame, error) {
 		CurrentLevel:    level,
 		CurrentLevelNum: levelNum,
 		CameraMode:      CameraModeCenter, // Default to center mode
+		TimeScale:       1.0,              // Normal time initially
+		TargetTimeScale: 1.0,              // Target matches current initially
 	}
 
 	// Calculate center of all entities and set camera position
@@ -77,6 +81,7 @@ func (sg *SpaceGame) LoadLevel(levelNum int) error {
 	sg.Player.Velocity = f32.Vec2{0, 0}
 	sg.Player.Acceleration = f32.Vec2{0, 0}
 	sg.Player.State = PlayerStateIdle
+	sg.Player.ClearTrail() // Clear the movement trail
 
 	// Update level data first
 	sg.CurrentLevel = level
@@ -125,6 +130,71 @@ func (sg *SpaceGame) CalculateLevelCenter() f32.Vec2 {
 		(minX + maxX) / 2.0,
 		(minY + maxY) / 2.0,
 	}
+}
+
+// CalculateTimeDilation calculates the time scale based on player proximity to celestial bodies
+func (sg *SpaceGame) CalculateTimeDilation() float32 {
+	if sg.Player.State != PlayerStateMoving {
+		return 1.0 // Normal time when not moving
+	}
+
+	minTimeScale := float32(1.0)
+	playerPos := sg.Player.Position
+
+	// Check proximity to all celestial bodies
+	for _, body := range sg.CelestialBodies {
+		bodyPos := body.GetPosition()
+		dx := bodyPos[0] - playerPos[0]
+		dy := bodyPos[1] - playerPos[1]
+		distance := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+
+		orbitRadius := body.GetOrbitRadius()
+		bodyRadius := body.GetRadius()
+
+		// Only apply time dilation within orbit radius
+		if distance <= orbitRadius {
+			// Calculate normalized distance (0 = at center, 1 = at orbit edge)
+			// Use body radius as the minimum distance to avoid division by zero
+			minDistance := bodyRadius
+			if distance < minDistance {
+				distance = minDistance
+			}
+
+			normalizedDistance := (distance - minDistance) / (orbitRadius - minDistance)
+
+			// Time scale: 0.1 (10x slower) at center, 1.0 (normal) at orbit edge
+			const minTimeScaleAtCenter = 0.1
+			timeScale := minTimeScaleAtCenter + (1.0-minTimeScaleAtCenter)*normalizedDistance
+
+			// Use the smallest time scale (maximum slowdown)
+			if timeScale < minTimeScale {
+				minTimeScale = timeScale
+			}
+		}
+	}
+
+	return minTimeScale
+}
+
+// UpdateTimeDilation updates the current time scale with smooth interpolation
+func (sg *SpaceGame) UpdateTimeDilation(deltaTime float32) {
+	// Calculate target time scale
+	sg.TargetTimeScale = sg.CalculateTimeDilation()
+
+	// Smooth interpolation towards target (faster when slowing down, slower when speeding up)
+	timeDilationSpeed := float32(5.0) // Adjust this for faster/slower transitions
+	if sg.TargetTimeScale < sg.TimeScale {
+		// Slowing down - faster transition for dramatic effect
+		timeDilationSpeed = 8.0
+	}
+
+	// Interpolate towards target
+	t := timeDilationSpeed * deltaTime
+	if t > 1.0 {
+		t = 1.0 // Clamp to prevent overshooting
+	}
+
+	sg.TimeScale = sg.TimeScale + (sg.TargetTimeScale-sg.TimeScale)*t
 }
 
 // ToggleCameraMode switches between camera modes

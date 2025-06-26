@@ -24,7 +24,7 @@ func (wh *WhiteHole) GetOrbitRadius() float32 {
 }
 
 func (wh *WhiteHole) GetMass() float32 {
-	return wh.Mass * 250 * 2 // Scale mass for white holes (less than black holes)
+	return wh.Mass * 100 // Scale mass for white holes (less than black holes)
 }
 
 func (wh *WhiteHole) GetType() CelestialBodyType {

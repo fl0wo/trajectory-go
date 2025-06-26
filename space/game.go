@@ -9,10 +9,18 @@ import (
 	"golang.org/x/image/math/f32"
 	"image/color"
 	"math"
+	"time"
 )
 
 var (
 	backgroundColor = color.Black
+)
+
+const (
+	// Maximum drag distance in world units to limit throw power
+	maxDragDistance = float32(0.15)
+	// Maximum velocity magnitude to prevent excessive speeds
+	maxVelocity = float32(0.3)
 )
 
 type Game struct {
@@ -78,6 +86,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 	//}
 
+	// Draw player trail
+	g.drawPlayerTrail(screen)
+
 	// Draw the player as a green circle with camera transform
 	player := g.model.Player
 	playerScreenPos := camera.WorldToScreen(player.Position, constants.ScreenWidth, constants.ScreenHeight)
@@ -103,10 +114,25 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			startWorld[1] - currentWorld[1],
 		}
 
-		// Scale trajectory for better visualization
+		// Calculate drag distance and clamp it to maximum allowed (same as throw logic)
+		trajectoryDistance := float32(math.Sqrt(float64(trajectoryVector[0]*trajectoryVector[0] + trajectoryVector[1]*trajectoryVector[1])))
+		if trajectoryDistance > maxDragDistance {
+			// Normalize and scale to max distance
+			trajectoryVector[0] = (trajectoryVector[0] / trajectoryDistance) * maxDragDistance
+			trajectoryVector[1] = (trajectoryVector[1] / trajectoryDistance) * maxDragDistance
+		}
+
+		// Scale trajectory for visualization (same as throw logic)
 		velocityMultiplier := float32(2.0)
 		trajectoryVector[0] *= velocityMultiplier
 		trajectoryVector[1] *= velocityMultiplier
+
+		// Clamp final visualization vector to match max velocity
+		visualMagnitude := float32(math.Sqrt(float64(trajectoryVector[0]*trajectoryVector[0] + trajectoryVector[1]*trajectoryVector[1])))
+		if visualMagnitude > maxVelocity {
+			trajectoryVector[0] = (trajectoryVector[0] / visualMagnitude) * maxVelocity
+			trajectoryVector[1] = (trajectoryVector[1] / visualMagnitude) * maxVelocity
+		}
 
 		// Start arrow from player center
 		playerWorldPos := g.model.Player.Position
@@ -151,9 +177,17 @@ func NewGame() (*Game, error) {
 // Update updates the current game state.
 func (g *Game) Update() error {
 	// Calculate delta time
-	deltaTime := float32(1.0 / 60.0) // Assume 60 FPS for simplicity
+	baseDeltaTime := float32(1.0 / 60.0) // Assume 60 FPS for simplicity
 
 	g.input.Update()
+
+	// Calculate time dilation based on player proximity to celestial bodies
+	// Use base delta time for the interpolation calculation
+	g.model.UpdateTimeDilation(baseDeltaTime)
+	timeScale := g.model.TimeScale
+
+	// Apply time dilation to delta time
+	deltaTime := baseDeltaTime * timeScale
 
 	// Handle restart key
 	if g.input.IsRestartPressed() {
@@ -195,22 +229,39 @@ func (g *Game) Update() error {
 		startWorld := camera.ScreenToWorld(dragInfo.StartPos, constants.ScreenWidth, constants.ScreenHeight)
 		endWorld := camera.ScreenToWorld(dragInfo.CurrentPos, constants.ScreenWidth, constants.ScreenHeight)
 
-		// Calculate throw velocity (opposite direction of drag)
+		// Calculate throw vector (opposite direction of drag)
 		throwVector := f32.Vec2{
 			startWorld[0] - endWorld[0],
 			startWorld[1] - endWorld[1],
 		}
 
-		// Scale velocity based on drag distance (adjust multiplier as needed)
-		velocityMultiplier := float32(2.0)
-		throwVelocity := f32.Vec2{
-			throwVector[0] * velocityMultiplier,
-			throwVector[1] * velocityMultiplier,
-		}
+		// Calculate drag distance and limit it to maximum allowed
+		dragDistance := float32(math.Sqrt(float64(throwVector[0]*throwVector[0] + throwVector[1]*throwVector[1])))
 
 		// Only throw if drag distance is significant
-		dragDistance := float32(math.Sqrt(float64(throwVector[0]*throwVector[0] + throwVector[1]*throwVector[1])))
 		if dragDistance > 0.01 {
+			// Clamp drag distance to maximum allowed
+			if dragDistance > maxDragDistance {
+				// Normalize the vector and scale it to max distance
+				throwVector[0] = (throwVector[0] / dragDistance) * maxDragDistance
+				throwVector[1] = (throwVector[1] / dragDistance) * maxDragDistance
+				dragDistance = maxDragDistance
+			}
+
+			// Scale velocity based on clamped drag distance
+			velocityMultiplier := float32(2.0)
+			throwVelocity := f32.Vec2{
+				throwVector[0] * velocityMultiplier,
+				throwVector[1] * velocityMultiplier,
+			}
+
+			// Additional safety: clamp final velocity magnitude
+			velocityMagnitude := float32(math.Sqrt(float64(throwVelocity[0]*throwVelocity[0] + throwVelocity[1]*throwVelocity[1])))
+			if velocityMagnitude > maxVelocity {
+				throwVelocity[0] = (throwVelocity[0] / velocityMagnitude) * maxVelocity
+				throwVelocity[1] = (throwVelocity[1] / velocityMagnitude) * maxVelocity
+			}
+
 			g.model.Player.Throw(throwVelocity)
 		}
 	}
@@ -249,7 +300,7 @@ func (g *Game) Update() error {
 	}
 
 	// Update player physics
-	g.model.Player.Update(deltaTime)
+	g.model.Player.Update(deltaTime, timeScale)
 
 	// Update camera behavior based on camera mode setting
 	switch g.model.CameraMode {
@@ -307,4 +358,49 @@ func (g *Game) drawArrowHead(screen *ebiten.Image, start, end f32.Vec2, color co
 	// Draw arrow head lines
 	vector.StrokeLine(screen, end[0], end[1], leftX, leftY, 3, color, true)
 	vector.StrokeLine(screen, end[0], end[1], rightX, rightY, 3, color, true)
+}
+
+// drawPlayerTrail draws the player's movement trail with fading effect
+func (g *Game) drawPlayerTrail(screen *ebiten.Image) {
+	trailPoints := g.model.Player.GetTrailPoints()
+	if len(trailPoints) < 2 {
+		return // Need at least 2 points to draw lines
+	}
+
+	camera := g.model.Camera
+	now := time.Now()
+
+	// Draw lines between consecutive trail points
+	for i := 1; i < len(trailPoints); i++ {
+		prevPoint := trailPoints[i-1]
+		currPoint := trailPoints[i]
+
+		// Calculate age of the current point
+		age := now.Sub(currPoint.Timestamp)
+		trailDuration := 3.0 * time.Second // Should match the constant in Player.go
+
+		// Calculate alpha based on age (newer = more opaque)
+		ageRatio := float64(age) / float64(trailDuration)
+		alpha := uint8(255 * (1.0 - ageRatio))
+		if ageRatio >= 1.0 {
+			continue // Skip expired points
+		}
+
+		// Convert world positions to screen coordinates
+		prevScreen := camera.WorldToScreen(prevPoint.Position, constants.ScreenWidth, constants.ScreenHeight)
+		currScreen := camera.WorldToScreen(currPoint.Position, constants.ScreenWidth, constants.ScreenHeight)
+
+		// Trail color with fading alpha (cyan-ish color)
+		trailColor := color.RGBA{R: 0, G: 255, B: 255, A: alpha}
+
+		// Calculate line width based on age (newer = thicker)
+		width := float32(1 + (1.0-ageRatio)*2) // Width from 1 to 3
+
+		// Draw the trail segment
+		vector.StrokeLine(screen,
+			prevScreen[0], prevScreen[1],
+			currScreen[0], currScreen[1],
+			width, trailColor, true,
+		)
+	}
 }
