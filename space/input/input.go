@@ -91,6 +91,9 @@ type Input struct {
 	// Scroll-related fields
 	scrollDelta float32 // Mouse wheel scroll delta
 
+	// Key state
+	restartKeyPressed bool // True for one frame when R key is pressed
+
 	touches       []ebiten.TouchID
 	touchState    touchState
 	touchID       ebiten.TouchID
@@ -137,6 +140,9 @@ func (i *Input) Update() {
 	// Update scroll delta
 	_, scrollY := ebiten.Wheel()
 	i.scrollDelta = float32(scrollY) / scrollSensitivity // Adjust sensitivity as needed
+
+	// Check for restart key (R) press
+	i.restartKeyPressed = inpututil.IsKeyJustPressed(ebiten.KeyR)
 
 	switch i.mouseState {
 	case mouseStateNone:
@@ -251,4 +257,9 @@ func (i *Input) GetDragInfo() DragInfo {
 // GetScrollDelta returns the mouse wheel scroll delta for this frame
 func (i *Input) GetScrollDelta() float32 {
 	return i.scrollDelta
+}
+
+// IsRestartPressed returns true if the R key was just pressed this frame
+func (i *Input) IsRestartPressed() bool {
+	return i.restartKeyPressed
 }

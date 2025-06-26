@@ -143,6 +143,15 @@ func (g *Game) Update() error {
 
 	g.input.Update()
 
+	// Handle restart key
+	if g.input.IsRestartPressed() {
+		err := g.model.Reset()
+		if err != nil {
+			return err
+		}
+		return nil // Exit early since game was reset
+	}
+
 	// Handle scroll zoom
 	scrollDelta := g.input.GetScrollDelta()
 	if scrollDelta != 0 {

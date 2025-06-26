@@ -93,7 +93,7 @@ func (p *Player) ApplyGravitationalForce(planet Planet) {
 
 	// Calculate gravitational force using F = G * m1 * m2 / r^2
 	// We'll use planet radius as mass proxy and normalize constants
-	const gravitationalConstant = 0.001
+	const gravitationalConstant = 0.01
 	planetMass := planet.Mass
 	force := gravitationalConstant * p.Mass * planetMass / (distance * distance)
 
