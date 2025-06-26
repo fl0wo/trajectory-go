@@ -92,8 +92,9 @@ type Input struct {
 	scrollDelta float32 // Mouse wheel scroll delta
 
 	// Key state
-	restartKeyPressed bool // True for one frame when R key is pressed
-	levelKeyPressed   int  // 1-9 if level key was pressed, 0 otherwise
+	restartKeyPressed   bool // True for one frame when R key is pressed
+	levelKeyPressed     int  // 1-9 if level key was pressed, 0 otherwise
+	cameraTogglePressed bool // True for one frame when C key is pressed
 
 	touches       []ebiten.TouchID
 	touchState    touchState
@@ -144,6 +145,9 @@ func (i *Input) Update() {
 
 	// Check for restart key (R) press
 	i.restartKeyPressed = inpututil.IsKeyJustPressed(ebiten.KeyR)
+
+	// Check for camera toggle key (C) press
+	i.cameraTogglePressed = inpututil.IsKeyJustPressed(ebiten.KeyC)
 
 	// Check for level selection keys (1-9)
 	i.levelKeyPressed = 0
@@ -290,4 +294,9 @@ func (i *Input) IsRestartPressed() bool {
 // GetLevelKeyPressed returns the level number (1-9) if a level key was pressed, 0 otherwise
 func (i *Input) GetLevelKeyPressed() int {
 	return i.levelKeyPressed
+}
+
+// IsCameraTogglePressed returns true if the C key was just pressed this frame
+func (i *Input) IsCameraTogglePressed() bool {
+	return i.cameraTogglePressed
 }

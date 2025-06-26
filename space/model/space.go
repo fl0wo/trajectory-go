@@ -7,12 +7,21 @@ import (
 	"math/rand"
 )
 
+// CameraMode defines how the camera follows entities
+type CameraMode int
+
+const (
+	CameraModeCenter CameraMode = iota // Follow center of all entities (default)
+	CameraModePlayer                   // Follow player only when moving
+)
+
 type SpaceGame struct {
 	CelestialBodies []CelestialBody
 	Player          *Player
 	Camera          *Camera2D
 	CurrentLevel    *Level
 	CurrentLevelNum int
+	CameraMode      CameraMode // Camera follow mode setting
 }
 
 // NewSpaceGame creates a new SpaceGame starting with level 1.
@@ -33,19 +42,25 @@ func NewSpaceGameWithLevel(levelNum int) (*SpaceGame, error) {
 		Mass:         10.0, // Default mass
 	}
 
-	// Create camera and set initial target to player
+	// Create camera
 	camera := NewCamera2D()
-	// Set camera center to middle of aspect-ratio-aware world space
-	camera.Position = f32.Vec2{constants.AspectRatio / 2.0, 0.5}
-	camera.SetTarget(player.Position)
 
-	return &SpaceGame{
+	// Create temporary SpaceGame to calculate level center
+	tempGame := &SpaceGame{
 		CelestialBodies: level.CelestialBodies,
 		Player:          player,
 		Camera:          camera,
 		CurrentLevel:    level,
 		CurrentLevelNum: levelNum,
-	}, nil
+		CameraMode:      CameraModeCenter, // Default to center mode
+	}
+
+	// Calculate center of all entities and set camera position
+	levelCenter := tempGame.CalculateLevelCenter()
+	camera.Position = levelCenter
+	camera.SetTarget(levelCenter)
+
+	return tempGame, nil
 }
 
 // Reset resets the current level
@@ -63,16 +78,74 @@ func (sg *SpaceGame) LoadLevel(levelNum int) error {
 	sg.Player.Acceleration = f32.Vec2{0, 0}
 	sg.Player.State = PlayerStateIdle
 
-	// Reset camera
-	sg.Camera.SetTarget(sg.Player.Position)
-	sg.Camera.Position = f32.Vec2{constants.AspectRatio / 2.0, 0.5}
-
-	// Update level data
+	// Update level data first
 	sg.CurrentLevel = level
 	sg.CurrentLevelNum = levelNum
 	sg.CelestialBodies = level.CelestialBodies
 
+	// Calculate center of all entities and reset camera to that center
+	levelCenter := sg.CalculateLevelCenter()
+	sg.Camera.Position = levelCenter
+	sg.Camera.SetTarget(levelCenter)
+
 	return nil
+}
+
+// CalculateLevelCenter calculates the center position of all entities in the level (player + celestial bodies)
+func (sg *SpaceGame) CalculateLevelCenter() f32.Vec2 {
+	if len(sg.CelestialBodies) == 0 {
+		return sg.Player.Position
+	}
+
+	// Initialize bounds with player position
+	minX := sg.Player.Position[0]
+	maxX := sg.Player.Position[0]
+	minY := sg.Player.Position[1]
+	maxY := sg.Player.Position[1]
+
+	// Expand bounds to include all celestial bodies
+	for _, body := range sg.CelestialBodies {
+		pos := body.GetPosition()
+		if pos[0] < minX {
+			minX = pos[0]
+		}
+		if pos[0] > maxX {
+			maxX = pos[0]
+		}
+		if pos[1] < minY {
+			minY = pos[1]
+		}
+		if pos[1] > maxY {
+			maxY = pos[1]
+		}
+	}
+
+	// Return center of bounding box
+	return f32.Vec2{
+		(minX + maxX) / 2.0,
+		(minY + maxY) / 2.0,
+	}
+}
+
+// ToggleCameraMode switches between camera modes
+func (sg *SpaceGame) ToggleCameraMode() {
+	if sg.CameraMode == CameraModeCenter {
+		sg.CameraMode = CameraModePlayer
+	} else {
+		sg.CameraMode = CameraModeCenter
+	}
+}
+
+// GetCameraModeString returns a string representation of the current camera mode
+func (sg *SpaceGame) GetCameraModeString() string {
+	switch sg.CameraMode {
+	case CameraModeCenter:
+		return "Center View"
+	case CameraModePlayer:
+		return "Player Follow"
+	default:
+		return "Unknown"
+	}
 }
 
 func randomCelestialBodies(numBodies int, margin float32) []CelestialBody {

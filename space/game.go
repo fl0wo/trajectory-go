@@ -164,6 +164,11 @@ func (g *Game) Update() error {
 		return nil // Exit early since game was reset
 	}
 
+	// Handle camera toggle (C key)
+	if g.input.IsCameraTogglePressed() {
+		g.model.ToggleCameraMode()
+	}
+
 	// Handle level selection keys (1-9)
 	levelKey := g.input.GetLevelKeyPressed()
 	if levelKey > 0 {
@@ -246,8 +251,21 @@ func (g *Game) Update() error {
 	// Update player physics
 	g.model.Player.Update(deltaTime)
 
-	// Update camera to follow player
-	g.model.Camera.SetTarget(g.model.Player.Position)
+	// Update camera behavior based on camera mode setting
+	switch g.model.CameraMode {
+	case Models.CameraModeCenter:
+		// Always follow the center of all entities
+		levelCenter := g.model.CalculateLevelCenter()
+		g.model.Camera.SetTarget(levelCenter)
+	case Models.CameraModePlayer:
+		// Follow player when moving, center view when idle
+		if g.model.Player.IsMoving() {
+			g.model.Camera.SetTarget(g.model.Player.Position)
+		} else {
+			levelCenter := g.model.CalculateLevelCenter()
+			g.model.Camera.SetTarget(levelCenter)
+		}
+	}
 	g.model.Camera.Update(deltaTime)
 
 	return nil
