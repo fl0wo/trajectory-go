@@ -2,6 +2,7 @@ package Models
 
 import (
 	"github.com/you/trajectory/constants"
+	"github.com/you/trajectory/space/resources"
 	"golang.org/x/image/math/f32"
 	"math"
 )
@@ -18,15 +19,16 @@ var PredefinedLevels = map[int]*Level{
 			},
 		}),
 
-	2: NewLevel("Level 2 - Obstacle Course",
+	2: NewLevel("Level 2 - Earth Obstacle",
 		f32.Vec2{0.4, 0.5},
 		[]CelestialBody{
 			&Planet{
-				Name:        "Obstacle",
+				Name:        "Earth",
 				Position:    f32.Vec2{constants.AspectRatio / 2, 0.5},
 				Radius:      0.08,
 				Mass:        float32((4.0 / 3.0) * math.Pi * 0.08 * 0.08 * 0.08),
 				OrbitRadius: 0.24,
+				ImagePath:   resources.EarthImage,
 			},
 			&WhiteHole{
 				Position:    f32.Vec2{constants.AspectRatio - 0.2, 0.5},
@@ -44,13 +46,14 @@ var PredefinedLevels = map[int]*Level{
 			Radius:      0.12,
 			Mass:        float32((4.0 / 3.0) * math.Pi * 0.12 * 0.12 * 0.12 * 1),
 			OrbitRadius: 0.4,
+			ImagePath:   resources.JupiterImage,
 		}
 
 		// Create asteroids that orbit around Jupiter
 		asteroids := []*RingAsteroid{
-			NewRingAsteroid(jupiter, 0.18, 0.015, 1.0, 1.0, 0, true),         // Fast clockwise asteroid
-			NewRingAsteroid(jupiter, 0.22, 0.012, 0.8, 0.7, math.Pi, false),  // Slower counter-clockwise asteroid
-			NewRingAsteroid(jupiter, 0.26, 0.018, 1.2, 0.5, math.Pi/2, true), // Medium speed asteroid
+			NewRingAsteroid(jupiter, 0.18, 0.015, 1.0, 1.0, 0, true, resources.Asteroid1Image),         // Fast clockwise asteroid
+			NewRingAsteroid(jupiter, 0.22, 0.012, 0.8, 0.7, math.Pi, false, resources.Asteroid2Image),  // Slower counter-clockwise asteroid
+			NewRingAsteroid(jupiter, 0.26, 0.018, 1.2, 0.5, math.Pi/2, true, resources.Asteroid1Image), // Medium speed asteroid
 		}
 
 		return NewLevelWithAsteroids("Level 3 - Asteroid Ring",
@@ -184,11 +187,12 @@ var PredefinedLevels = map[int]*Level{
 		f32.Vec2{0.1, 0.9},
 		[]CelestialBody{
 			&Planet{
-				Name:        "Massive Planet",
+				Name:        "Mars",
 				Position:    f32.Vec2{constants.AspectRatio / 2, 0.5},
 				Radius:      0.15,
 				Mass:        float32((4.0 / 3.0) * math.Pi * 0.15 * 0.15 * 0.15 * 5),
 				OrbitRadius: 0.5,
+				ImagePath:   resources.MarsImage,
 			},
 			&WhiteHole{
 				Position:    f32.Vec2{constants.AspectRatio / 2, 0.2},

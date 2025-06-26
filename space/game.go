@@ -6,6 +6,7 @@ import (
 	"github.com/you/trajectory/constants"
 	"github.com/you/trajectory/space/input"
 	Models "github.com/you/trajectory/space/model"
+	"github.com/you/trajectory/space/resources"
 	"golang.org/x/image/math/f32"
 	"image/color"
 	"math"
@@ -66,13 +67,29 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		// Only draw if on screen (simple culling)
 		//if screenPos[0] > -radius && screenPos[0] < ScreenWidth+radius && screenPos[1] > -radius && screenPos[1] < ScreenHeight+radius {
-		vector.DrawFilledCircle(
-			screen,
-			screenPos[0],
-			screenPos[1],
-			radius,
-			bodyColor, true,
-		)
+
+		// Check if this celestial body has an image
+		var imagePath string
+		switch body.GetType() {
+		case Models.CelestialBodyTypePlanet:
+			if planet, ok := body.(*Models.Planet); ok && planet.ImagePath != "" {
+				imagePath = planet.ImagePath
+			}
+		}
+
+		if imagePath != "" {
+			// Render with image
+			g.drawCelestialBodyWithImage(screen, screenPos, radius, imagePath)
+		} else {
+			// Fallback to circle rendering
+			vector.DrawFilledCircle(
+				screen,
+				screenPos[0],
+				screenPos[1],
+				radius,
+				bodyColor, true,
+			)
+		}
 		// Draw celestial body's orbit radius as a circle
 		orbitRadius := camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
 		if orbitRadius > 0 {
@@ -95,16 +112,20 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		screenPos := camera.WorldToScreen(asteroidPos, constants.ScreenWidth, constants.ScreenHeight)
 		radius := camera.RadiusToScreen(asteroid.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
 
-		// Brown color for asteroids
-		asteroidColor := color.RGBA{R: 139, G: 69, B: 19, A: 255}
-
-		vector.DrawFilledCircle(
-			screen,
-			screenPos[0],
-			screenPos[1],
-			radius,
-			asteroidColor, true,
-		)
+		if asteroid.ImagePath != "" {
+			// Render with image
+			g.drawCelestialBodyWithImage(screen, screenPos, radius, asteroid.ImagePath)
+		} else {
+			// Fallback to circle rendering
+			asteroidColor := color.RGBA{R: 139, G: 69, B: 19, A: 255}
+			vector.DrawFilledCircle(
+				screen,
+				screenPos[0],
+				screenPos[1],
+				radius,
+				asteroidColor, true,
+			)
+		}
 	}
 
 	// Draw player trail
@@ -445,4 +466,39 @@ func (g *Game) drawPlayerTrail(screen *ebiten.Image) {
 			width, trailColor, true,
 		)
 	}
+}
+
+// drawCelestialBodyWithImage renders a celestial body using an image texture
+func (g *Game) drawCelestialBodyWithImage(screen *ebiten.Image, screenPos f32.Vec2, radius float32, imagePath string) {
+	// Load the image
+	img := resources.LoadImage(imagePath)
+	if img == nil {
+		// Fallback to circle if image loading fails
+		vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], radius, color.RGBA{R: 255, G: 255, B: 255, A: 255}, true)
+		return
+	}
+
+	// Calculate scaling to fit the desired radius
+	imgSize := img.Bounds().Size()
+	imgRadius := float32(imgSize.X) / 2.0 // Assume square images
+	if imgSize.Y > imgSize.X {
+		imgRadius = float32(imgSize.Y) / 2.0
+	}
+
+	scale := (radius * 2.0) / (imgRadius * 2.0) // Scale to fit diameter
+
+	// Create draw options
+	op := &ebiten.DrawImageOptions{}
+
+	// Move image center to origin for rotation/scaling
+	op.GeoM.Translate(-float64(imgSize.X)/2, -float64(imgSize.Y)/2)
+
+	// Scale the image to the desired size
+	op.GeoM.Scale(float64(scale), float64(scale))
+
+	// Move to final screen position
+	op.GeoM.Translate(float64(screenPos[0]), float64(screenPos[1]))
+
+	// Draw the image
+	screen.DrawImage(img, op)
 }

@@ -23,12 +23,15 @@ type RingAsteroid struct {
 	// Cached position (updated each frame)
 	Position f32.Vec2
 
+	// Image asset path for rendering
+	ImagePath string
+
 	// For time-based updates
 	LastUpdateTime float64
 }
 
 // NewRingAsteroid creates a new ring asteroid orbiting a host planet
-func NewRingAsteroid(hostPlanet CelestialBody, orbitRadius, radius, mass, orbitSpeed float32, startAngle float32, clockwise bool) *RingAsteroid {
+func NewRingAsteroid(hostPlanet CelestialBody, orbitRadius, radius, mass, orbitSpeed float32, startAngle float32, clockwise bool, imagePath string) *RingAsteroid {
 	direction := 1
 	if !clockwise {
 		direction = -1
@@ -42,6 +45,7 @@ func NewRingAsteroid(hostPlanet CelestialBody, orbitRadius, radius, mass, orbitS
 		OrbitSpeed:     orbitSpeed,
 		CurrentAngle:   startAngle,
 		OrbitDirection: direction,
+		ImagePath:      imagePath,
 		LastUpdateTime: 0,
 	}
 
