@@ -104,6 +104,11 @@ func (c *Camera2D) ScreenToWorld(screenPos f32.Vec2, screenWidth, screenHeight f
 	return worldPos
 }
 
+func (c *Camera2D) RadiusToScreen(radius float32, screenWidth, screenHeight float32) float32 {
+	// Convert radius from world to screen space based on current zoom
+	return radius * c.Zoom * (screenWidth + screenHeight) / 2.0 // Average of width and height for consistent scaling
+}
+
 // SetZoom sets the target zoom level (will be smoothly interpolated)
 func (c *Camera2D) SetZoom(zoom float32) {
 	c.TargetZoom = clamp(zoom, 0.1, 3.0) // Clamp zoom to a reasonable range

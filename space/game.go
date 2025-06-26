@@ -13,6 +13,7 @@ import (
 const (
 	ScreenWidth  = 2080
 	ScreenHeight = 1080
+	RadiusScale  = 10.0 * 100.0 // Scale factor for planet radius to screen size
 )
 
 var (
@@ -38,37 +39,37 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// Draw planets with camera transform
 	for _, planet := range g.model.Planets {
 		screenPos := camera.WorldToScreen(planet.Position, ScreenWidth, ScreenHeight)
-		radius := planet.Radius * ScreenWidth / 100 * camera.GetZoom()
+		radius := camera.RadiusToScreen(planet.Radius, ScreenWidth, ScreenHeight)
 
 		// Only draw if on screen (simple culling)
-		if screenPos[0] > -radius && screenPos[0] < ScreenWidth+radius && screenPos[1] > -radius && screenPos[1] < ScreenHeight+radius {
-			vector.DrawFilledCircle(
+		//if screenPos[0] > -radius && screenPos[0] < ScreenWidth+radius && screenPos[1] > -radius && screenPos[1] < ScreenHeight+radius {
+		vector.DrawFilledCircle(
+			screen,
+			screenPos[0],
+			screenPos[1],
+			radius,
+			color.White, true,
+		)
+		// Draw planet's orbit radius as a dashed circle
+		orbitRadius := camera.RadiusToScreen(planet.OrbitRadius, ScreenWidth, ScreenHeight)
+		if orbitRadius > 0 {
+			vector.StrokeCircle(
 				screen,
 				screenPos[0],
 				screenPos[1],
-				radius,
-				color.White, true,
+				orbitRadius,
+				2,                                        // Line width
+				color.RGBA{R: 255, G: 255, B: 0, A: 128}, // Yellow with some transparency
+				true,                                     // Closed
 			)
-			// Draw planet's orbit radius as a dashed circle
-			orbitRadius := planet.OrbitRadius * ScreenWidth / 100 * camera.GetZoom()
-			if orbitRadius > 0 {
-				vector.StrokeCircle(
-					screen,
-					screenPos[0],
-					screenPos[1],
-					orbitRadius,
-					2,                                        // Line width
-					color.RGBA{R: 255, G: 255, B: 0, A: 128}, // Yellow with some transparency
-					true,                                     // Closed
-				)
-			}
 		}
 	}
+	//}
 
 	// Draw the player as a green circle with camera transform
 	player := g.model.Player
 	playerScreenPos := camera.WorldToScreen(player.Position, ScreenWidth, ScreenHeight)
-	playerRadius := player.Radius * ScreenWidth / 100 * camera.GetZoom()
+	playerRadius := camera.RadiusToScreen(player.Radius, ScreenWidth, ScreenHeight)
 
 	vector.DrawFilledCircle(screen,
 		playerScreenPos[0],
@@ -77,32 +78,48 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		color.RGBA{G: 255, A: 255}, true, // Green circle
 	)
 
-	// Draw drag line if dragging
+	// Draw trajectory arrow if dragging
 	dragInfo := g.input.GetDragInfo()
-	if dragInfo.IsDragging {
-		// Convert screen drag to world space for visual feedback
+	if dragInfo.IsDragging && !g.model.Player.IsMoving() {
+		// Convert screen drag to world space for trajectory calculation
 		startWorld := camera.ScreenToWorld(dragInfo.StartPos, ScreenWidth, ScreenHeight)
 		currentWorld := camera.ScreenToWorld(dragInfo.CurrentPos, ScreenWidth, ScreenHeight)
 
-		// Draw trajectory line (inverted direction - opposite of drag)
+		// Calculate trajectory vector (opposite of drag direction)
 		trajectoryVector := f32.Vec2{
 			startWorld[0] - currentWorld[0],
 			startWorld[1] - currentWorld[1],
 		}
 
+		// Scale trajectory for better visualization
+		velocityMultiplier := float32(2.0)
+		trajectoryVector[0] *= velocityMultiplier
+		trajectoryVector[1] *= velocityMultiplier
+
+		// Start arrow from player center
+		playerWorldPos := g.model.Player.Position
 		endWorld := f32.Vec2{
-			startWorld[0] + trajectoryVector[0],
-			startWorld[1] + trajectoryVector[1],
+			playerWorldPos[0] + trajectoryVector[0],
+			playerWorldPos[1] + trajectoryVector[1],
 		}
 
-		startScreen := camera.WorldToScreen(startWorld, ScreenWidth, ScreenHeight)
+		// Convert to screen coordinates
+		playerScreen := camera.WorldToScreen(playerWorldPos, ScreenWidth, ScreenHeight)
 		endScreen := camera.WorldToScreen(endWorld, ScreenWidth, ScreenHeight)
 
-		vector.StrokeLine(screen,
-			startScreen[0], startScreen[1],
-			endScreen[0], endScreen[1],
-			2, color.RGBA{R: 255, A: 255}, true,
-		)
+		// Only draw if trajectory has significant length
+		dragDistance := float32(math.Sqrt(float64(trajectoryVector[0]*trajectoryVector[0] + trajectoryVector[1]*trajectoryVector[1])))
+		if dragDistance > 0.01 {
+			// Draw main arrow line (white, thick)
+			vector.StrokeLine(screen,
+				playerScreen[0], playerScreen[1],
+				endScreen[0], endScreen[1],
+				4, color.RGBA{R: 255, G: 255, B: 255, A: 255}, true,
+			)
+
+			// Draw arrowhead
+			g.drawArrowHead(screen, playerScreen, endScreen, color.RGBA{R: 255, G: 255, B: 255, A: 255})
+		}
 	}
 }
 
@@ -167,7 +184,7 @@ func (g *Game) Update() error {
 
 	// Apply gravitational forces from all planets
 	for _, planet := range g.model.Planets {
-		g.model.Player.ApplyGravitationalForce(planet, deltaTime)
+		g.model.Player.ApplyGravitationalForce(planet)
 
 		// Check for collision with planet
 		if g.model.Player.CheckCollisionWithPlanet(planet) {
@@ -188,4 +205,42 @@ func (g *Game) Update() error {
 	g.model.Camera.Update(deltaTime)
 
 	return nil
+}
+
+// drawArrowHead draws an arrowhead at the end of a line
+func (g *Game) drawArrowHead(screen *ebiten.Image, start, end f32.Vec2, color color.RGBA) {
+	// Calculate arrow direction
+	dx := end[0] - start[0]
+	dy := end[1] - start[1]
+	length := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+
+	if length == 0 {
+		return
+	}
+
+	// Normalize direction vector
+	unitX := dx / length
+	unitY := dy / length
+
+	// Arrow head size
+	arrowLength := float32(15.0)
+	arrowWidth := float32(8.0)
+
+	// Calculate perpendicular vector
+	perpX := -unitY
+	perpY := unitX
+
+	// Calculate arrow head points
+	backX := end[0] - unitX*arrowLength
+	backY := end[1] - unitY*arrowLength
+
+	leftX := backX + perpX*arrowWidth
+	leftY := backY + perpY*arrowWidth
+
+	rightX := backX - perpX*arrowWidth
+	rightY := backY - perpY*arrowWidth
+
+	// Draw arrow head lines
+	vector.StrokeLine(screen, end[0], end[1], leftX, leftY, 3, color, true)
+	vector.StrokeLine(screen, end[0], end[1], rightX, rightY, 3, color, true)
 }

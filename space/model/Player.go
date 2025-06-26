@@ -70,18 +70,19 @@ func (p *Player) IsMoving() bool {
 }
 
 // ApplyGravitationalForce calculates and applies gravitational force from a planet
-func (p *Player) ApplyGravitationalForce(planet Planet, deltaTime float32) {
+func (p *Player) ApplyGravitationalForce(planet Planet) {
 	if p.State != PlayerStateMoving {
 		return
 	}
 
-	// Calculate distance vector from player to planet
+	// Calculate distance vector from player to planet in normalized coordinates
 	dx := planet.Position[0] - p.Position[0]
 	dy := planet.Position[1] - p.Position[1]
 	distance := float32(math.Sqrt(float64(dx*dx + dy*dy)))
 
 	// Only apply gravity if player is within orbit radius
-	if distance > planet.OrbitRadius/10 { // Convert to normalized coordinates
+	// Both distance and OrbitRadius are now in the same normalized coordinate system
+	if distance > planet.OrbitRadius {
 		return
 	}
 
@@ -93,7 +94,7 @@ func (p *Player) ApplyGravitationalForce(planet Planet, deltaTime float32) {
 	// Calculate gravitational force using F = G * m1 * m2 / r^2
 	// We'll use planet radius as mass proxy and normalize constants
 	const gravitationalConstant = 0.001
-	planetMass := planet.Radius * planet.Radius // Mass proportional to area
+	planetMass := planet.Mass
 	force := gravitationalConstant * p.Mass * planetMass / (distance * distance)
 
 	// Calculate unit vector pointing toward planet
@@ -116,8 +117,8 @@ func (p *Player) CheckCollisionWithPlanet(planet Planet) bool {
 	distance := float32(math.Sqrt(float64(dx*dx + dy*dy)))
 
 	// Convert radii to normalized coordinates
-	planetRadius := planet.Radius / 100
-	playerRadius := p.Radius / 100
+	planetRadius := planet.Radius
+	playerRadius := p.Radius
 
 	return distance < (planetRadius + playerRadius)
 }

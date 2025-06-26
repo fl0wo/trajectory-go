@@ -25,20 +25,23 @@ func NewSpaceGame() (*SpaceGame, error) {
 		// Generate random position and radius for each planet
 		x := margin + (rand.Float32() * (1 - margin*2))
 		y := margin + (rand.Float32() * (1 - margin*2))
-		radius := rand.Float32() + 1 // Random radius between 20 and 50
+		radius := rand.Float32() + 1                       // Random radius between 1 and 2
+		orbitRadius := radius * (3 + (rand.Float32() * 7)) // Random orbit radius
 
 		planets[i] = Planet{
 			Name:     "Planet " + string(rune(i+1)),
 			Position: f32.Vec2{x, y},
-			Radius:   radius,
 
-			OrbitRadius: radius * (3 + (rand.Float32() * 7)),
+			Mass: radius * radius,
+
+			Radius:      radius / 100,
+			OrbitRadius: orbitRadius / 100,
 		}
 	}
 
 	var player = &Player{
 		Position:     f32.Vec2{margin, 0.5}, // Start near the left edge
-		Radius:       1.0,                   // Player radius for collision detection
+		Radius:       1.0 / 100.0,           // Player radius for collision detection
 		Velocity:     f32.Vec2{0, 0},        // No initial velocity
 		Acceleration: f32.Vec2{0, 0},        // No initial acceleration
 		State:        PlayerStateIdle,
@@ -67,13 +70,17 @@ func (sg *SpaceGame) Reset() error {
 		// Generate random position and radius for each planet
 		x := margin + (rand.Float32() * (1 - margin*2))
 		y := margin + (rand.Float32() * (1 - margin*2))
-		radius := rand.Float32() + 1 // Random radius between 1 and 2
+		radius := rand.Float32() + 1                       // Random radius between 1 and 2
+		orbitRadius := radius * (3 + (rand.Float32() * 7)) // Random orbit radius
 
 		planets[i] = Planet{
-			Name:        "Planet " + string(rune(i+1)),
-			Position:    f32.Vec2{x, y},
-			Radius:      radius,
-			OrbitRadius: radius * (3 + (rand.Float32() * 7)),
+			Name:     "Planet " + string(rune(i+1)),
+			Position: f32.Vec2{x, y},
+
+			Mass: radius * radius,
+
+			Radius:      radius / 100,
+			OrbitRadius: orbitRadius / 100,
 		}
 	}
 
