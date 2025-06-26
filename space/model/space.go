@@ -31,15 +31,18 @@ func NewSpaceGame() (*SpaceGame, error) {
 			Name:     "Planet " + string(rune(i+1)),
 			Position: f32.Vec2{x, y},
 			Radius:   radius,
+
+			OrbitRadius: radius * (3 + (rand.Float32() * 7)),
 		}
 	}
 
 	var player = &Player{
-		Position: f32.Vec2{margin, 0.5}, // Start near the left edge
-		Size:     f32.Vec2{1, 3},
-		Velocity: f32.Vec2{0, 0}, // No initial velocity
-		State:    PlayerStateIdle,
-		Mass:     1.0, // Default mass
+		Position:     f32.Vec2{margin, 0.5}, // Start near the left edge
+		Radius:       1.0,                   // Player radius for collision detection
+		Velocity:     f32.Vec2{0, 0},        // No initial velocity
+		Acceleration: f32.Vec2{0, 0},        // No initial acceleration
+		State:        PlayerStateIdle,
+		Mass:         1.0, // Default mass
 	}
 
 	// Create camera and set initial target to player
@@ -51,4 +54,41 @@ func NewSpaceGame() (*SpaceGame, error) {
 		Player:  player,
 		Camera:  camera,
 	}, nil
+}
+
+// Reset regenerates the entire game with new planets and resets player
+func (sg *SpaceGame) Reset() error {
+	// Generate new planets
+	var numPlanets = rand.Intn(8) + 3 // Random number between 3 and 10
+	const margin = 0.1                // Margin for positioning planets
+
+	var planets = make([]Planet, numPlanets)
+	for i := 0; i < numPlanets; i++ {
+		// Generate random position and radius for each planet
+		x := margin + (rand.Float32() * (1 - margin*2))
+		y := margin + (rand.Float32() * (1 - margin*2))
+		radius := rand.Float32() + 1 // Random radius between 1 and 2
+
+		planets[i] = Planet{
+			Name:        "Planet " + string(rune(i+1)),
+			Position:    f32.Vec2{x, y},
+			Radius:      radius,
+			OrbitRadius: radius * (3 + (rand.Float32() * 7)),
+		}
+	}
+
+	// Reset player to starting position
+	sg.Player.Position = f32.Vec2{margin, 0.5}
+	sg.Player.Velocity = f32.Vec2{0, 0}
+	sg.Player.Acceleration = f32.Vec2{0, 0}
+	sg.Player.State = PlayerStateIdle
+
+	// Reset camera
+	sg.Camera.SetTarget(sg.Player.Position)
+	sg.Camera.Position = f32.Vec2{0.5, 0.5}
+
+	// Update planets
+	sg.Planets = planets
+
+	return nil
 }
