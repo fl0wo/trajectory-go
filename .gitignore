@@ -192,6 +192,7 @@ fabric.properties
 
 go.sum
 go.mod
+CLAUDE.md
 
 .idea/*
 

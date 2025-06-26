@@ -3,6 +3,8 @@ package input
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"golang.org/x/image/math/f32"
+	"math"
 )
 
 // Dir represents a direction.
@@ -19,8 +21,8 @@ type mouseState int
 
 const (
 	mouseStateNone mouseState = iota
-	mouseStatePressing
-	mouseStateSettled
+	mouseStateDragging
+	mouseStateReleased
 )
 
 type touchState int
@@ -31,6 +33,16 @@ const (
 	touchStateSettled
 	touchStateInvalid
 )
+
+// DragInfo contains information about the current drag operation
+type DragInfo struct {
+	IsDragging   bool
+	StartPos     f32.Vec2
+	CurrentPos   f32.Vec2
+	DragVector   f32.Vec2 // Vector from start to current position
+	DragDistance float32  // Length of drag vector
+	IsReleased   bool     // True for one frame when drag is released
+}
 
 // String returns a string representing the direction.
 func (d Dir) String() string {
@@ -68,6 +80,9 @@ type Input struct {
 	mouseInitPosX int
 	mouseInitPosY int
 	mouseDir      Dir
+
+	// Drag-related fields
+	dragInfo DragInfo
 
 	touches       []ebiten.TouchID
 	touchState    touchState
@@ -109,28 +124,41 @@ func vecToDir(dx, dy int) (Dir, bool) {
 
 // Update updates the current input states.
 func (i *Input) Update() {
+	// Reset release flag
+	i.dragInfo.IsReleased = false
+
 	switch i.mouseState {
 	case mouseStateNone:
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 			x, y := ebiten.CursorPosition()
 			i.mouseInitPosX = x
 			i.mouseInitPosY = y
-			i.mouseState = mouseStatePressing
+			i.mouseState = mouseStateDragging
+
+			// Initialize drag info
+			i.dragInfo.IsDragging = true
+			i.dragInfo.StartPos = f32.Vec2{float32(x), float32(y)}
+			i.dragInfo.CurrentPos = i.dragInfo.StartPos
+			i.dragInfo.DragVector = f32.Vec2{0, 0}
+			i.dragInfo.DragDistance = 0
 		}
-	case mouseStatePressing:
-		if !ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+	case mouseStateDragging:
+		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+			// Update current position and drag vector
 			x, y := ebiten.CursorPosition()
-			dx := x - i.mouseInitPosX
-			dy := y - i.mouseInitPosY
-			d, ok := vecToDir(dx, dy)
-			if !ok {
-				i.mouseState = mouseStateNone
-				break
+			i.dragInfo.CurrentPos = f32.Vec2{float32(x), float32(y)}
+			i.dragInfo.DragVector = f32.Vec2{
+				i.dragInfo.CurrentPos[0] - i.dragInfo.StartPos[0],
+				i.dragInfo.CurrentPos[1] - i.dragInfo.StartPos[1],
 			}
-			i.mouseDir = d
-			i.mouseState = mouseStateSettled
+			i.dragInfo.DragDistance = float32(math.Sqrt(float64(i.dragInfo.DragVector[0]*i.dragInfo.DragVector[0] + i.dragInfo.DragVector[1]*i.dragInfo.DragVector[1])))
+		} else {
+			// Mouse released - trigger throw
+			i.dragInfo.IsReleased = true
+			i.dragInfo.IsDragging = false
+			i.mouseState = mouseStateReleased
 		}
-	case mouseStateSettled:
+	case mouseStateReleased:
 		i.mouseState = mouseStateNone
 	}
 
@@ -195,11 +223,16 @@ func (i *Input) Dir() (Dir, bool) {
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
 		return DirDown, true
 	}
-	if i.mouseState == mouseStateSettled {
+	if i.mouseState == mouseStateReleased {
 		return i.mouseDir, true
 	}
 	if i.touchState == touchStateSettled {
 		return i.touchDir, true
 	}
 	return 0, false
+}
+
+// GetDragInfo returns the current drag information
+func (i *Input) GetDragInfo() DragInfo {
+	return i.dragInfo
 }
