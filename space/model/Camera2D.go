@@ -15,9 +15,10 @@ type Camera2D struct {
 	ZoomSpeed   float32 // How fast the zoom interpolates (0-1)
 
 	// View properties
-	Zoom       float32  // Current camera zoom level (1.0 = normal)
-	TargetZoom float32  // Target zoom level for smooth interpolation
-	Offset     f32.Vec2 // Offset from target position
+	Zoom          float32  // Current camera zoom level (1.0 = normal)
+	TargetZoom    float32  // Target zoom level for smooth interpolation
+	ProximityZoom float32  // Additional zoom multiplier from proximity effects
+	Offset        f32.Vec2 // Offset from target position
 }
 
 // NewCamera2D creates a new camera with default settings
@@ -26,13 +27,14 @@ func NewCamera2D() *Camera2D {
 	center := f32.Vec2{constants.AspectRatio / 2.0, 0.5}
 
 	return &Camera2D{
-		Position:    center, // Start at aspect-ratio-aware center
-		Target:      center,
-		SmoothSpeed: 2.0, // Adjust this for faster/slower following
-		ZoomSpeed:   5.0, // Adjust this for faster/slower zoom
-		Zoom:        1.0,
-		TargetZoom:  1.0,
-		Offset:      f32.Vec2{0, 0},
+		Position:      center, // Start at aspect-ratio-aware center
+		Target:        center,
+		SmoothSpeed:   2.0, // Adjust this for faster/slower following
+		ZoomSpeed:     5.0, // Adjust this for faster/slower zoom
+		Zoom:          1.0,
+		TargetZoom:    1.0,
+		ProximityZoom: 1.0, // Default proximity zoom multiplier
+		Offset:        f32.Vec2{0, 0},
 	}
 }
 
@@ -79,10 +81,13 @@ func (c *Camera2D) WorldToScreen(worldPos f32.Vec2, screenWidth, screenHeight fl
 	// Calculate aspect ratio
 	aspectRatio := screenWidth / screenHeight
 
+	// Calculate effective zoom (user zoom * proximity zoom)
+	effectiveZoom := c.Zoom * c.ProximityZoom
+
 	// Apply camera offset and zoom
 	relativePos := f32.Vec2{
-		(worldPos[0] - c.Position[0]) * c.Zoom,
-		(worldPos[1] - c.Position[1]) * c.Zoom,
+		(worldPos[0] - c.Position[0]) * effectiveZoom,
+		(worldPos[1] - c.Position[1]) * effectiveZoom,
 	}
 
 	// Convert to screen coordinates with aspect ratio correction
@@ -100,6 +105,9 @@ func (c *Camera2D) ScreenToWorld(screenPos f32.Vec2, screenWidth, screenHeight f
 	// Calculate aspect ratio
 	aspectRatio := screenWidth / screenHeight
 
+	// Calculate effective zoom (user zoom * proximity zoom)
+	effectiveZoom := c.Zoom * c.ProximityZoom
+
 	// Convert screen to normalized coordinates
 	normalizedPos := f32.Vec2{
 		(screenPos[0] / screenWidth) - 0.5,
@@ -108,8 +116,8 @@ func (c *Camera2D) ScreenToWorld(screenPos f32.Vec2, screenWidth, screenHeight f
 
 	// Apply inverse camera transform with aspect ratio correction
 	worldPos := f32.Vec2{
-		(normalizedPos[0] * aspectRatio / c.Zoom) + c.Position[0],
-		(normalizedPos[1] / c.Zoom) + c.Position[1],
+		(normalizedPos[0] * aspectRatio / effectiveZoom) + c.Position[0],
+		(normalizedPos[1] / effectiveZoom) + c.Position[1],
 	}
 
 	return worldPos
@@ -119,8 +127,11 @@ func (c *Camera2D) ScreenToWorld(screenPos f32.Vec2, screenWidth, screenHeight f
 // It scales the radius by the camera zoom, then maps that
 // normalized size into screen pixels.
 func (c *Camera2D) RadiusToScreen(radius float32, screenWidth, screenHeight float32) float32 {
+	// Calculate effective zoom (user zoom * proximity zoom)
+	effectiveZoom := c.Zoom * c.ProximityZoom
+
 	// 1) apply zoom in world space
-	scaled := radius * c.Zoom
+	scaled := radius * effectiveZoom
 
 	// 2) convert normalized radius to pixels
 	// Use the height as our reference scale since Y is always [0,1]
@@ -142,6 +153,16 @@ func (c *Camera2D) SetZoomImmediate(zoom float32) {
 // GetZoom returns the current zoom level
 func (c *Camera2D) GetZoom() float32 {
 	return c.Zoom
+}
+
+// SetProximityZoom sets the proximity zoom multiplier
+func (c *Camera2D) SetProximityZoom(proximityZoom float32) {
+	c.ProximityZoom = proximityZoom
+}
+
+// GetEffectiveZoom returns the combined zoom (user zoom * proximity zoom)
+func (c *Camera2D) GetEffectiveZoom() float32 {
+	return c.Zoom * c.ProximityZoom
 }
 
 // AdjustZoom adjusts the target camera zoom by the given delta

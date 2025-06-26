@@ -186,6 +186,12 @@ func (g *Game) Update() error {
 	g.model.UpdateTimeDilation(baseDeltaTime)
 	timeScale := g.model.TimeScale
 
+	// Calculate proximity zoom based on player proximity to celestial bodies
+	g.model.UpdateProximityZoom(baseDeltaTime)
+
+	// Apply proximity zoom to camera
+	g.model.Camera.SetProximityZoom(g.model.ProximityZoom)
+
 	// Apply time dilation to delta time
 	deltaTime := baseDeltaTime * timeScale
 

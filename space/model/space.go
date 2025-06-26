@@ -16,14 +16,16 @@ const (
 )
 
 type SpaceGame struct {
-	CelestialBodies []CelestialBody
-	Player          *Player
-	Camera          *Camera2D
-	CurrentLevel    *Level
-	CurrentLevelNum int
-	CameraMode      CameraMode // Camera follow mode setting
-	TimeScale       float32    // Current time dilation scale (1.0 = normal, 0.1 = 10x slower)
-	TargetTimeScale float32    // Target time scale for smooth interpolation
+	CelestialBodies     []CelestialBody
+	Player              *Player
+	Camera              *Camera2D
+	CurrentLevel        *Level
+	CurrentLevelNum     int
+	CameraMode          CameraMode // Camera follow mode setting
+	TimeScale           float32    // Current time dilation scale (1.0 = normal, 0.1 = 10x slower)
+	TargetTimeScale     float32    // Target time scale for smooth interpolation
+	ProximityZoom       float32    // Current proximity zoom multiplier (1.0 = normal, 1.25 = zoomed in)
+	TargetProximityZoom float32    // Target proximity zoom for smooth interpolation
 }
 
 // NewSpaceGame creates a new SpaceGame starting with level 1.
@@ -49,14 +51,16 @@ func NewSpaceGameWithLevel(levelNum int) (*SpaceGame, error) {
 
 	// Create temporary SpaceGame to calculate level center
 	tempGame := &SpaceGame{
-		CelestialBodies: level.CelestialBodies,
-		Player:          player,
-		Camera:          camera,
-		CurrentLevel:    level,
-		CurrentLevelNum: levelNum,
-		CameraMode:      CameraModeCenter, // Default to center mode
-		TimeScale:       1.0,              // Normal time initially
-		TargetTimeScale: 1.0,              // Target matches current initially
+		CelestialBodies:     level.CelestialBodies,
+		Player:              player,
+		Camera:              camera,
+		CurrentLevel:        level,
+		CurrentLevelNum:     levelNum,
+		CameraMode:          CameraModeCenter, // Default to center mode
+		TimeScale:           1.0,              // Normal time initially
+		TargetTimeScale:     1.0,              // Target matches current initially
+		ProximityZoom:       1.0,              // Normal zoom initially
+		TargetProximityZoom: 1.0,              // Target matches current initially
 	}
 
 	// Calculate center of all entities and set camera position
@@ -202,6 +206,77 @@ func (sg *SpaceGame) UpdateTimeDilation(deltaTime float32) {
 	}
 
 	sg.TimeScale = sg.TimeScale + (sg.TargetTimeScale-sg.TimeScale)*t
+}
+
+// CalculateProximityZoom calculates the zoom multiplier based on player proximity to celestial bodies
+func (sg *SpaceGame) CalculateProximityZoom() float32 {
+	if sg.Player.State != PlayerStateMoving {
+		return 1.0 // Normal zoom when not moving
+	}
+
+	maxZoomMultiplier := float32(1.0)
+	playerPos := sg.Player.Position
+
+	// Zoom parameters
+	const maxZoomAtCenter = 1.15 // 1.25x zoom at center
+	const exponent = 1.15        // Same ease-in curve as time dilation
+
+	// Check proximity to all celestial bodies
+	for _, body := range sg.CelestialBodies {
+		bodyPos := body.GetPosition()
+		dx := bodyPos[0] - playerPos[0]
+		dy := bodyPos[1] - playerPos[1]
+		distance := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+
+		orbitRadius := body.GetOrbitRadius()
+		bodyRadius := body.GetRadius()
+
+		// Only apply proximity zoom within orbit radius
+		if distance <= orbitRadius {
+			// Avoid division by zero by clamping at body radius
+			minDistance := bodyRadius
+			if distance < minDistance {
+				distance = minDistance
+			}
+
+			// Normalize distance: 0 at surface, 1 at orbit edge
+			normalizedDistance := (distance - minDistance) / (orbitRadius - minDistance)
+
+			// Apply ease-in curve via power law (same as time dilation)
+			curve := float32(math.Pow(float64(normalizedDistance), exponent))
+
+			// Map curve [0→1] into zoomMultiplier [maxZoomAtCenter→1]
+			zoomMultiplier := maxZoomAtCenter - (maxZoomAtCenter-1.0)*curve
+
+			// Use the largest zoom multiplier (maximum zoom-in)
+			if zoomMultiplier > maxZoomMultiplier {
+				maxZoomMultiplier = zoomMultiplier
+			}
+		}
+	}
+
+	return maxZoomMultiplier
+}
+
+// UpdateProximityZoom updates the current proximity zoom with smooth interpolation
+func (sg *SpaceGame) UpdateProximityZoom(deltaTime float32) {
+	// Calculate target proximity zoom
+	sg.TargetProximityZoom = sg.CalculateProximityZoom()
+
+	// Smooth interpolation towards target (same speed as time dilation for consistency)
+	zoomSpeed := float32(5.0) // Base interpolation speed
+	if sg.TargetProximityZoom > sg.ProximityZoom {
+		// Zooming in - faster transition for dramatic effect
+		zoomSpeed = 8.0
+	}
+
+	// Interpolate towards target
+	t := zoomSpeed * deltaTime
+	if t > 1.0 {
+		t = 1.0 // Clamp to prevent overshooting
+	}
+
+	sg.ProximityZoom = sg.ProximityZoom + (sg.TargetProximityZoom-sg.ProximityZoom)*t
 }
 
 // ToggleCameraMode switches between camera modes
