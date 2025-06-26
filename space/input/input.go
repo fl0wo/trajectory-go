@@ -34,6 +34,10 @@ const (
 	touchStateInvalid
 )
 
+const (
+	scrollSensitivity = 10.0 // Adjust this value to change scroll sensitivity
+)
+
 // DragInfo contains information about the current drag operation
 type DragInfo struct {
 	IsDragging   bool
@@ -84,6 +88,9 @@ type Input struct {
 	// Drag-related fields
 	dragInfo DragInfo
 
+	// Scroll-related fields
+	scrollDelta float32 // Mouse wheel scroll delta
+
 	touches       []ebiten.TouchID
 	touchState    touchState
 	touchID       ebiten.TouchID
@@ -126,6 +133,10 @@ func vecToDir(dx, dy int) (Dir, bool) {
 func (i *Input) Update() {
 	// Reset release flag
 	i.dragInfo.IsReleased = false
+
+	// Update scroll delta
+	_, scrollY := ebiten.Wheel()
+	i.scrollDelta = float32(scrollY) / scrollSensitivity // Adjust sensitivity as needed
 
 	switch i.mouseState {
 	case mouseStateNone:
@@ -235,4 +246,9 @@ func (i *Input) Dir() (Dir, bool) {
 // GetDragInfo returns the current drag information
 func (i *Input) GetDragInfo() DragInfo {
 	return i.dragInfo
+}
+
+// GetScrollDelta returns the mouse wheel scroll delta for this frame
+func (i *Input) GetScrollDelta() float32 {
+	return i.scrollDelta
 }

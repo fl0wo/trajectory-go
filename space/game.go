@@ -117,6 +117,14 @@ func (g *Game) Update() error {
 
 	g.input.Update()
 
+	// Handle scroll zoom
+	scrollDelta := g.input.GetScrollDelta()
+	if scrollDelta != 0 {
+		// Zoom sensitivity
+		zoomSpeed := float32(0.1)
+		g.model.Camera.AdjustZoom(scrollDelta * zoomSpeed)
+	}
+
 	// Handle drag and throw mechanics
 	dragInfo := g.input.GetDragInfo()
 	if dragInfo.IsReleased && !g.model.Player.IsMoving() {

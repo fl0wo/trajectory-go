@@ -11,10 +11,12 @@ type Camera2D struct {
 
 	// Smoothing parameters
 	SmoothSpeed float32 // How fast the camera follows the target (0-1)
+	ZoomSpeed   float32 // How fast the zoom interpolates (0-1)
 
 	// View properties
-	Zoom   float32  // Camera zoom level (1.0 = normal)
-	Offset f32.Vec2 // Offset from target position
+	Zoom       float32  // Current camera zoom level (1.0 = normal)
+	TargetZoom float32  // Target zoom level for smooth interpolation
+	Offset     f32.Vec2 // Offset from target position
 }
 
 // NewCamera2D creates a new camera with default settings
@@ -23,12 +25,14 @@ func NewCamera2D() *Camera2D {
 		Position:    f32.Vec2{0.5, 0.5}, // Start at center
 		Target:      f32.Vec2{0.5, 0.5},
 		SmoothSpeed: 2.0, // Adjust this for faster/slower following
+		ZoomSpeed:   5.0, // Adjust this for faster/slower zoom
 		Zoom:        1.0,
+		TargetZoom:  1.0,
 		Offset:      f32.Vec2{0, 0},
 	}
 }
 
-// Update updates the camera position to smoothly follow the target
+// Update updates the camera position and zoom to smoothly follow the target
 func (c *Camera2D) Update(deltaTime float32) {
 	// Calculate desired position (target + offset)
 	desiredPos := f32.Vec2{
@@ -37,14 +41,23 @@ func (c *Camera2D) Update(deltaTime float32) {
 	}
 
 	// Smooth interpolation towards desired position
-	t := c.SmoothSpeed * deltaTime
-	if t > 1.0 {
-		t = 1.0 // Clamp to prevent overshooting
+	positionT := c.SmoothSpeed * deltaTime
+	if positionT > 1.0 {
+		positionT = 1.0 // Clamp to prevent overshooting
 	}
 
-	// Linear interpolation
-	c.Position[0] = c.Position[0] + (desiredPos[0]-c.Position[0])*t
-	c.Position[1] = c.Position[1] + (desiredPos[1]-c.Position[1])*t
+	// Linear interpolation for position
+	c.Position[0] = c.Position[0] + (desiredPos[0]-c.Position[0])*positionT
+	c.Position[1] = c.Position[1] + (desiredPos[1]-c.Position[1])*positionT
+
+	// Smooth interpolation towards target zoom
+	zoomT := c.ZoomSpeed * deltaTime
+	if zoomT > 1.0 {
+		zoomT = 1.0 // Clamp to prevent overshooting
+	}
+
+	// Linear interpolation for zoom
+	c.Zoom = c.Zoom + (c.TargetZoom-c.Zoom)*zoomT
 }
 
 // SetTarget sets the camera's target position
@@ -91,15 +104,45 @@ func (c *Camera2D) ScreenToWorld(screenPos f32.Vec2, screenWidth, screenHeight f
 	return worldPos
 }
 
-// SetZoom sets the camera zoom level
+// SetZoom sets the target zoom level (will be smoothly interpolated)
 func (c *Camera2D) SetZoom(zoom float32) {
-	if zoom <= 0 {
-		zoom = 0.1 // Minimum zoom
-	}
+	c.TargetZoom = clamp(zoom, 0.1, 3.0) // Clamp zoom to a reasonable range
+}
+
+// SetZoomImmediate sets the zoom level immediately without interpolation
+func (c *Camera2D) SetZoomImmediate(zoom float32) {
 	c.Zoom = zoom
+	c.TargetZoom = zoom
 }
 
 // GetZoom returns the current zoom level
 func (c *Camera2D) GetZoom() float32 {
 	return c.Zoom
+}
+
+// AdjustZoom adjusts the target camera zoom by the given delta
+func (c *Camera2D) AdjustZoom(delta float32) {
+	newZoom := c.TargetZoom + delta
+	c.SetZoom(newZoom)
+}
+
+// ZoomIn increases the zoom level
+func (c *Camera2D) ZoomIn(amount float32) {
+	c.AdjustZoom(amount)
+}
+
+// ZoomOut decreases the zoom level
+func (c *Camera2D) ZoomOut(amount float32) {
+	c.AdjustZoom(-amount)
+}
+
+// clamp restricts a value to a specified range
+func clamp(value, min, max float32) float32 {
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
 }
