@@ -18,9 +18,9 @@ var (
 
 const (
 	// Maximum drag distance in world units to limit throw power
-	maxDragDistance = float32(0.15)
+	maxDragDistance = float32(0.25)
 	// Maximum velocity magnitude to prevent excessive speeds
-	maxVelocity = float32(0.3)
+	maxVelocity = float32(0.5)
 )
 
 type Game struct {

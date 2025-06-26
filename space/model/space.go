@@ -132,7 +132,8 @@ func (sg *SpaceGame) CalculateLevelCenter() f32.Vec2 {
 	}
 }
 
-// CalculateTimeDilation calculates the time scale based on player proximity to celestial bodies
+// CalculateTimeDilation calculates the time scale based on player proximity to celestial bodies,
+// using an ease-in curve (power law) instead of a linear interpolation.
 func (sg *SpaceGame) CalculateTimeDilation() float32 {
 	if sg.Player.State != PlayerStateMoving {
 		return 1.0 // Normal time when not moving
@@ -140,6 +141,10 @@ func (sg *SpaceGame) CalculateTimeDilation() float32 {
 
 	minTimeScale := float32(1.0)
 	playerPos := sg.Player.Position
+
+	// Curve parameters
+	const minTimeScaleAtCenter = 0.1 // 10x slower at the body’s surface
+	const exponent = 1.25            // >1 = sharper ease-in
 
 	// Check proximity to all celestial bodies
 	for _, body := range sg.CelestialBodies {
@@ -153,20 +158,22 @@ func (sg *SpaceGame) CalculateTimeDilation() float32 {
 
 		// Only apply time dilation within orbit radius
 		if distance <= orbitRadius {
-			// Calculate normalized distance (0 = at center, 1 = at orbit edge)
-			// Use body radius as the minimum distance to avoid division by zero
+			// Avoid division by zero by clamping at body radius
 			minDistance := bodyRadius
 			if distance < minDistance {
 				distance = minDistance
 			}
 
+			// Normalize distance: 0 at surface, 1 at orbit edge
 			normalizedDistance := (distance - minDistance) / (orbitRadius - minDistance)
 
-			// Time scale: 0.1 (10x slower) at center, 1.0 (normal) at orbit edge
-			const minTimeScaleAtCenter = 0.1
-			timeScale := minTimeScaleAtCenter + (1.0-minTimeScaleAtCenter)*normalizedDistance
+			// Apply ease-in curve via power law
+			curve := float32(math.Pow(float64(normalizedDistance), exponent))
 
-			// Use the smallest time scale (maximum slowdown)
+			// Map curve [0→1] into timeScale [minTimeScaleAtCenter→1]
+			timeScale := minTimeScaleAtCenter + (1.0-minTimeScaleAtCenter)*curve
+
+			// Use the smallest timeScale (maximum slowdown)
 			if timeScale < minTimeScale {
 				minTimeScale = timeScale
 			}
