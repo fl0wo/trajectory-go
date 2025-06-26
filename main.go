@@ -11,7 +11,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	ebiten.SetWindowSize(space.ScreenWidth, space.ScreenHeight)
+	ebiten.SetWindowSize(1920, 1080) // Set to your desired resolution
 	ebiten.SetWindowTitle("Trajectory Space Game")
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)

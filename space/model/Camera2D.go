@@ -1,6 +1,7 @@
 package Models
 
 import (
+	"github.com/you/trajectory/constants"
 	"golang.org/x/image/math/f32"
 )
 
@@ -21,9 +22,12 @@ type Camera2D struct {
 
 // NewCamera2D creates a new camera with default settings
 func NewCamera2D() *Camera2D {
+	// Calculate aspect ratio for default center position
+	center := f32.Vec2{constants.AspectRatio / 2.0, 0.5}
+
 	return &Camera2D{
-		Position:    f32.Vec2{0.5, 0.5}, // Start at center
-		Target:      f32.Vec2{0.5, 0.5},
+		Position:    center, // Start at aspect-ratio-aware center
+		Target:      center,
 		SmoothSpeed: 2.0, // Adjust this for faster/slower following
 		ZoomSpeed:   5.0, // Adjust this for faster/slower zoom
 		Zoom:        1.0,
@@ -72,15 +76,19 @@ func (c *Camera2D) GetTarget() f32.Vec2 {
 
 // WorldToScreen converts world coordinates to screen coordinates
 func (c *Camera2D) WorldToScreen(worldPos f32.Vec2, screenWidth, screenHeight float32) f32.Vec2 {
+	// Calculate aspect ratio
+	aspectRatio := screenWidth / screenHeight
+
 	// Apply camera offset and zoom
 	relativePos := f32.Vec2{
 		(worldPos[0] - c.Position[0]) * c.Zoom,
 		(worldPos[1] - c.Position[1]) * c.Zoom,
 	}
 
-	// Convert to screen coordinates
+	// Convert to screen coordinates with aspect ratio correction
+	// Y remains [0,1], X becomes [0, aspectRatio] in world space
 	screenPos := f32.Vec2{
-		(relativePos[0] + 0.5) * screenWidth,
+		(relativePos[0]/aspectRatio + 0.5) * screenWidth,
 		(relativePos[1] + 0.5) * screenHeight,
 	}
 
@@ -89,15 +97,18 @@ func (c *Camera2D) WorldToScreen(worldPos f32.Vec2, screenWidth, screenHeight fl
 
 // ScreenToWorld converts screen coordinates to world coordinates
 func (c *Camera2D) ScreenToWorld(screenPos f32.Vec2, screenWidth, screenHeight float32) f32.Vec2 {
+	// Calculate aspect ratio
+	aspectRatio := screenWidth / screenHeight
+
 	// Convert screen to normalized coordinates
 	normalizedPos := f32.Vec2{
 		(screenPos[0] / screenWidth) - 0.5,
 		(screenPos[1] / screenHeight) - 0.5,
 	}
 
-	// Apply inverse camera transform
+	// Apply inverse camera transform with aspect ratio correction
 	worldPos := f32.Vec2{
-		(normalizedPos[0] / c.Zoom) + c.Position[0],
+		(normalizedPos[0] * aspectRatio / c.Zoom) + c.Position[0],
 		(normalizedPos[1] / c.Zoom) + c.Position[1],
 	}
 
@@ -106,21 +117,15 @@ func (c *Camera2D) ScreenToWorld(screenPos f32.Vec2, screenWidth, screenHeight f
 
 // RadiusToScreen converts a radius (in world units) to pixels.
 // It scales the radius by the camera zoom, then maps that
-// normalized size into screen pixels by averaging the X and Y scales.
+// normalized size into screen pixels.
 func (c *Camera2D) RadiusToScreen(radius float32, screenWidth, screenHeight float32) float32 {
 	// 1) apply zoom in world space
 	scaled := radius * c.Zoom
 
 	// 2) convert normalized radius to pixels
-	// Since our world coordinates are [0,1], we need to scale by screen dimensions
-	// Use the smaller dimension to maintain aspect ratio
-	screenScale := screenWidth
-	if screenHeight < screenWidth {
-		screenScale = screenHeight
-	}
-
-	// 3) map the zoomed radius into pixels
-	return scaled * screenScale
+	// Use the height as our reference scale since Y is always [0,1]
+	// This ensures consistent circle sizes regardless of aspect ratio
+	return scaled * screenHeight
 }
 
 // SetZoom sets the target zoom level (will be smoothly interpolated)

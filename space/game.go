@@ -3,17 +3,12 @@ package space
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/you/trajectory/constants"
 	"github.com/you/trajectory/space/input"
 	Models "github.com/you/trajectory/space/model"
 	"golang.org/x/image/math/f32"
 	"image/color"
 	"math"
-)
-
-const (
-	ScreenWidth  = 1080
-	ScreenHeight = 1080
-	RadiusScale  = 10.0 * 100.0 // Scale factor for planet radius to screen size
 )
 
 var (
@@ -27,7 +22,7 @@ type Game struct {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return ScreenWidth, ScreenHeight
+	return constants.ScreenWidth, constants.ScreenHeight
 }
 
 // Draw draws the current game to the given screen.
@@ -38,8 +33,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Draw planets with camera transform
 	for _, planet := range g.model.Planets {
-		screenPos := camera.WorldToScreen(planet.Position, ScreenWidth, ScreenHeight)
-		radius := camera.RadiusToScreen(planet.Radius, ScreenWidth, ScreenHeight)
+		screenPos := camera.WorldToScreen(planet.Position, constants.ScreenWidth, constants.ScreenHeight)
+		radius := camera.RadiusToScreen(planet.Radius, constants.ScreenWidth, constants.ScreenHeight)
 
 		// Only draw if on screen (simple culling)
 		//if screenPos[0] > -radius && screenPos[0] < ScreenWidth+radius && screenPos[1] > -radius && screenPos[1] < ScreenHeight+radius {
@@ -51,7 +46,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			color.White, true,
 		)
 		// Draw planet's orbit radius as a dashed circle
-		orbitRadius := camera.RadiusToScreen(planet.OrbitRadius, ScreenWidth, ScreenHeight)
+		orbitRadius := camera.RadiusToScreen(planet.OrbitRadius, constants.ScreenWidth, constants.ScreenHeight)
 		if orbitRadius > 0 {
 			vector.StrokeCircle(
 				screen,
@@ -68,8 +63,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Draw the player as a green circle with camera transform
 	player := g.model.Player
-	playerScreenPos := camera.WorldToScreen(player.Position, ScreenWidth, ScreenHeight)
-	playerRadius := camera.RadiusToScreen(player.Radius, ScreenWidth, ScreenHeight)
+	playerScreenPos := camera.WorldToScreen(player.Position, constants.ScreenWidth, constants.ScreenHeight)
+	playerRadius := camera.RadiusToScreen(player.Radius, constants.ScreenWidth, constants.ScreenHeight)
 
 	vector.DrawFilledCircle(screen,
 		playerScreenPos[0],
@@ -82,8 +77,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	dragInfo := g.input.GetDragInfo()
 	if dragInfo.IsDragging && !g.model.Player.IsMoving() {
 		// Convert screen drag to world space for trajectory calculation
-		startWorld := camera.ScreenToWorld(dragInfo.StartPos, ScreenWidth, ScreenHeight)
-		currentWorld := camera.ScreenToWorld(dragInfo.CurrentPos, ScreenWidth, ScreenHeight)
+		startWorld := camera.ScreenToWorld(dragInfo.StartPos, constants.ScreenWidth, constants.ScreenHeight)
+		currentWorld := camera.ScreenToWorld(dragInfo.CurrentPos, constants.ScreenWidth, constants.ScreenHeight)
 
 		// Calculate trajectory vector (opposite of drag direction)
 		trajectoryVector := f32.Vec2{
@@ -104,8 +99,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 
 		// Convert to screen coordinates
-		playerScreen := camera.WorldToScreen(playerWorldPos, ScreenWidth, ScreenHeight)
-		endScreen := camera.WorldToScreen(endWorld, ScreenWidth, ScreenHeight)
+		playerScreen := camera.WorldToScreen(playerWorldPos, constants.ScreenWidth, constants.ScreenHeight)
+		endScreen := camera.WorldToScreen(endWorld, constants.ScreenWidth, constants.ScreenHeight)
 
 		// Only draw if trajectory has significant length
 		dragDistance := float32(math.Sqrt(float64(trajectoryVector[0]*trajectoryVector[0] + trajectoryVector[1]*trajectoryVector[1])))
@@ -165,8 +160,8 @@ func (g *Game) Update() error {
 	if dragInfo.IsReleased && !g.model.Player.IsMoving() {
 		// Convert screen drag to world velocity
 		camera := g.model.Camera
-		startWorld := camera.ScreenToWorld(dragInfo.StartPos, ScreenWidth, ScreenHeight)
-		endWorld := camera.ScreenToWorld(dragInfo.CurrentPos, ScreenWidth, ScreenHeight)
+		startWorld := camera.ScreenToWorld(dragInfo.StartPos, constants.ScreenWidth, constants.ScreenHeight)
+		endWorld := camera.ScreenToWorld(dragInfo.CurrentPos, constants.ScreenWidth, constants.ScreenHeight)
 
 		// Calculate throw velocity (opposite direction of drag)
 		throwVector := f32.Vec2{

@@ -1,6 +1,7 @@
 package Models
 
 import (
+	"github.com/you/trajectory/constants"
 	"golang.org/x/image/math/f32"
 	"math"
 	"math/rand"
@@ -25,7 +26,7 @@ func NewSpaceGame() (*SpaceGame, error) {
 
 	var player = &Player{
 		Position:     f32.Vec2{margin, 0.5}, // Start near the left edge
-		Radius:       1 / 100.0,             // Player radius for collision detection
+		Radius:       0.02,                  // Player radius for collision detection
 		Velocity:     f32.Vec2{0, 0},        // No initial velocity
 		Acceleration: f32.Vec2{0, 0},        // No initial acceleration
 		State:        PlayerStateIdle,
@@ -34,6 +35,8 @@ func NewSpaceGame() (*SpaceGame, error) {
 
 	// Create camera and set initial target to player
 	camera := NewCamera2D()
+	// Set camera center to middle of aspect-ratio-aware world space
+	camera.Position = f32.Vec2{constants.AspectRatio / 2.0, 0.5}
 	camera.SetTarget(player.Position)
 
 	return &SpaceGame{
@@ -59,7 +62,7 @@ func (sg *SpaceGame) Reset() error {
 
 	// Reset camera
 	sg.Camera.SetTarget(sg.Player.Position)
-	sg.Camera.Position = f32.Vec2{0.5, 0.5}
+	sg.Camera.Position = f32.Vec2{constants.AspectRatio / 2.0, 0.5}
 
 	// Update planets
 	sg.Planets = planets
@@ -69,29 +72,33 @@ func (sg *SpaceGame) Reset() error {
 
 func randomPlanets(numPlanets int, margin float32) []Planet {
 	var planets = make([]Planet, numPlanets)
+
+	// Use shared aspect ratio constant
+	aspectRatio := constants.AspectRatio
+
 	for i := 0; i < numPlanets; i++ {
 		// Generate random position and radius for each planet
-		x := margin + (rand.Float32() * (1 - margin*2)) // value between margin and 1-margin
-		y := margin + (rand.Float32() * (1 - margin*2)) // value between margin and 1-margin
+		// X coordinate spans [0, aspectRatio], Y coordinate spans [0, 1]
+		x := margin + (rand.Float32() * (aspectRatio - margin*2)) // value between margin and aspectRatio-margin
+		y := margin + (rand.Float32() * (1 - margin*2))           // value between margin and 1-margin
 
-		// radius in [0, 1]
-		radius := rand.Float32() // value between 0 and 1
+		// radius in [0, 1] in Y-coordinate scale
+		radius := rand.Float32() / 5.0 // smaller planets for better gameplay
 
 		// for fun: make mass proportional to volume of a sphere
-		// mass := (4.0 / 3.0) * math.Pi * radius * radius * radius
+		mass := (4.0 / 3.0) * math.Pi * radius * radius * radius
+		mass *= 250
 
-		mass := float32(math.Inf(1)) // infinite mass for simplicity
-
-		// ensure orbitRadius > radius and ≤ 1
+		// mass := float32(math.Inf(1)) // infinite mass for simplicity
 
 		planets[i] = Planet{
 			Name:     "Planet " + string(rune(i+1)),
 			Position: f32.Vec2{x, y},
 
-			Mass: mass,
+			Mass: float32(mass),
 
-			Radius:      radius / 10.0,
-			OrbitRadius: radius / 2.0,
+			Radius:      radius,
+			OrbitRadius: radius * 3.0, // orbit radius is 3x the planet radius
 		}
 	}
 	return planets
