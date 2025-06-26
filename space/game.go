@@ -59,6 +59,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		case Models.CelestialBodyTypeWhiteHole:
 			bodyColor = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White for white holes (victory)
 			orbitColor = color.RGBA{R: 0, G: 255, B: 0, A: 128}    // Green orbit for white holes
+		case Models.CelestialBodyTypeAsteroid:
+			bodyColor = color.RGBA{R: 139, G: 69, B: 19, A: 255} // Brown for asteroids
+			orbitColor = color.RGBA{R: 0, G: 0, B: 0, A: 0}      // No orbit for asteroids
 		}
 
 		// Only draw if on screen (simple culling)
@@ -85,6 +88,24 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	}
 	//}
+
+	// Draw asteroids
+	for _, asteroid := range g.model.RingAsteroids {
+		asteroidPos := asteroid.GetPosition()
+		screenPos := camera.WorldToScreen(asteroidPos, constants.ScreenWidth, constants.ScreenHeight)
+		radius := camera.RadiusToScreen(asteroid.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
+
+		// Brown color for asteroids
+		asteroidColor := color.RGBA{R: 139, G: 69, B: 19, A: 255}
+
+		vector.DrawFilledCircle(
+			screen,
+			screenPos[0],
+			screenPos[1],
+			radius,
+			asteroidColor, true,
+		)
+	}
 
 	// Draw player trail
 	g.drawPlayerTrail(screen)
@@ -275,6 +296,9 @@ func (g *Game) Update() error {
 	// Reset player acceleration for this frame
 	g.model.Player.ResetAcceleration()
 
+	// Update asteroid positions
+	g.model.UpdateAsteroids(deltaTime)
+
 	// Apply gravitational forces from all celestial bodies
 	for _, body := range g.model.CelestialBodies {
 		g.model.Player.ApplyGravitationalForce(body)
@@ -302,6 +326,18 @@ func (g *Game) Update() error {
 				}
 				return nil // Exit early since game was reset
 			}
+		}
+	}
+
+	// Check for collisions with asteroids
+	for _, asteroid := range g.model.RingAsteroids {
+		if g.model.Player.CheckCollisionWithCelestialBody(asteroid) {
+			// Player hit an asteroid - reset the level
+			err := g.model.Reset()
+			if err != nil {
+				return err
+			}
+			return nil // Exit early since game was reset
 		}
 	}
 

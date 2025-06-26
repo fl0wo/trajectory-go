@@ -36,23 +36,37 @@ var PredefinedLevels = map[int]*Level{
 			},
 		}),
 
-	3: NewLevel("Level 3 - Gravity Assist",
-		f32.Vec2{0.1, 0.8},
-		[]CelestialBody{
-			&Planet{
-				Name:        "Jupiter",
-				Position:    f32.Vec2{constants.AspectRatio / 3, 0.5},
-				Radius:      0.12,
-				Mass:        float32((4.0 / 3.0) * math.Pi * 0.12 * 0.12 * 0.12 * 1),
-				OrbitRadius: 0.4,
+	3: func() *Level {
+		// Create the planet first
+		jupiter := &Planet{
+			Name:        "Jupiter",
+			Position:    f32.Vec2{constants.AspectRatio / 3, 0.5},
+			Radius:      0.12,
+			Mass:        float32((4.0 / 3.0) * math.Pi * 0.12 * 0.12 * 0.12 * 1),
+			OrbitRadius: 0.4,
+		}
+
+		// Create asteroids that orbit around Jupiter
+		asteroids := []*RingAsteroid{
+			NewRingAsteroid(jupiter, 0.18, 0.015, 1.0, 1.0, 0, true),         // Fast clockwise asteroid
+			NewRingAsteroid(jupiter, 0.22, 0.012, 0.8, 0.7, math.Pi, false),  // Slower counter-clockwise asteroid
+			NewRingAsteroid(jupiter, 0.26, 0.018, 1.2, 0.5, math.Pi/2, true), // Medium speed asteroid
+		}
+
+		return NewLevelWithAsteroids("Level 3 - Asteroid Ring",
+			f32.Vec2{0.1, 0.8},
+			[]CelestialBody{
+				jupiter,
+				&WhiteHole{
+					Position:    f32.Vec2{constants.AspectRatio - 0.2, 0.2},
+					Radius:      0.03,
+					Mass:        0.1,
+					OrbitRadius: 0.15,
+				},
 			},
-			&WhiteHole{
-				Position:    f32.Vec2{constants.AspectRatio - 0.2, 0.2},
-				Radius:      0.03,
-				Mass:        0.1,
-				OrbitRadius: 0.15,
-			},
-		}),
+			asteroids,
+		)
+	}(),
 
 	4: NewLevel("Level 4 - Binary System",
 		f32.Vec2{0.1, 0.5},

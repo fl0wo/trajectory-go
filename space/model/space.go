@@ -17,6 +17,7 @@ const (
 
 type SpaceGame struct {
 	CelestialBodies     []CelestialBody
+	RingAsteroids       []*RingAsteroid // Separate list for asteroids that need updates
 	Player              *Player
 	Camera              *Camera2D
 	CurrentLevel        *Level
@@ -52,6 +53,7 @@ func NewSpaceGameWithLevel(levelNum int) (*SpaceGame, error) {
 	// Create temporary SpaceGame to calculate level center
 	tempGame := &SpaceGame{
 		CelestialBodies:     level.CelestialBodies,
+		RingAsteroids:       level.RingAsteroids,
 		Player:              player,
 		Camera:              camera,
 		CurrentLevel:        level,
@@ -91,6 +93,7 @@ func (sg *SpaceGame) LoadLevel(levelNum int) error {
 	sg.CurrentLevel = level
 	sg.CurrentLevelNum = levelNum
 	sg.CelestialBodies = level.CelestialBodies
+	sg.RingAsteroids = level.RingAsteroids
 
 	// Calculate center of all entities and reset camera to that center
 	levelCenter := sg.CalculateLevelCenter()
@@ -100,9 +103,9 @@ func (sg *SpaceGame) LoadLevel(levelNum int) error {
 	return nil
 }
 
-// CalculateLevelCenter calculates the center position of all entities in the level (player + celestial bodies)
+// CalculateLevelCenter calculates the center position of all entities in the level (player + celestial bodies + asteroids)
 func (sg *SpaceGame) CalculateLevelCenter() f32.Vec2 {
-	if len(sg.CelestialBodies) == 0 {
+	if len(sg.CelestialBodies) == 0 && len(sg.RingAsteroids) == 0 {
 		return sg.Player.Position
 	}
 
@@ -115,6 +118,23 @@ func (sg *SpaceGame) CalculateLevelCenter() f32.Vec2 {
 	// Expand bounds to include all celestial bodies
 	for _, body := range sg.CelestialBodies {
 		pos := body.GetPosition()
+		if pos[0] < minX {
+			minX = pos[0]
+		}
+		if pos[0] > maxX {
+			maxX = pos[0]
+		}
+		if pos[1] < minY {
+			minY = pos[1]
+		}
+		if pos[1] > maxY {
+			maxY = pos[1]
+		}
+	}
+
+	// Expand bounds to include all asteroids
+	for _, asteroid := range sg.RingAsteroids {
+		pos := asteroid.GetPosition()
 		if pos[0] < minX {
 			minX = pos[0]
 		}
@@ -178,6 +198,31 @@ func (sg *SpaceGame) CalculateTimeDilation() float32 {
 			timeScale := minTimeScaleAtCenter + (1.0-minTimeScaleAtCenter)*curve
 
 			// Use the smallest timeScale (maximum slowdown)
+			if timeScale < minTimeScale {
+				minTimeScale = timeScale
+			}
+		}
+	}
+
+	// Check proximity to all asteroids (they don't have orbit radius but can cause time dilation on collision)
+	for _, asteroid := range sg.RingAsteroids {
+		bodyPos := asteroid.GetPosition()
+		dx := bodyPos[0] - playerPos[0]
+		dy := bodyPos[1] - playerPos[1]
+		distance := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+
+		// Only apply time dilation when very close to asteroids (collision imminent)
+		asteroidInfluenceRadius := asteroid.GetRadius() * 2.0 // Small influence zone
+		if distance <= asteroidInfluenceRadius {
+			// Use asteroid radius as both min and max distance for simple collision-based effect
+			normalizedDistance := distance / asteroidInfluenceRadius
+
+			// Apply ease-in curve
+			curve := float32(math.Pow(float64(normalizedDistance), exponent))
+
+			// Time scale: more dramatic for close asteroid encounters
+			timeScale := minTimeScaleAtCenter + (1.0-minTimeScaleAtCenter)*curve
+
 			if timeScale < minTimeScale {
 				minTimeScale = timeScale
 			}
@@ -255,6 +300,30 @@ func (sg *SpaceGame) CalculateProximityZoom() float32 {
 		}
 	}
 
+	// Check proximity to all asteroids
+	for _, asteroid := range sg.RingAsteroids {
+		bodyPos := asteroid.GetPosition()
+		dx := bodyPos[0] - playerPos[0]
+		dy := bodyPos[1] - playerPos[1]
+		distance := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+
+		// Only apply proximity zoom when close to asteroids
+		asteroidInfluenceRadius := asteroid.GetRadius() * 2.0 // Small influence zone
+		if distance <= asteroidInfluenceRadius {
+			normalizedDistance := distance / asteroidInfluenceRadius
+
+			// Apply ease-in curve
+			curve := float32(math.Pow(float64(normalizedDistance), exponent))
+
+			// Zoom multiplier for asteroids
+			zoomMultiplier := maxZoomAtCenter - (maxZoomAtCenter-1.0)*curve
+
+			if zoomMultiplier > maxZoomMultiplier {
+				maxZoomMultiplier = zoomMultiplier
+			}
+		}
+	}
+
 	return maxZoomMultiplier
 }
 
@@ -277,6 +346,13 @@ func (sg *SpaceGame) UpdateProximityZoom(deltaTime float32) {
 	}
 
 	sg.ProximityZoom = sg.ProximityZoom + (sg.TargetProximityZoom-sg.ProximityZoom)*t
+}
+
+// UpdateAsteroids updates all ring asteroids' orbital positions
+func (sg *SpaceGame) UpdateAsteroids(deltaTime float32) {
+	for _, asteroid := range sg.RingAsteroids {
+		asteroid.Update(deltaTime)
+	}
 }
 
 // ToggleCameraMode switches between camera modes

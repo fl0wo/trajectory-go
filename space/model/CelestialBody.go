@@ -8,6 +8,7 @@ const (
 	CelestialBodyTypePlanet CelestialBodyType = iota
 	CelestialBodyTypeBlackHole
 	CelestialBodyTypeWhiteHole
+	CelestialBodyTypeAsteroid
 )
 
 type CelestialBody interface {
