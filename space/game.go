@@ -48,6 +48,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		case Models.CelestialBodyTypeBlackHole:
 			bodyColor = color.RGBA{R: 128, G: 128, B: 128, A: 255} // Gray for blackholes
 			orbitColor = color.RGBA{R: 128, G: 0, B: 128, A: 128}  // Purple orbit for blackholes
+		case Models.CelestialBodyTypeWhiteHole:
+			bodyColor = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White for white holes (victory)
+			orbitColor = color.RGBA{R: 0, G: 255, B: 0, A: 128}    // Green orbit for white holes
 		}
 
 		// Only draw if on screen (simple culling)
@@ -161,6 +164,16 @@ func (g *Game) Update() error {
 		return nil // Exit early since game was reset
 	}
 
+	// Handle level selection keys (1-9)
+	levelKey := g.input.GetLevelKeyPressed()
+	if levelKey > 0 {
+		err := g.model.LoadLevel(levelKey)
+		if err != nil {
+			return err
+		}
+		return nil // Exit early since level was changed
+	}
+
 	// Handle scroll zoom
 	scrollDelta := g.input.GetScrollDelta()
 	if scrollDelta != 0 {
@@ -206,12 +219,27 @@ func (g *Game) Update() error {
 
 		// Check for collision with celestial body
 		if g.model.Player.CheckCollisionWithCelestialBody(body) {
-			// Player hit a celestial body - reset the game
-			err := g.model.Reset()
-			if err != nil {
-				return err
+			// Check if it's a white hole (victory condition)
+			if body.GetType() == Models.CelestialBodyTypeWhiteHole {
+				// Victory! Move to next level
+				nextLevel := g.model.CurrentLevelNum + 1
+				if nextLevel > 9 {
+					// If beyond level 9, restart from level 1
+					nextLevel = 1
+				}
+				err := g.model.LoadLevel(nextLevel)
+				if err != nil {
+					return err
+				}
+				return nil // Exit early since level was changed
+			} else {
+				// Player hit a planet or black hole - reset the level
+				err := g.model.Reset()
+				if err != nil {
+					return err
+				}
+				return nil // Exit early since game was reset
 			}
-			return nil // Exit early since game was reset
 		}
 	}
 

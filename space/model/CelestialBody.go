@@ -7,6 +7,7 @@ type CelestialBodyType int
 const (
 	CelestialBodyTypePlanet CelestialBodyType = iota
 	CelestialBodyTypeBlackHole
+	CelestialBodyTypeWhiteHole
 )
 
 type CelestialBody interface {

@@ -11,23 +11,24 @@ type SpaceGame struct {
 	CelestialBodies []CelestialBody
 	Player          *Player
 	Camera          *Camera2D
+	CurrentLevel    *Level
+	CurrentLevelNum int
 }
 
-// NewSpaceGame creates a new SpaceGame with the given size.
+// NewSpaceGame creates a new SpaceGame starting with level 1.
 func NewSpaceGame() (*SpaceGame, error) {
-	// Generate random celestial bodies (planets and blackholes)
-	// pick a random number between 3 and 10 for total celestial bodies
-	var numBodies = rand.Intn(8) + 3 // Random number between 3 and 10
+	return NewSpaceGameWithLevel(1)
+}
 
-	const margin = 0.1 // Margin for positioning celestial bodies
-
-	celestialBodies := randomCelestialBodies(numBodies, margin)
+// NewSpaceGameWithLevel creates a new SpaceGame with a specific level
+func NewSpaceGameWithLevel(levelNum int) (*SpaceGame, error) {
+	level := GetLevel(levelNum)
 
 	var player = &Player{
-		Position:     f32.Vec2{margin, 0.5}, // Start near the left edge
-		Radius:       0.02,                  // Player radius for collision detection
-		Velocity:     f32.Vec2{0, 0},        // No initial velocity
-		Acceleration: f32.Vec2{0, 0},        // No initial acceleration
+		Position:     level.PlayerStart,
+		Radius:       0.02,           // Player radius for collision detection
+		Velocity:     f32.Vec2{0, 0}, // No initial velocity
+		Acceleration: f32.Vec2{0, 0}, // No initial acceleration
 		State:        PlayerStateIdle,
 		Mass:         10.0, // Default mass
 	}
@@ -39,22 +40,25 @@ func NewSpaceGame() (*SpaceGame, error) {
 	camera.SetTarget(player.Position)
 
 	return &SpaceGame{
-		CelestialBodies: celestialBodies,
+		CelestialBodies: level.CelestialBodies,
 		Player:          player,
 		Camera:          camera,
+		CurrentLevel:    level,
+		CurrentLevelNum: levelNum,
 	}, nil
 }
 
-// Reset regenerates the entire game with new celestial bodies and resets player
+// Reset resets the current level
 func (sg *SpaceGame) Reset() error {
-	// Generate new celestial bodies
-	var numBodies = rand.Intn(8) + 3 // Random number between 3 and 10
-	const margin = 0.1               // Margin for positioning celestial bodies
+	return sg.LoadLevel(sg.CurrentLevelNum)
+}
 
-	celestialBodies := randomCelestialBodies(numBodies, margin)
+// LoadLevel loads a specific level
+func (sg *SpaceGame) LoadLevel(levelNum int) error {
+	level := GetLevel(levelNum)
 
-	// Reset player to starting position
-	sg.Player.Position = f32.Vec2{margin, 0.5}
+	// Reset player to level's starting position
+	sg.Player.Position = level.PlayerStart
 	sg.Player.Velocity = f32.Vec2{0, 0}
 	sg.Player.Acceleration = f32.Vec2{0, 0}
 	sg.Player.State = PlayerStateIdle
@@ -63,8 +67,10 @@ func (sg *SpaceGame) Reset() error {
 	sg.Camera.SetTarget(sg.Player.Position)
 	sg.Camera.Position = f32.Vec2{constants.AspectRatio / 2.0, 0.5}
 
-	// Update celestial bodies
-	sg.CelestialBodies = celestialBodies
+	// Update level data
+	sg.CurrentLevel = level
+	sg.CurrentLevelNum = levelNum
+	sg.CelestialBodies = level.CelestialBodies
 
 	return nil
 }

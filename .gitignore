@@ -193,6 +193,7 @@ fabric.properties
 go.sum
 go.mod
 CLAUDE.md
+trajectory
 
 .idea/*
 

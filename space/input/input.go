@@ -93,6 +93,7 @@ type Input struct {
 
 	// Key state
 	restartKeyPressed bool // True for one frame when R key is pressed
+	levelKeyPressed   int  // 1-9 if level key was pressed, 0 otherwise
 
 	touches       []ebiten.TouchID
 	touchState    touchState
@@ -143,6 +144,28 @@ func (i *Input) Update() {
 
 	// Check for restart key (R) press
 	i.restartKeyPressed = inpututil.IsKeyJustPressed(ebiten.KeyR)
+
+	// Check for level selection keys (1-9)
+	i.levelKeyPressed = 0
+	if inpututil.IsKeyJustPressed(ebiten.KeyDigit1) {
+		i.levelKeyPressed = 1
+	} else if inpututil.IsKeyJustPressed(ebiten.KeyDigit2) {
+		i.levelKeyPressed = 2
+	} else if inpututil.IsKeyJustPressed(ebiten.KeyDigit3) {
+		i.levelKeyPressed = 3
+	} else if inpututil.IsKeyJustPressed(ebiten.KeyDigit4) {
+		i.levelKeyPressed = 4
+	} else if inpututil.IsKeyJustPressed(ebiten.KeyDigit5) {
+		i.levelKeyPressed = 5
+	} else if inpututil.IsKeyJustPressed(ebiten.KeyDigit6) {
+		i.levelKeyPressed = 6
+	} else if inpututil.IsKeyJustPressed(ebiten.KeyDigit7) {
+		i.levelKeyPressed = 7
+	} else if inpututil.IsKeyJustPressed(ebiten.KeyDigit8) {
+		i.levelKeyPressed = 8
+	} else if inpututil.IsKeyJustPressed(ebiten.KeyDigit9) {
+		i.levelKeyPressed = 9
+	}
 
 	switch i.mouseState {
 	case mouseStateNone:
@@ -262,4 +285,9 @@ func (i *Input) GetScrollDelta() float32 {
 // IsRestartPressed returns true if the R key was just pressed this frame
 func (i *Input) IsRestartPressed() bool {
 	return i.restartKeyPressed
+}
+
+// GetLevelKeyPressed returns the level number (1-9) if a level key was pressed, 0 otherwise
+func (i *Input) GetLevelKeyPressed() int {
+	return i.levelKeyPressed
 }
