@@ -15,45 +15,74 @@ func hash(p vec2) float {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453)
 }
 
+// Zoom + camera parallax helper
+func worldUV(uv vec2, parallax float) vec2 {
+	uv = (uv-vec2(0.5, 0.5))/Zoom + vec2(0.5, 0.5)
+	off := vec2(0.5, 0.5) - CameraPos
+	return uv - off*parallax
+}
+
+// Particle layers: circles only, no more “cut” edges
 func particles(uv vec2, layer float) vec4 {
 	// per-layer tuning
-	var scale, speed, brightness, size, parallax, zoomConsider float
+	// per-layer tuning
+	var scale, speed, bright, size, parallax, zc float
 	if layer < 1.0 {
-		scale, speed, brightness, size, parallax, zoomConsider = 10.0, 0.3, 0.1, 1.0, 0.4, 0.3
+		// farthest: big, faint, hardly moves
+		scale, speed, bright, size, parallax, zc = 1.0, 0.3, 0.3, .6, 0.2, 0.1
 	} else if layer < 2.0 {
-		scale, speed, brightness, size, parallax, zoomConsider = 20.0, 0.5, 0.3, 1.2, 0.4, 0.4
+		// middle: medium size, medium brightness & parallax
+		scale, speed, bright, size, parallax, zc = 2.0, 0.5, 0.6, 1.2, 0.3, 0.3
 	} else {
-		scale, speed, brightness, size, parallax, zoomConsider = 30.0, 0.7, 0.5, 1.5, 0.5, 0.6
+		// nearest: small, bright, moves most
+		scale, speed, bright, size, parallax, zc = 3.0, 0.7, 1.0, 1.6, 0.5, 0.5
 	}
 
-	// 1) apply zoom around screen center
-	uv = (uv-vec2(0.5, 0.5))/Zoom + vec2(0.5, 0.5)
+	// world-space UV
+	wuv := worldUV(uv, parallax)
 
-	// 2) compute camera-only parallax offset (CameraPos is already [0..1])
-	//    subtract 0.5 to center into [-0.5..+0.5]
-	camCenter := vec2(0.5, 0.5) - CameraPos
-	uv += -camCenter * parallax
-
-	// 3) build grid at given density
-	scaled := uv * scale
+	// grid cell
+	scaled := wuv * scale
 	cell := floor(scaled)
 	frac := fract(scaled)
 
-	// 4) per-cell RNG
+	// RNG seeds
 	rX := hash(cell)
 	rY := hash(cell + vec2(5.2, 1.3))
 	t := hash(cell + vec2(8.7, 3.4))
 
-	// 5) wingling motion
+	// compute radius (cell units)
+	radius := 0.008 * size / ((1 + Zoom) * zc)
+
+	// wingling animation
 	ang := Time*speed + (rX+rY)*6.2831
-	pos := fract(vec2(rX, rY) + vec2(cos(ang), sin(ang))*0.2)
 
-	// 6) flat dot
-	dist := length(frac - pos)
-	radius := 0.05 * size / ((1 + Zoom) * zoomConsider)
-	alpha := brightness * step(dist, radius)
+	// margin to keep circle + wiggle inside cell
+	pad := radius + 0.2
 
-	// 7) flat palette
+	// safe jitter center in [pad..1-pad]
+	jX := rX*(1.0-2.0*pad) + pad
+	jY := rY*(1.0-2.0*pad) + pad
+
+	// final particle position, then fract to remain in [0,1]
+	pos := fract(
+		vec2(
+			jX+cos(ang)*0.2,
+			jY+sin(ang)*0.2,
+		),
+	)
+
+	// local offset within cell
+	local := frac - pos
+
+	// aspect-correct for non-square screens
+	aspectInv := ScreenSize.y / ScreenSize.x
+	localCorr := vec2(local.x, local.y*aspectInv)
+
+	// circle mask
+	mask := step(length(localCorr), radius)
+
+	// flat palette
 	var col vec3
 	if t < 0.02 {
 		col = vec3(1.0, 1.0, 0.992)
@@ -69,23 +98,24 @@ func particles(uv vec2, layer float) vec4 {
 		col = vec3(0.031, 0.008, 0.106)
 	}
 
+	alpha := bright * mask
 	return vec4(col, alpha)
 }
 
 func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
-	// 0) normalized UV from pixel coords
+	// normalized UV
 	uv := (dstPos.xy - imageDstOrigin()) / ScreenSize
 
-	// 1) base rich-black background
-	result := vec4(0.02, 0.004, 0.078, 1.0)
+	// base rich-black background
+	result := vec4(11/255.0, 2/255.0, 43/255.0, 1.0)
 
-	// 2) draw 3 layers of flat-shaded particles
+	// three layers of circular particles
 	for layer := 0.0; layer < 3.0; layer++ {
 		p := particles(uv, layer)
 		result.rgb += p.rgb * p.a
 	}
 
-	// 3) clamp and output
+	// clamp & return
 	result.rgb = min(result.rgb, vec3(1.0))
 	return result
 }
