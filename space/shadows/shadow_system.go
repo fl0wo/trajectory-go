@@ -4,8 +4,8 @@ import (
 	_ "embed"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/you/trajectory/space/colors"
 	"golang.org/x/image/math/f32"
-	"image/color"
 	"math"
 	"sort"
 )
@@ -210,7 +210,7 @@ func (ss *ShadowSystem) RenderShadows(
 	}
 
 	// 1) Darken entire screen
-	ss.shadowImage.Fill(color.RGBA{R: 6, G: 2, B: 25, A: 255})
+	ss.shadowImage.Fill(colors.ShadowBackground)
 
 	lightX, lightY := float64(lightPos[0]), float64(lightPos[1])
 
@@ -311,7 +311,7 @@ func (ss *ShadowSystem) RenderShadows(
 				screen,
 				float32(r.X1), float32(r.Y1),
 				float32(r.X2), float32(r.Y2),
-				1, color.RGBA{R: 255, G: 255, B: 0, A: 150},
+				1, colors.DebugRay,
 				true,
 			)
 		}
@@ -322,9 +322,7 @@ func (ss *ShadowSystem) RenderShadows(
 func NewShadowSystem(screenWidth, screenHeight int) *ShadowSystem {
 	shadowImage := ebiten.NewImage(screenWidth, screenHeight)
 	triangleImage := ebiten.NewImage(screenWidth, screenHeight)
-	triangleImage.Fill(color.RGBA{
-		R: 254, G: 254, B: 254, A: 0, // Fully transparent white
-	})
+	triangleImage.Fill(colors.TriangleImage)
 
 	// Initialize the stepped light shader
 	var lightShader *ebiten.Shader
