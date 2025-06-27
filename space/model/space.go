@@ -170,8 +170,8 @@ func (sg *SpaceGame) CalculateTimeDilation() float32 {
 	playerPos := sg.Player.Position
 
 	// Curve parameters
-	const minTimeScaleAtCenter = 0.1 // 10x slower at the body’s surface
-	const exponent = 1.25            // >1 = sharper ease-in
+	const minTimeScaleAtCenter = 0.025 // 10x slower at the body’s surface
+	const exponent = 1.25              // >1 = sharper ease-in
 
 	// Check proximity to all celestial bodies
 	for _, body := range sg.CelestialBodies {
@@ -256,99 +256,87 @@ func (sg *SpaceGame) UpdateTimeDilation(deltaTime float32) {
 	sg.TimeScale = sg.TimeScale + (sg.TargetTimeScale-sg.TimeScale)*t
 }
 
-// CalculateProximityZoom calculates the zoom multiplier based on player proximity to celestial bodies
+// CalculateProximityZoom calculates a zoom‐out multiplier based on proximity.
+// Closer → smaller than 1.0 (zoomed out), far → 1.0 (normal).
 func (sg *SpaceGame) CalculateProximityZoom() float32 {
 	if sg.Player.State != PlayerStateMoving {
 		return 1.0 // Normal zoom when not moving
 	}
 
-	maxZoomMultiplier := float32(1.0)
+	// Start at no zoom (1.0) and look for any closer bodies to pull it down.
+	minZoomMultiplier := float32(1.0)
 	playerPos := sg.Player.Position
 
 	// Zoom parameters
-	const maxZoomAtCenter = 1.05 // 1.25x zoom at center
-	const exponent = 1.05        // Same ease-in curve as time dilation
+	const minZoomAtCenter = 0.95 // 90% scale at surface (max zoom-out)
+	const exponent = 1.05        // Same ease-in curve
 
-	// Check proximity to all celestial bodies
+	// Celestial bodies
 	for _, body := range sg.CelestialBodies {
 		bodyPos := body.GetPosition()
 		dx := bodyPos[0] - playerPos[0]
 		dy := bodyPos[1] - playerPos[1]
-		distance := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+		distance := float32(math.Hypot(float64(dx), float64(dy)))
 
 		orbitRadius := body.GetOrbitRadius()
 		bodyRadius := body.GetRadius()
 
-		// Only apply proximity zoom within orbit radius
 		if distance <= orbitRadius {
-			// Avoid division by zero by clamping at body radius
-			minDistance := bodyRadius
-			if distance < minDistance {
-				distance = minDistance
+			// Clamp to avoid zero
+			if distance < bodyRadius {
+				distance = bodyRadius
 			}
+			// 0 at surface → 1 at orbit edge
+			normalized := (distance - bodyRadius) / (orbitRadius - bodyRadius)
+			curve := float32(math.Pow(float64(normalized), exponent))
 
-			// Normalize distance: 0 at surface, 1 at orbit edge
-			normalizedDistance := (distance - minDistance) / (orbitRadius - minDistance)
+			// Map [0→1] → [minZoomAtCenter→1]
+			zoomMul := minZoomAtCenter + (1.0-minZoomAtCenter)*curve
 
-			// Apply ease-in curve via power law (same as time dilation)
-			curve := float32(math.Pow(float64(normalizedDistance), exponent))
-
-			// Map curve [0→1] into zoomMultiplier [maxZoomAtCenter→1]
-			zoomMultiplier := maxZoomAtCenter - (maxZoomAtCenter-1.0)*curve
-
-			// Use the largest zoom multiplier (maximum zoom-in)
-			if zoomMultiplier > maxZoomMultiplier {
-				maxZoomMultiplier = zoomMultiplier
+			if zoomMul < minZoomMultiplier {
+				minZoomMultiplier = zoomMul
 			}
 		}
 	}
 
-	// Check proximity to all asteroids
-	for _, asteroid := range sg.RingAsteroids {
-		bodyPos := asteroid.GetPosition()
+	// Asteroids
+	for _, ast := range sg.RingAsteroids {
+		bodyPos := ast.GetPosition()
 		dx := bodyPos[0] - playerPos[0]
 		dy := bodyPos[1] - playerPos[1]
-		distance := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+		distance := float32(math.Hypot(float64(dx), float64(dy)))
 
-		// Only apply proximity zoom when close to asteroids
-		asteroidInfluenceRadius := asteroid.GetRadius() * 2.0 // Small influence zone
-		if distance <= asteroidInfluenceRadius {
-			normalizedDistance := distance / asteroidInfluenceRadius
+		influence := ast.GetRadius() * 2.0
+		if distance <= influence {
+			normalized := distance / influence
+			curve := float32(math.Pow(float64(normalized), exponent))
+			zoomMul := minZoomAtCenter + (1.0-minZoomAtCenter)*curve
 
-			// Apply ease-in curve
-			curve := float32(math.Pow(float64(normalizedDistance), exponent))
-
-			// Zoom multiplier for asteroids
-			zoomMultiplier := maxZoomAtCenter - (maxZoomAtCenter-1.0)*curve
-
-			if zoomMultiplier > maxZoomMultiplier {
-				maxZoomMultiplier = zoomMultiplier
+			if zoomMul < minZoomMultiplier {
+				minZoomMultiplier = zoomMul
 			}
 		}
 	}
 
-	return maxZoomMultiplier
+	return minZoomMultiplier
 }
 
-// UpdateProximityZoom updates the current proximity zoom with smooth interpolation
+// UpdateProximityZoom smoothly interpolates ProximityZoom → TargetProximityZoom
 func (sg *SpaceGame) UpdateProximityZoom(deltaTime float32) {
-	// Calculate target proximity zoom
 	sg.TargetProximityZoom = sg.CalculateProximityZoom()
 
-	// Smooth interpolation towards target (same speed as time dilation for consistency)
-	zoomSpeed := float32(5.0) // Base interpolation speed
-	if sg.TargetProximityZoom > sg.ProximityZoom {
-		// Zooming in - faster transition for dramatic effect
+	// Base speed; speed up when zooming out (i.e. target < current) if you like
+	zoomSpeed := float32(5.0)
+	if sg.TargetProximityZoom < sg.ProximityZoom {
 		zoomSpeed = 8.0
 	}
 
-	// Interpolate towards target
 	t := zoomSpeed * deltaTime
 	if t > 1.0 {
-		t = 1.0 // Clamp to prevent overshooting
+		t = 1.0
 	}
 
-	sg.ProximityZoom = sg.ProximityZoom + (sg.TargetProximityZoom-sg.ProximityZoom)*t
+	sg.ProximityZoom += (sg.TargetProximityZoom - sg.ProximityZoom) * t
 }
 
 // UpdateAsteroids updates all ring asteroids' orbital positions
