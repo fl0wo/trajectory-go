@@ -42,6 +42,9 @@ type Player struct {
 	// Physics properties
 	Mass float32 // mass for gravitational calculations
 
+	// Rendering
+	ImagePath string // Image asset path for rendering
+
 	// Trail system
 	Trail         []TrailPoint // Array of trail points
 	LastTrailTime time.Time    // Last time a trail point was added

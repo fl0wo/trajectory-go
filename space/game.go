@@ -147,17 +147,27 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	playerScreenPos := camera.WorldToScreen(player.Position, constants.ScreenWidth, constants.ScreenHeight)
 	playerRadius := camera.RadiusToScreen(player.Radius, constants.ScreenWidth, constants.ScreenHeight)
 
-	// Try to render with astronaut image
-	astronautImg := resources.LoadImage(resources.AstronautImage)
-	if astronautImg != nil {
-		// Calculate rotation based on velocity direction
-		var rotation float64 = 0
-		if player.IsMoving() {
-			rotation = math.Atan2(float64(player.Velocity[1]), float64(player.Velocity[0]))
+	// Render player with image if ImagePath is provided, otherwise use green circle
+	if player.ImagePath != "" {
+		playerImg := resources.LoadImage(player.ImagePath)
+		if playerImg != nil {
+			// Calculate rotation based on velocity direction
+			var rotation float64 = 0
+			if player.IsMoving() {
+				rotation = math.Atan2(float64(player.Velocity[1]), float64(player.Velocity[0]))
+			}
+			g.drawPlayerWithImage(screen, playerScreenPos, playerRadius, player.ImagePath, rotation)
+		} else {
+			// Fallback to green circle if image loading fails
+			vector.DrawFilledCircle(screen,
+				playerScreenPos[0],
+				playerScreenPos[1],
+				playerRadius,
+				color.RGBA{G: 255, A: 255}, true, // Green circle
+			)
 		}
-		g.drawPlayerWithImage(screen, playerScreenPos, playerRadius, resources.AstronautImage, rotation)
 	} else {
-		// Fallback to green circle if image loading fails
+		// Draw simple green circle when no ImagePath is provided
 		vector.DrawFilledCircle(screen,
 			playerScreenPos[0],
 			playerScreenPos[1],

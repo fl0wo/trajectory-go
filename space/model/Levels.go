@@ -16,7 +16,6 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.03,
 				Mass:        0.1,
 				OrbitRadius: 0.15,
-				ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 
@@ -29,14 +28,14 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.08,
 				Mass:        float32((4.0 / 3.0) * math.Pi * 0.08 * 0.08 * 0.08),
 				OrbitRadius: 0.24,
-				ImagePath:   resources.EarthImage,
+				// ImagePath:   resources.EarthImage,
 			},
 			&WhiteHole{
 				Position:    f32.Vec2{constants.AspectRatio - 0.2, 0.5},
 				Radius:      0.03,
 				Mass:        0.1,
 				OrbitRadius: 0.15,
-				ImagePath:   resources.BlackHoleImage,
+				// ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 
@@ -48,7 +47,7 @@ var PredefinedLevels = map[int]*Level{
 			Radius:      0.12,
 			Mass:        float32((4.0 / 3.0) * math.Pi * 0.12 * 0.12 * 0.12 * 1),
 			OrbitRadius: 0.4,
-			ImagePath:   resources.JupiterImage,
+			// ImagePath:   resources.JupiterImage,
 		}
 
 		// Create asteroids that orbit around Jupiter
@@ -67,7 +66,7 @@ var PredefinedLevels = map[int]*Level{
 					Radius:      0.03,
 					Mass:        0.1,
 					OrbitRadius: 0.15,
-					ImagePath:   resources.BlackHoleImage,
+					// ImagePath:   resources.BlackHoleImage,
 				},
 			},
 			asteroids,
@@ -96,7 +95,7 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.03,
 				Mass:        0.1,
 				OrbitRadius: 0.15,
-				ImagePath:   resources.BlackHoleImage,
+				// ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 
@@ -108,14 +107,14 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.04,
 				Mass:        float32((4.0 / 3.0) * math.Pi * 0.04 * 0.04 * 0.04 * 20),
 				OrbitRadius: 0.3,
-				ImagePath:   resources.BlackHoleImage,
+				// ImagePath:   resources.BlackHoleImage,
 			},
 			&WhiteHole{
 				Position:    f32.Vec2{constants.AspectRatio - 0.15, 0.8},
 				Radius:      0.03,
 				Mass:        0.1,
 				OrbitRadius: 0.15,
-				ImagePath:   resources.BlackHoleImage,
+				// ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 
@@ -148,7 +147,7 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.03,
 				Mass:        0.1,
 				OrbitRadius: 0.15,
-				ImagePath:   resources.BlackHoleImage,
+				// ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 
@@ -181,14 +180,14 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.03,
 				Mass:        float32((4.0 / 3.0) * math.Pi * 0.03 * 0.03 * 0.03 * 25),
 				OrbitRadius: 0.2,
-				ImagePath:   resources.BlackHoleImage,
+				// ImagePath:   resources.BlackHoleImage,
 			},
 			&WhiteHole{
 				Position:    f32.Vec2{constants.AspectRatio - 0.15, 0.6},
 				Radius:      0.03,
 				Mass:        0.1,
 				OrbitRadius: 0.15,
-				ImagePath:   resources.BlackHoleImage,
+				// ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 
@@ -201,14 +200,14 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.15,
 				Mass:        float32((4.0 / 3.0) * math.Pi * 0.15 * 0.15 * 0.15 * 5),
 				OrbitRadius: 0.5,
-				ImagePath:   resources.MarsImage,
+				// ImagePath:   resources.MarsImage,
 			},
 			&WhiteHole{
 				Position:    f32.Vec2{constants.AspectRatio / 2, 0.2},
 				Radius:      0.025,
 				Mass:        0.1,
 				OrbitRadius: 0.1,
-				ImagePath:   resources.BlackHoleImage,
+				// ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 
@@ -234,14 +233,14 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.04,
 				Mass:        float32((4.0 / 3.0) * math.Pi * 0.04 * 0.04 * 0.04 * 30),
 				OrbitRadius: 0.25,
-				ImagePath:   resources.BlackHoleImage,
+				// ImagePath:   resources.BlackHoleImage,
 			},
 			&BlackHole{
 				Position:    f32.Vec2{1.0, 0.7},
 				Radius:      0.04,
 				Mass:        float32((4.0 / 3.0) * math.Pi * 0.04 * 0.04 * 0.04 * 30),
 				OrbitRadius: 0.25,
-				ImagePath:   resources.BlackHoleImage,
+				// ImagePath:   resources.BlackHoleImage,
 			},
 			&Planet{
 				Name:        "Central Mass",
@@ -255,7 +254,7 @@ var PredefinedLevels = map[int]*Level{
 				Radius:      0.025,
 				Mass:        0.1,
 				OrbitRadius: 0.12,
-				ImagePath:   resources.BlackHoleImage,
+				// ImagePath:   resources.BlackHoleImage,
 			},
 		}),
 }

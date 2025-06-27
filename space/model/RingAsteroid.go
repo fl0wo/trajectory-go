@@ -45,7 +45,7 @@ func NewRingAsteroid(hostPlanet CelestialBody, orbitRadius, radius, mass, orbitS
 		OrbitSpeed:     orbitSpeed,
 		CurrentAngle:   startAngle,
 		OrbitDirection: direction,
-		ImagePath:      imagePath,
+		// ImagePath:      imagePath,
 		LastUpdateTime: 0,
 	}
 
