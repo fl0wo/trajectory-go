@@ -8,41 +8,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
-// StrokeDashedCircleWithShader strokes a circle with center (cx,cy), radius r,
-// strokeWidth, clr, and a repeating [dashLength on, gapLength off] pattern.
-// If shader is provided, it will be applied to the rendered circle.
-func StrokeDashedCircleWithShader(
-	dst *ebiten.Image,
-	cx, cy, r float32,
-	strokeWidth float32,
-	clr color.Color,
-	dashLength, gapLength float32,
-	antialias bool,
-	shader *ebiten.Shader,
-	uniforms map[string]any,
-) {
-	if shader == nil {
-		// Fallback to regular dashed circle if no shader
-		StrokeDashedCircle(dst, cx, cy, r, strokeWidth, clr, dashLength, gapLength, antialias)
-		return
-	}
-
-	// Create a temporary image to render the dashed circle
-	bounds := dst.Bounds()
-	tempImage := ebiten.NewImage(bounds.Dx(), bounds.Dy())
-	defer tempImage.Deallocate()
-
-	// Render the dashed circle to temporary image first
-	StrokeDashedCircle(tempImage, cx, cy, r, strokeWidth, clr, dashLength, gapLength, antialias)
-
-	// Apply shader to the temporary image and draw to destination
-	op := &ebiten.DrawRectShaderOptions{}
-	op.Uniforms = uniforms
-	op.Images[0] = tempImage
-
-	dst.DrawRectShader(bounds.Dx(), bounds.Dy(), shader, op)
-}
-
 // StrokeDashedCircleTrianglesWithShader creates triangle vertices for a dashed circle
 // and applies a shader to them directly (more efficient approach)
 func StrokeDashedCircleTrianglesWithShader(

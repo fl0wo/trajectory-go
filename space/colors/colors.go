@@ -61,3 +61,18 @@ var (
 	// Triangle image color for shadow system
 	TriangleImage = color.RGBA{R: 254, G: 254, B: 254, A: 0} // Fully transparent white
 )
+
+// Nebula Background Colors
+var (
+	// Main background color - darkest midnight
+	NebulaBackground = color.RGBA{R: 5, G: 1, B: 20, A: 255} // #050114
+
+	// Particle colors for the dynamic background
+	RussianViolet = color.RGBA{R: 33, G: 15, B: 80, A: 255}    // #210F50
+	RichIndigo    = color.RGBA{R: 71, G: 26, B: 117, A: 255}   // #471A75
+	Tekhelet      = color.RGBA{R: 72, G: 28, B: 117, A: 255}   // #481C75
+	DeepBlue1     = color.RGBA{R: 56, G: 2, B: 162, A: 255}    // #3802A2
+	DeepBlue2     = color.RGBA{R: 37, G: 2, B: 86, A: 255}     // #250256
+	DeepBlue3     = color.RGBA{R: 8, G: 2, B: 27, A: 255}      // #08021B
+	BabyWhite     = color.RGBA{R: 255, G: 255, B: 253, A: 255} // #FFFFFD
+)

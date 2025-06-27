@@ -24,6 +24,9 @@ import (
 //go:embed orbit_light.go
 var orbitLightShader []byte
 
+//go:embed nebula_background.go
+var nebulaBackgroundShader []byte
+
 var (
 	mplusFaceSource *text.GoTextFaceSource
 )
@@ -44,6 +47,8 @@ const (
 type Renderer struct {
 	shadowSystem *shadows.ShadowSystem
 	orbitShader  *ebiten.Shader
+	nebulaShader *ebiten.Shader
+	whiteTexture *ebiten.Image
 }
 
 // NewRenderer creates a new renderer instance
@@ -54,15 +59,28 @@ func NewRenderer() *Renderer {
 		orbitShader = shader
 	}
 
+	// Initialize nebula background shader
+	var nebulaShader *ebiten.Shader
+	if shader, err := ebiten.NewShader(nebulaBackgroundShader); err == nil {
+		nebulaShader = shader
+	}
+
+	// Create a white texture matching screen size for shaders that need a source image
+	whiteTexture := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
+	whiteTexture.Fill(color.White)
+
 	return &Renderer{
 		shadowSystem: shadows.NewShadowSystem(constants.ScreenWidth, constants.ScreenHeight),
 		orbitShader:  orbitShader,
+		nebulaShader: nebulaShader,
+		whiteTexture: whiteTexture,
 	}
 }
 
 // Draw renders the complete game scene
 func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
-	screen.Fill(colors.Background)
+	// Draw dynamic nebula background
+	r.drawNebulaBackground(screen, model)
 
 	// Render shadows if enabled
 	r.renderShadows(screen, model)
@@ -543,4 +561,38 @@ func (r *Renderer) drawFPS(screen *ebiten.Image) {
 	op.GeoM.Translate(x, y)
 	op.ColorScale.ScaleWithColor(color.White)
 	text.Draw(screen, fpsText, face, op)
+}
+
+// drawNebulaBackground renders the animated nebula background
+func (r *Renderer) drawNebulaBackground(screen *ebiten.Image, model *Models.SpaceGame) {
+	if r.nebulaShader == nil {
+		// Fallback to solid background
+		screen.Fill(colors.NebulaBackground)
+		return
+	}
+
+	camera := model.Camera
+
+	// Calculate current time in seconds for animations
+	currentTime := float32(time.Since(time.Time{}).Seconds())
+
+	// Get player and camera positions for parallax
+	playerPos := model.Player.Position
+	cameraPos := camera.Position
+
+	// Prepare shader uniforms
+	uniforms := map[string]any{
+		"Time":       currentTime,
+		"PlayerPos":  []float32{playerPos[0], playerPos[1]}, // World coordinates
+		"CameraPos":  []float32{cameraPos[0], cameraPos[1]}, // World coordinates
+		"ScreenSize": []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
+		"Zoom":       camera.Zoom,
+	}
+
+	// Draw the nebula background shader
+	op := &ebiten.DrawRectShaderOptions{}
+	op.Uniforms = uniforms
+	op.Images[0] = r.whiteTexture // Use white texture as dummy source
+
+	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.nebulaShader, op)
 }
