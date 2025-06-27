@@ -17,13 +17,13 @@ func hash(p vec2) float {
 
 func particles(uv vec2, layer float) vec4 {
 	// per-layer tuning
-	var scale, speed, brightness, size, parallax float
+	var scale, speed, brightness, size, parallax, zoomConsider float
 	if layer < 1.0 {
-		scale, speed, brightness, size, parallax = 10.0, 0.3, 0.1, 1.0, 0.2
+		scale, speed, brightness, size, parallax, zoomConsider = 10.0, 0.3, 0.1, 1.0, 0.2, 0.1
 	} else if layer < 2.0 {
-		scale, speed, brightness, size, parallax = 20.0, 0.5, 0.3, 1.2, 0.4
+		scale, speed, brightness, size, parallax, zoomConsider = 20.0, 0.5, 0.3, 1.2, 0.4, 0.4
 	} else {
-		scale, speed, brightness, size, parallax = 30.0, 0.7, 0.5, 1.5, 0.7
+		scale, speed, brightness, size, parallax, zoomConsider = 30.0, 0.7, 0.5, 1.5, 0.7, 0.6
 	}
 
 	// 1) apply zoom around screen center
@@ -50,7 +50,7 @@ func particles(uv vec2, layer float) vec4 {
 
 	// 6) flat dot
 	dist := length(frac - pos)
-	radius := 0.15 * size / Zoom // 10× bigger than before
+	radius := 0.05 * size / ((1 + Zoom) * zoomConsider)
 	alpha := brightness * step(dist, radius)
 
 	// 7) flat palette
