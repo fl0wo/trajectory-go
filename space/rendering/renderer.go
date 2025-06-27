@@ -1,8 +1,12 @@
 package rendering
 
 import (
+	"bytes"
 	_ "embed"
+	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/you/trajectory/constants"
 	"github.com/you/trajectory/space/colors"
@@ -12,12 +16,25 @@ import (
 	"github.com/you/trajectory/space/util"
 	"golang.org/x/image/math/f32"
 	"image/color"
+	"log"
 	"math"
 	"time"
 )
 
 //go:embed orbit_light.go
 var orbitLightShader []byte
+
+var (
+	mplusFaceSource *text.GoTextFaceSource
+)
+
+func init() {
+	s, err := text.NewGoTextFaceSource(bytes.NewReader(fonts.MPlus1pRegular_ttf))
+	if err != nil {
+		log.Fatal(err)
+	}
+	mplusFaceSource = s
+}
 
 const (
 	fovLight = 90.0
@@ -64,6 +81,9 @@ func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
 
 	// Draw trajectory arrow if dragging
 	r.drawTrajectoryArrow(screen, model)
+
+	// Draw FPS counter
+	r.drawFPS(screen)
 }
 
 // renderShadows handles shadow rendering
@@ -494,4 +514,33 @@ func (r *Renderer) DrawTrajectoryArrow(screen *ebiten.Image, model *Models.Space
 		// Draw arrowhead
 		r.drawArrowHead(screen, playerScreen, endScreen, colors.TrajectoryArrow)
 	}
+}
+
+// drawFPS draws the current FPS in the top right corner
+func (r *Renderer) drawFPS(screen *ebiten.Image) {
+	const fontSize = 16
+
+	// Calculate FPS
+	fps := ebiten.ActualTPS()
+	fpsText := fmt.Sprintf("FPS: %.0f", fps)
+
+	// Create text face
+	face := &text.GoTextFace{
+		Source: mplusFaceSource,
+		Size:   fontSize,
+	}
+
+	// Measure text width to position it correctly in top right
+	textWidth, _ := text.Measure(fpsText, face, 0)
+
+	// Position in top right corner with some padding
+	const padding = 10
+	x := float64(constants.ScreenWidth) - textWidth - padding
+	y := float64(padding + fontSize)
+
+	// Draw the FPS text
+	op := &text.DrawOptions{}
+	op.GeoM.Translate(x, y)
+	op.ColorScale.ScaleWithColor(color.White)
+	text.Draw(screen, fpsText, face, op)
 }
