@@ -343,7 +343,7 @@ func (r *Renderer) drawOrbitCircleWithLight(screen *ebiten.Image, model *Models.
 		}
 
 		// Use shader-enabled dashed circle
-		util.StrokeDashedCircleTrianglesWithShader(screen, center[0], center[1], radius, 4, orbitColor, dashLen, gapLen, true, r.orbitShader, uniforms)
+		util.StrokeDashedCircleTrianglesWithShader(screen, center[0], center[1], radius, 4, orbitColor, dashLen, gapLen, true, r.orbitShader, uniforms, currentTime/10.0)
 	} else {
 		// Fallback to regular dashed circle
 		util.StrokeDashedCircle(screen, center[0], center[1], radius, 4, orbitColor, dashLen, gapLen, true)

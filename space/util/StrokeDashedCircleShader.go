@@ -8,8 +8,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
-// StrokeDashedCircleTrianglesWithShader creates triangle vertices for a dashed circle
-// and applies a shader to them directly (more efficient approach)
+// StrokeDashedCircleTrianglesWithShader draws a dashed circle whose dashes
+// are rotated by `rotation` (in radians) around the center.
 func StrokeDashedCircleTrianglesWithShader(
 	dst *ebiten.Image,
 	cx, cy, r float32,
@@ -19,43 +19,53 @@ func StrokeDashedCircleTrianglesWithShader(
 	antialias bool,
 	shader *ebiten.Shader,
 	uniforms map[string]any,
+	rotation float32, // Amount to rotate the dash pattern
 ) {
 	if shader == nil {
-		// Fallback to regular dashed circle if no shader
+		// Fallback to CPU‐only version if no shader
 		StrokeDashedCircle(dst, cx, cy, r, strokeWidth, clr, dashLength, gapLength, antialias)
 		return
 	}
 
-	// total circumference
+	// (Optional) pass rotation into the shader too, for any per‐fragment effects
+	uniforms["Rotation"] = rotation
+
+	// Compute the dash/gap angles
 	circ := 2 * math.Pi * float64(r)
-	// convert desired dash/gap lengths into angles:
 	dashAngle := dashLength / float32(circ) * 2 * math.Pi
 	gapAngle := gapLength / float32(circ) * 2 * math.Pi
 
 	strokeOp := &vector.StrokeOptions{Width: strokeWidth}
 
 	useCachedVerticesAndIndices(func(vs []ebiten.Vertex, is []uint16) ([]ebiten.Vertex, []uint16) {
-		// for each dash, build a little arc and append its stroke
-		for start := float32(0); start < 2*math.Pi; start += dashAngle + gapAngle {
-			end := start + dashAngle
-			if end > 2*math.Pi {
-				end = 2 * math.Pi
+		// Build each dash, but shift its start/end by `rotation`
+		angle := rotation
+		for angle < rotation+2*math.Pi {
+			start := angle
+			end := angle + dashAngle
+			if end > rotation+2*math.Pi {
+				end = rotation + 2*math.Pi
 			}
 			var path vector.Path
 			path.Arc(cx, cy, r, start, end, vector.Clockwise)
 			path.Close()
 			vs, is = path.AppendVerticesAndIndicesForStroke(vs, is, strokeOp)
+			angle += dashAngle + gapAngle
 		}
 
-		// Apply color to vertices
-		r, g, b, a := clr.RGBA()
+		// Color all vertices
+		rr, gg, bb, aa := clr.RGBA()
+		cr := float32(rr) / 0xffff
+		cg := float32(gg) / 0xffff
+		cb := float32(bb) / 0xffff
+		ca := float32(aa) / 0xffff
 		for i := range vs {
 			vs[i].SrcX = 1
 			vs[i].SrcY = 1
-			vs[i].ColorR = float32(r) / 0xffff
-			vs[i].ColorG = float32(g) / 0xffff
-			vs[i].ColorB = float32(b) / 0xffff
-			vs[i].ColorA = float32(a) / 0xffff
+			vs[i].ColorR = cr
+			vs[i].ColorG = cg
+			vs[i].ColorB = cb
+			vs[i].ColorA = ca
 		}
 
 		// Draw with shader
