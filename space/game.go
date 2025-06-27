@@ -45,6 +45,42 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	camera := g.model.Camera
 
+	// Render shadows if enabled
+	if g.model.ShadowsEnabled && g.shadowSystem != nil {
+		// Collect all shadow casters in screen coordinates
+		var shadowCasters []shadows.ShadowCaster
+
+		// Add celestial bodies as shadow casters (convert to screen coordinates)
+		for _, body := range g.model.CelestialBodies {
+			screenPos := camera.WorldToScreen(body.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
+			screenRadius := camera.RadiusToScreen(body.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
+
+			screenCaster := &shadows.ScreenShadowCaster{
+				Position: screenPos,
+				Radius:   screenRadius,
+			}
+			shadowCasters = append(shadowCasters, screenCaster)
+		}
+
+		// Add asteroids as shadow casters (convert to screen coordinates)
+		for _, asteroid := range g.model.RingAsteroids {
+			screenPos := camera.WorldToScreen(asteroid.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
+			screenRadius := camera.RadiusToScreen(asteroid.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
+
+			screenCaster := &shadows.ScreenShadowCaster{
+				Position: screenPos,
+				Radius:   screenRadius,
+			}
+			shadowCasters = append(shadowCasters, screenCaster)
+		}
+
+		// Use player position as light source in screen coordinates
+		lightPos := camera.WorldToScreen(g.model.Player.Position, constants.ScreenWidth, constants.ScreenHeight)
+
+		// Render shadows with screen coordinate system
+		g.shadowSystem.RenderShadows(screen, lightPos, shadowCasters, false)
+	}
+
 	// Draw celestial bodies with camera transform
 	for _, body := range g.model.CelestialBodies {
 		bodyPos := body.GetPosition()
@@ -117,7 +153,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			)
 		}
 	}
-	//}
 
 	// Draw asteroids
 	for _, asteroid := range g.model.RingAsteroids {
@@ -143,42 +178,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Draw player trail
 	g.drawPlayerTrail(screen)
-
-	// Render shadows if enabled
-	if g.model.ShadowsEnabled && g.shadowSystem != nil {
-		// Collect all shadow casters in screen coordinates
-		var shadowCasters []shadows.ShadowCaster
-
-		// Add celestial bodies as shadow casters (convert to screen coordinates)
-		for _, body := range g.model.CelestialBodies {
-			screenPos := camera.WorldToScreen(body.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
-			screenRadius := camera.RadiusToScreen(body.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
-
-			screenCaster := &shadows.ScreenShadowCaster{
-				Position: screenPos,
-				Radius:   screenRadius,
-			}
-			shadowCasters = append(shadowCasters, screenCaster)
-		}
-
-		// Add asteroids as shadow casters (convert to screen coordinates)
-		for _, asteroid := range g.model.RingAsteroids {
-			screenPos := camera.WorldToScreen(asteroid.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
-			screenRadius := camera.RadiusToScreen(asteroid.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
-
-			screenCaster := &shadows.ScreenShadowCaster{
-				Position: screenPos,
-				Radius:   screenRadius,
-			}
-			shadowCasters = append(shadowCasters, screenCaster)
-		}
-
-		// Use player position as light source in screen coordinates
-		lightPos := camera.WorldToScreen(g.model.Player.Position, constants.ScreenWidth, constants.ScreenHeight)
-
-		// Render shadows with screen coordinate system
-		g.shadowSystem.RenderShadows(screen, lightPos, shadowCasters, false)
-	}
 
 	// Draw the player using astronaut image
 	player := g.model.Player
