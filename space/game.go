@@ -17,7 +17,7 @@ import (
 var (
 	// #2F3262
 	backgroundColor = color.RGBA{
-		R: 19, G: 15, B: 64, A: 255,
+		R: 6, G: 2, B: 25, A: 255,
 	}
 )
 

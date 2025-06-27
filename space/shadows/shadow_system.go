@@ -224,7 +224,9 @@ func (ss *ShadowSystem) RenderShadows(screen *ebiten.Image, lightPos f32.Vec2, c
 	}
 
 	// Reset shadow image to black (full shadow)
-	ss.shadowImage.Fill(color.RGBA{R: 0, G: 0, B: 0, A: 255})
+	ss.shadowImage.Fill(color.RGBA{
+		R: 6, G: 2, B: 25, A: 255,
+	})
 
 	// Perform raycasting
 	rays := rayCasting(float64(lightPos[0]), float64(lightPos[1]), celestialPositions, celestialRadii, asteroidPositions, asteroidRadii)

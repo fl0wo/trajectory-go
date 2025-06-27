@@ -196,6 +196,7 @@ CLAUDE.md
 trajectory
 
 .idea/*
+*.png
 
 !.idea/codeStyles
 !.idea/runConfigurations
