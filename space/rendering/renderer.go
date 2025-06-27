@@ -580,6 +580,8 @@ func (r *Renderer) drawNebulaBackground(screen *ebiten.Image, model *Models.Spac
 	playerPos := model.Player.Position
 	cameraPos := camera.Position
 
+	print("currentTime", currentTime)
+
 	// Prepare shader uniforms
 	uniforms := map[string]any{
 		"Time":       currentTime,

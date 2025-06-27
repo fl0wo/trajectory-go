@@ -22,65 +22,55 @@ func worldUV(uv vec2, parallax float) vec2 {
 	return uv - off*parallax
 }
 
-// Particle layers: circles only, no more “cut” edges
 func particles(uv vec2, layer float) vec4 {
-	// per-layer tuning
-	// per-layer tuning
+	// per-layer tuning (unchanged)
 	var scale, speed, bright, size, parallax, zc float
 	if layer < 1.0 {
-		// farthest: big, faint, hardly moves
-		scale, speed, bright, size, parallax, zc = 1.0, 0.3, 0.3, .6, 0.2, 0.1
+		scale, speed, bright, size, parallax, zc = 1.0, 0.3, 0.3, 0.6, 0.2, 0.1
 	} else if layer < 2.0 {
-		// middle: medium size, medium brightness & parallax
 		scale, speed, bright, size, parallax, zc = 2.0, 0.5, 0.6, 1.2, 0.3, 0.3
 	} else {
-		// nearest: small, bright, moves most
 		scale, speed, bright, size, parallax, zc = 3.0, 0.7, 1.0, 1.6, 0.5, 0.5
 	}
 
-	// world-space UV
+	// common transforms (zoom + parallax)
 	wuv := worldUV(uv, parallax)
-
-	// grid cell
 	scaled := wuv * scale
 	cell := floor(scaled)
 	frac := fract(scaled)
 
-	// RNG seeds
+	// per-cell randomness
 	rX := hash(cell)
 	rY := hash(cell + vec2(5.2, 1.3))
 	t := hash(cell + vec2(8.7, 3.4))
 
-	// compute radius (cell units)
-	radius := 0.008 * size / ((1 + Zoom) * zc)
-
-	// wingling animation
+	// base orbiting “wingle”
 	ang := Time*speed + (rX+rY)*6.2831
 
-	// margin to keep circle + wiggle inside cell
-	pad := radius + 0.2
-
-	// safe jitter center in [pad..1-pad]
+	// compute a safe, inset center so wiggle never overflows cell
+	radius := 0.008 * size / ((1 + Zoom) * zc)
+	wiggleAmp := 0.90 // ±0.10 UV units
+	pad := radius + 0.2 + wiggleAmp
 	jX := rX*(1.0-2.0*pad) + pad
 	jY := rY*(1.0-2.0*pad) + pad
+	basePos := vec2(jX, jY)
 
-	// final particle position, then fract to remain in [0,1]
-	pos := fract(
-		vec2(
-			jX+cos(ang)*0.2,
-			jY+sin(ang)*0.2,
-		),
-	)
+	// combine orbit + wiggle
+	wiggleFreq := 2.0 // ≈3s per full cycle
+	wiggle := vec2(
+		sin(Time*wiggleFreq+rX*6.2831),
+		cos(Time*wiggleFreq+rY*6.2831),
+	) * wiggleAmp
+	pos := fract(basePos + vec2(cos(ang), sin(ang))*0.2 + wiggle)
 
-	// local offset within cell
+	// mask that circle
 	local := frac - pos
-
-	// aspect-correct for non-square screens
 	aspectInv := ScreenSize.y / ScreenSize.x
 	localCorr := vec2(local.x, local.y*aspectInv)
-
-	// circle mask
 	mask := step(length(localCorr), radius)
+
+	// tiny opacity pulse
+	pulse := 1.0 + 0.1*sin(Time*1.0+(rX+rY)*6.2831)
 
 	// flat palette
 	var col vec3
@@ -98,7 +88,7 @@ func particles(uv vec2, layer float) vec4 {
 		col = vec3(0.031, 0.008, 0.106)
 	}
 
-	alpha := bright * mask
+	alpha := bright * mask * pulse
 	return vec4(col, alpha)
 }
 
@@ -109,13 +99,13 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 	// base rich-black background
 	result := vec4(11/255.0, 2/255.0, 43/255.0, 1.0)
 
-	// three layers of circular particles
+	// three animated circle layers
 	for layer := 0.0; layer < 3.0; layer++ {
 		p := particles(uv, layer)
 		result.rgb += p.rgb * p.a
 	}
 
-	// clamp & return
+	// clamp and return
 	result.rgb = min(result.rgb, vec3(1.0))
 	return result
 }
