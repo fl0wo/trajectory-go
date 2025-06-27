@@ -51,13 +51,13 @@ const (
 
 // Renderer handles all rendering operations for the game
 type Renderer struct {
-	shadowSystem        *shadows.ShadowSystem
-	orbitShader         *ebiten.Shader
-	playerTrailShader   *ebiten.Shader
+	shadowSystem          *shadows.ShadowSystem
+	orbitShader           *ebiten.Shader
+	playerTrailShader     *ebiten.Shader
 	trajectoryArrowShader *ebiten.Shader
-	nebulaShader        *ebiten.Shader
-	whiteTexture        *ebiten.Image
-	startTime           time.Time // Game start time for shader animations
+	nebulaShader          *ebiten.Shader
+	whiteTexture          *ebiten.Image
+	startTime             time.Time // Game start time for shader animations
 }
 
 // NewRenderer creates a new renderer instance
@@ -155,7 +155,9 @@ func (r *Renderer) renderShadows(screen *ebiten.Image, model *Models.SpaceGame) 
 	// Use player position as light source in screen coordinates
 	lightPos := camera.WorldToScreen(model.Player.Position, constants.ScreenWidth, constants.ScreenHeight)
 	lightDirection := camera.WorldToScreen(camera.Position, constants.ScreenWidth, constants.ScreenHeight)
-	r.shadowSystem.RenderShadows(screen, lightPos, lightDirection, fovLight, camera.Zoom, celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, false)
+	fov := r.getAdaptiveFov(lightDirection, lightPos)
+
+	r.shadowSystem.RenderShadows(screen, lightPos, lightDirection, fov, camera.Zoom, celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, false)
 }
 
 // drawCelestialBodies renders all celestial bodies
@@ -286,6 +288,7 @@ func (r *Renderer) drawPlayerTrail(screen *ebiten.Image, model *Models.SpaceGame
 
 		// Calculate max distance for the light cone (same as shadow system)
 		maxDistance := math.Hypot(float64(constants.ScreenWidth), float64(constants.ScreenHeight))
+		fov := r.getAdaptiveFov(lightDirection, lightPos)
 
 		// Draw lines between consecutive trail points with shader
 		for i := 1; i < len(trailPoints); i++ {
@@ -317,7 +320,7 @@ func (r *Renderer) drawPlayerTrail(screen *ebiten.Image, model *Models.SpaceGame
 			uniforms := map[string]any{
 				"LightPos":       []float32{lightPos[0], lightPos[1]},
 				"LightDirection": []float32{lightDirVec[0], lightDirVec[1]},
-				"FOVAngle":       float32(fovLight * math.Pi / 180.0), // Convert to radians
+				"FOVAngle":       float32(fov * math.Pi / 180.0), // Convert to radians
 				"MaxDistance":    float32(maxDistance),
 				"Zoom":           camera.Zoom,
 				"OriginalColor": []float32{
@@ -330,37 +333,6 @@ func (r *Renderer) drawPlayerTrail(screen *ebiten.Image, model *Models.SpaceGame
 
 			// Draw the trail segment with shader effect
 			r.drawLineWithShader(screen, prevScreen, currScreen, width, trailColor, r.playerTrailShader, uniforms)
-		}
-	} else {
-		// Fallback to regular trail rendering
-		// Draw lines between consecutive trail points
-		for i := 1; i < len(trailPoints); i++ {
-			prevPoint := trailPoints[i-1]
-			currPoint := trailPoints[i]
-
-			// Calculate age of the current point
-			age := now.Sub(currPoint.Timestamp)
-			trailDuration := 3.0 * time.Second // Should match the constant in Player.go
-
-			// Calculate alpha based on age (newer = more opaque)
-			ageRatio := float64(age) / float64(trailDuration)
-			alpha := uint8(255 * (1.0 - ageRatio))
-			if ageRatio >= 1.0 {
-				continue // Skip expired points
-			}
-
-			// Convert world positions to screen coordinates
-			prevScreen := camera.WorldToScreen(prevPoint.Position, constants.ScreenWidth, constants.ScreenHeight)
-			currScreen := camera.WorldToScreen(currPoint.Position, constants.ScreenWidth, constants.ScreenHeight)
-
-			// Trail color with fading alpha
-			trailColor := color.RGBA{R: colors.PlayerTrail.R, G: colors.PlayerTrail.G, B: colors.PlayerTrail.B, A: alpha}
-
-			// Calculate line width based on age (newer = thicker)
-			width := float32(1 + (1.0-ageRatio)*2) // Width from 1 to 3
-
-			// Draw the trail segment
-			vector.StrokeLine(screen, prevScreen[0], prevScreen[1], currScreen[0], currScreen[1], width, trailColor, true)
 		}
 	}
 }
@@ -407,11 +379,13 @@ func (r *Renderer) drawOrbitCircleWithLight(screen *ebiten.Image, model *Models.
 		// Calculate elapsed time since game start for rotation animation
 		currentTime := float32(time.Since(r.startTime).Seconds())
 
+		fov := r.getAdaptiveFov(lightDirection, lightPos)
+
 		// Prepare shader uniforms
 		uniforms := map[string]any{
 			"LightPos":       []float32{lightPos[0], lightPos[1]},
 			"LightDirection": []float32{lightDirVec[0], lightDirVec[1]},
-			"FOVAngle":       float32(fovLight * math.Pi / 180.0), // Convert to radians
+			"FOVAngle":       float32(fov * math.Pi / 180.0), // Convert to radians
 			"MaxDistance":    float32(maxDistance),
 			"Zoom":           camera.Zoom,
 			"OriginalColor": []float32{
@@ -634,11 +608,13 @@ func (r *Renderer) DrawTrajectoryArrow(screen *ebiten.Image, model *Models.Space
 			// Calculate max distance for the light cone (same as shadow system)
 			maxDistance := math.Hypot(float64(constants.ScreenWidth), float64(constants.ScreenHeight))
 
+			fov := r.getAdaptiveFov(lightDirection, lightPos)
+
 			// Prepare shader uniforms
 			uniforms := map[string]any{
 				"LightPos":       []float32{lightPos[0], lightPos[1]},
 				"LightDirection": []float32{lightDirVec[0], lightDirVec[1]},
-				"FOVAngle":       float32(fovLight * math.Pi / 180.0), // Convert to radians
+				"FOVAngle":       float32(fov * math.Pi / 180.0), // Convert to radians
 				"MaxDistance":    float32(maxDistance),
 				"Zoom":           camera.Zoom,
 				"OriginalColor": []float32{
@@ -663,6 +639,12 @@ func (r *Renderer) DrawTrajectoryArrow(screen *ebiten.Image, model *Models.Space
 			r.drawArrowHead(screen, playerScreen, endScreen, colors.TrajectoryArrow)
 		}
 	}
+}
+
+func (r *Renderer) getAdaptiveFov(lightDirection f32.Vec2, lightPos f32.Vec2) float64 {
+	lightDistanceFromCamera := math.Hypot(float64(lightDirection[0]-lightPos[0]), float64(lightDirection[1]-lightPos[1]))
+	// Clamp FOV to reasonable range
+	return util.Clamp(fovLight/(lightDistanceFromCamera/250.0), 10.0, 90.0)
 }
 
 // drawFPS draws the current FPS in the top right corner
@@ -734,14 +716,14 @@ func (r *Renderer) drawLineWithShader(screen *ebiten.Image, start, end f32.Vec2,
 	var path vector.Path
 	path.MoveTo(start[0], start[1])
 	path.LineTo(end[0], end[1])
-	
+
 	strokeOp := &vector.StrokeOptions{Width: width}
-	
+
 	// Create vertices and indices for the line
 	var vs []ebiten.Vertex
 	var is []uint16
 	vs, is = path.AppendVerticesAndIndicesForStroke(vs, is, strokeOp)
-	
+
 	// Set color for all vertices
 	rr, gg, bb, aa := color.RGBA()
 	cr := float32(rr) / 0xffff
@@ -756,7 +738,7 @@ func (r *Renderer) drawLineWithShader(screen *ebiten.Image, start, end f32.Vec2,
 		vs[i].ColorB = cb
 		vs[i].ColorA = ca
 	}
-	
+
 	// Draw with shader
 	op := &ebiten.DrawTrianglesShaderOptions{}
 	op.Uniforms = uniforms
