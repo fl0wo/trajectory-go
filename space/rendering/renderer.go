@@ -24,6 +24,12 @@ import (
 //go:embed orbit_light.go
 var orbitLightShader []byte
 
+//go:embed player_trail.go
+var playerTrailShader []byte
+
+//go:embed trajectory_arrow.go
+var trajectoryArrowShader []byte
+
 //go:embed nebula_background.go
 var nebulaBackgroundShader []byte
 
@@ -45,11 +51,13 @@ const (
 
 // Renderer handles all rendering operations for the game
 type Renderer struct {
-	shadowSystem *shadows.ShadowSystem
-	orbitShader  *ebiten.Shader
-	nebulaShader *ebiten.Shader
-	whiteTexture *ebiten.Image
-	startTime    time.Time // Game start time for shader animations
+	shadowSystem        *shadows.ShadowSystem
+	orbitShader         *ebiten.Shader
+	playerTrailShader   *ebiten.Shader
+	trajectoryArrowShader *ebiten.Shader
+	nebulaShader        *ebiten.Shader
+	whiteTexture        *ebiten.Image
+	startTime           time.Time // Game start time for shader animations
 }
 
 // NewRenderer creates a new renderer instance
@@ -58,6 +66,18 @@ func NewRenderer() *Renderer {
 	var orbitShader *ebiten.Shader
 	if shader, err := ebiten.NewShader(orbitLightShader); err == nil {
 		orbitShader = shader
+	}
+
+	// Initialize player trail shader
+	var playerTrailShaderObj *ebiten.Shader
+	if shader, err := ebiten.NewShader(playerTrailShader); err == nil {
+		playerTrailShaderObj = shader
+	}
+
+	// Initialize trajectory arrow shader
+	var trajectoryArrowShaderObj *ebiten.Shader
+	if shader, err := ebiten.NewShader(trajectoryArrowShader); err == nil {
+		trajectoryArrowShaderObj = shader
 	}
 
 	// Initialize nebula background shader
@@ -71,11 +91,13 @@ func NewRenderer() *Renderer {
 	whiteTexture.Fill(color.White)
 
 	return &Renderer{
-		shadowSystem: shadows.NewShadowSystem(constants.ScreenWidth, constants.ScreenHeight),
-		orbitShader:  orbitShader,
-		nebulaShader: nebulaShader,
-		whiteTexture: whiteTexture,
-		startTime:    time.Now(), // Initialize start time for shader animations
+		shadowSystem:          shadows.NewShadowSystem(constants.ScreenWidth, constants.ScreenHeight),
+		orbitShader:           orbitShader,
+		playerTrailShader:     playerTrailShaderObj,
+		trajectoryArrowShader: trajectoryArrowShaderObj,
+		nebulaShader:          nebulaShader,
+		whiteTexture:          whiteTexture,
+		startTime:             time.Now(), // Initialize start time for shader animations
 	}
 }
 
@@ -250,34 +272,96 @@ func (r *Renderer) drawPlayerTrail(screen *ebiten.Image, model *Models.SpaceGame
 	camera := model.Camera
 	now := time.Now()
 
-	// Draw lines between consecutive trail points
-	for i := 1; i < len(trailPoints); i++ {
-		prevPoint := trailPoints[i-1]
-		currPoint := trailPoints[i]
+	// If shadows are enabled and we have the player trail shader, apply light effects
+	if model.ShadowsEnabled && r.playerTrailShader != nil {
+		// Get light information (same as shadow system)
+		lightPos := camera.WorldToScreen(model.Player.Position, constants.ScreenWidth, constants.ScreenHeight)
+		lightDirection := camera.WorldToScreen(camera.Position, constants.ScreenWidth, constants.ScreenHeight)
 
-		// Calculate age of the current point
-		age := now.Sub(currPoint.Timestamp)
-		trailDuration := 3.0 * time.Second // Should match the constant in Player.go
-
-		// Calculate alpha based on age (newer = more opaque)
-		ageRatio := float64(age) / float64(trailDuration)
-		alpha := uint8(255 * (1.0 - ageRatio))
-		if ageRatio >= 1.0 {
-			continue // Skip expired points
+		// Calculate light direction vector (from light pos to camera/target)
+		lightDirVec := f32.Vec2{
+			lightDirection[0] - lightPos[0],
+			lightDirection[1] - lightPos[1],
 		}
 
-		// Convert world positions to screen coordinates
-		prevScreen := camera.WorldToScreen(prevPoint.Position, constants.ScreenWidth, constants.ScreenHeight)
-		currScreen := camera.WorldToScreen(currPoint.Position, constants.ScreenWidth, constants.ScreenHeight)
+		// Calculate max distance for the light cone (same as shadow system)
+		maxDistance := math.Hypot(float64(constants.ScreenWidth), float64(constants.ScreenHeight))
 
-		// Trail color with fading alpha
-		trailColor := color.RGBA{R: colors.PlayerTrail.R, G: colors.PlayerTrail.G, B: colors.PlayerTrail.B, A: alpha}
+		// Draw lines between consecutive trail points with shader
+		for i := 1; i < len(trailPoints); i++ {
+			prevPoint := trailPoints[i-1]
+			currPoint := trailPoints[i]
 
-		// Calculate line width based on age (newer = thicker)
-		width := float32(1 + (1.0-ageRatio)*2) // Width from 1 to 3
+			// Calculate age of the current point
+			age := now.Sub(currPoint.Timestamp)
+			trailDuration := 3.0 * time.Second // Should match the constant in Player.go
 
-		// Draw the trail segment
-		vector.StrokeLine(screen, prevScreen[0], prevScreen[1], currScreen[0], currScreen[1], width, trailColor, true)
+			// Calculate alpha based on age (newer = more opaque)
+			ageRatio := float64(age) / float64(trailDuration)
+			alpha := uint8(255 * (1.0 - ageRatio))
+			if ageRatio >= 1.0 {
+				continue // Skip expired points
+			}
+
+			// Convert world positions to screen coordinates
+			prevScreen := camera.WorldToScreen(prevPoint.Position, constants.ScreenWidth, constants.ScreenHeight)
+			currScreen := camera.WorldToScreen(currPoint.Position, constants.ScreenWidth, constants.ScreenHeight)
+
+			// Trail color with fading alpha
+			trailColor := color.RGBA{R: colors.PlayerTrail.R, G: colors.PlayerTrail.G, B: colors.PlayerTrail.B, A: alpha}
+
+			// Calculate line width based on age (newer = thicker)
+			width := float32(1 + (1.0-ageRatio)*2) // Width from 1 to 3
+
+			// Prepare shader uniforms
+			uniforms := map[string]any{
+				"LightPos":       []float32{lightPos[0], lightPos[1]},
+				"LightDirection": []float32{lightDirVec[0], lightDirVec[1]},
+				"FOVAngle":       float32(fovLight * math.Pi / 180.0), // Convert to radians
+				"MaxDistance":    float32(maxDistance),
+				"Zoom":           camera.Zoom,
+				"OriginalColor": []float32{
+					float32(trailColor.R) / 255.0,
+					float32(trailColor.G) / 255.0,
+					float32(trailColor.B) / 255.0,
+					float32(trailColor.A) / 255.0,
+				},
+			}
+
+			// Draw the trail segment with shader effect
+			r.drawLineWithShader(screen, prevScreen, currScreen, width, trailColor, r.playerTrailShader, uniforms)
+		}
+	} else {
+		// Fallback to regular trail rendering
+		// Draw lines between consecutive trail points
+		for i := 1; i < len(trailPoints); i++ {
+			prevPoint := trailPoints[i-1]
+			currPoint := trailPoints[i]
+
+			// Calculate age of the current point
+			age := now.Sub(currPoint.Timestamp)
+			trailDuration := 3.0 * time.Second // Should match the constant in Player.go
+
+			// Calculate alpha based on age (newer = more opaque)
+			ageRatio := float64(age) / float64(trailDuration)
+			alpha := uint8(255 * (1.0 - ageRatio))
+			if ageRatio >= 1.0 {
+				continue // Skip expired points
+			}
+
+			// Convert world positions to screen coordinates
+			prevScreen := camera.WorldToScreen(prevPoint.Position, constants.ScreenWidth, constants.ScreenHeight)
+			currScreen := camera.WorldToScreen(currPoint.Position, constants.ScreenWidth, constants.ScreenHeight)
+
+			// Trail color with fading alpha
+			trailColor := color.RGBA{R: colors.PlayerTrail.R, G: colors.PlayerTrail.G, B: colors.PlayerTrail.B, A: alpha}
+
+			// Calculate line width based on age (newer = thicker)
+			width := float32(1 + (1.0-ageRatio)*2) // Width from 1 to 3
+
+			// Draw the trail segment
+			vector.StrokeLine(screen, prevScreen[0], prevScreen[1], currScreen[0], currScreen[1], width, trailColor, true)
+		}
 	}
 }
 
@@ -535,11 +619,49 @@ func (r *Renderer) DrawTrajectoryArrow(screen *ebiten.Image, model *Models.Space
 	// Only draw if trajectory has significant length
 	dragDistance := float32(math.Sqrt(float64(trajectoryVector[0]*trajectoryVector[0] + trajectoryVector[1]*trajectoryVector[1])))
 	if dragDistance > 0.01 {
-		// Draw main arrow line (white, thick)
-		vector.StrokeLine(screen, playerScreen[0], playerScreen[1], endScreen[0], endScreen[1], 4, colors.TrajectoryArrow, true)
+		// If shadows are enabled and we have the trajectory arrow shader, apply light effects
+		if model.ShadowsEnabled && r.trajectoryArrowShader != nil {
+			// Get light information (same as shadow system)
+			lightPos := camera.WorldToScreen(model.Player.Position, constants.ScreenWidth, constants.ScreenHeight)
+			lightDirection := camera.WorldToScreen(camera.Position, constants.ScreenWidth, constants.ScreenHeight)
 
-		// Draw arrowhead
-		r.drawArrowHead(screen, playerScreen, endScreen, colors.TrajectoryArrow)
+			// Calculate light direction vector (from light pos to camera/target)
+			lightDirVec := f32.Vec2{
+				lightDirection[0] - lightPos[0],
+				lightDirection[1] - lightPos[1],
+			}
+
+			// Calculate max distance for the light cone (same as shadow system)
+			maxDistance := math.Hypot(float64(constants.ScreenWidth), float64(constants.ScreenHeight))
+
+			// Prepare shader uniforms
+			uniforms := map[string]any{
+				"LightPos":       []float32{lightPos[0], lightPos[1]},
+				"LightDirection": []float32{lightDirVec[0], lightDirVec[1]},
+				"FOVAngle":       float32(fovLight * math.Pi / 180.0), // Convert to radians
+				"MaxDistance":    float32(maxDistance),
+				"Zoom":           camera.Zoom,
+				"OriginalColor": []float32{
+					float32(colors.TrajectoryArrow.R) / 255.0,
+					float32(colors.TrajectoryArrow.G) / 255.0,
+					float32(colors.TrajectoryArrow.B) / 255.0,
+					float32(colors.TrajectoryArrow.A) / 255.0,
+				},
+			}
+
+			// Draw main arrow line with shader effect
+			r.drawLineWithShader(screen, playerScreen, endScreen, 4, colors.TrajectoryArrow, r.trajectoryArrowShader, uniforms)
+
+			// Draw arrowhead with shader effect
+			r.drawArrowHeadWithShader(screen, playerScreen, endScreen, colors.TrajectoryArrow, r.trajectoryArrowShader, uniforms)
+		} else {
+			// Fallback to regular trajectory arrow rendering
+			// Draw main arrow line (white, thick)
+			vector.StrokeLine(screen, playerScreen[0], playerScreen[1], endScreen[0], endScreen[1], 4, colors.TrajectoryArrow, true)
+
+			// Draw arrowhead
+			r.drawArrowHead(screen, playerScreen, endScreen, colors.TrajectoryArrow)
+		}
 	}
 }
 
@@ -604,4 +726,78 @@ func (r *Renderer) drawNebulaBackground(screen *ebiten.Image, model *Models.Spac
 	op.Images[0] = r.whiteTexture // Use white texture as dummy source
 
 	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.nebulaShader, op)
+}
+
+// drawLineWithShader draws a line using triangles with the specified shader
+func (r *Renderer) drawLineWithShader(screen *ebiten.Image, start, end f32.Vec2, width float32, color color.RGBA, shader *ebiten.Shader, uniforms map[string]any) {
+	// Create line using vector path and triangulation
+	var path vector.Path
+	path.MoveTo(start[0], start[1])
+	path.LineTo(end[0], end[1])
+	
+	strokeOp := &vector.StrokeOptions{Width: width}
+	
+	// Create vertices and indices for the line
+	var vs []ebiten.Vertex
+	var is []uint16
+	vs, is = path.AppendVerticesAndIndicesForStroke(vs, is, strokeOp)
+	
+	// Set color for all vertices
+	rr, gg, bb, aa := color.RGBA()
+	cr := float32(rr) / 0xffff
+	cg := float32(gg) / 0xffff
+	cb := float32(bb) / 0xffff
+	ca := float32(aa) / 0xffff
+	for i := range vs {
+		vs[i].SrcX = 1
+		vs[i].SrcY = 1
+		vs[i].ColorR = cr
+		vs[i].ColorG = cg
+		vs[i].ColorB = cb
+		vs[i].ColorA = ca
+	}
+	
+	// Draw with shader
+	op := &ebiten.DrawTrianglesShaderOptions{}
+	op.Uniforms = uniforms
+	op.Images[0] = r.whiteTexture
+	screen.DrawTrianglesShader(vs, is, shader, op)
+}
+
+// drawArrowHeadWithShader draws an arrowhead using triangles with the specified shader
+func (r *Renderer) drawArrowHeadWithShader(screen *ebiten.Image, start, end f32.Vec2, color color.RGBA, shader *ebiten.Shader, uniforms map[string]any) {
+	// Calculate arrow direction
+	dx := end[0] - start[0]
+	dy := end[1] - start[1]
+	length := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+
+	if length == 0 {
+		return
+	}
+
+	// Normalize direction vector
+	unitX := dx / length
+	unitY := dy / length
+
+	// Arrow head size
+	arrowLength := float32(15.0)
+	arrowWidth := float32(8.0)
+
+	// Calculate perpendicular vector
+	perpX := -unitY
+	perpY := unitX
+
+	// Calculate arrow head points
+	backX := end[0] - unitX*arrowLength
+	backY := end[1] - unitY*arrowLength
+
+	leftX := backX + perpX*arrowWidth
+	leftY := backY + perpY*arrowWidth
+
+	rightX := backX - perpX*arrowWidth
+	rightY := backY - perpY*arrowWidth
+
+	// Draw arrow head lines with shader
+	r.drawLineWithShader(screen, end, f32.Vec2{leftX, leftY}, 3, color, shader, uniforms)
+	r.drawLineWithShader(screen, end, f32.Vec2{rightX, rightY}, 3, color, shader, uniforms)
 }
