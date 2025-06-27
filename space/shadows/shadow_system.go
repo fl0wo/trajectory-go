@@ -198,6 +198,7 @@ func (ss *ShadowSystem) RenderShadows(
 	lightPos f32.Vec2,
 	winPos f32.Vec2,
 	fovAngle float64,
+	cameraZoom float32,
 	celestialPositions []f32.Vec2,
 	celestialRadii []float32,
 	asteroidPositions []f32.Vec2,
@@ -279,6 +280,7 @@ func (ss *ShadowSystem) RenderShadows(
 		lightOpt.Uniforms = map[string]any{
 			"LightPos":    []float32{float32(lightX), float32(lightY)},
 			"MaxDistance": float32(maxDistance),
+			"Zoom":        cameraZoom,
 		}
 		lightOpt.Images[0] = ss.triangleImage
 		lightOpt.Blend = ebiten.BlendSourceOver

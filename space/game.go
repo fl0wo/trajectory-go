@@ -66,7 +66,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		// Use player position as light source in screen coordinates
 		lightPos := camera.WorldToScreen(g.model.Player.Position, constants.ScreenWidth, constants.ScreenHeight)
 		lightDirection := camera.WorldToScreen(camera.Position, constants.ScreenWidth, constants.ScreenHeight)
-		g.shadowSystem.RenderShadows(screen, lightPos, lightDirection, 120.0, celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, false)
+		g.shadowSystem.RenderShadows(screen, lightPos, lightDirection, 120.0, camera.Zoom, celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, false)
 	}
 
 	// Draw celestial bodies with camera transform
