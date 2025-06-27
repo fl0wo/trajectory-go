@@ -28,6 +28,7 @@ type SpaceGame struct {
 	TargetTimeScale     float32    // Target time scale for smooth interpolation
 	ProximityZoom       float32    // Current proximity zoom multiplier (1.0 = normal, 1.25 = zoomed in)
 	TargetProximityZoom float32    // Target proximity zoom for smooth interpolation
+	ShadowsEnabled      bool       // Toggle for shadow rendering system
 }
 
 // NewSpaceGame creates a new SpaceGame starting with level 1.
@@ -64,6 +65,7 @@ func NewSpaceGameWithLevel(levelNum int) (*SpaceGame, error) {
 		TargetTimeScale:     1.0,              // Target matches current initially
 		ProximityZoom:       1.0,              // Normal zoom initially
 		TargetProximityZoom: 1.0,              // Target matches current initially
+		ShadowsEnabled:      true,             // Enable shadows by default
 	}
 
 	// Calculate center of all entities and set camera position
@@ -363,6 +365,11 @@ func (sg *SpaceGame) ToggleCameraMode() {
 	} else {
 		sg.CameraMode = CameraModeCenter
 	}
+}
+
+// ToggleShadows switches shadow rendering on/off
+func (sg *SpaceGame) ToggleShadows() {
+	sg.ShadowsEnabled = !sg.ShadowsEnabled
 }
 
 // GetCameraModeString returns a string representation of the current camera mode

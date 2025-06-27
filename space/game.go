@@ -7,6 +7,7 @@ import (
 	"github.com/you/trajectory/space/input"
 	Models "github.com/you/trajectory/space/model"
 	"github.com/you/trajectory/space/resources"
+	"github.com/you/trajectory/space/shadows"
 	"golang.org/x/image/math/f32"
 	"image/color"
 	"math"
@@ -28,9 +29,10 @@ const (
 )
 
 type Game struct {
-	input    *input.Input
-	model    *Models.SpaceGame
-	lastTime int64 // For delta time calculation
+	input        *input.Input
+	model        *Models.SpaceGame
+	lastTime     int64 // For delta time calculation
+	shadowSystem *shadows.ShadowSystem
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -142,6 +144,42 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// Draw player trail
 	g.drawPlayerTrail(screen)
 
+	// Render shadows if enabled
+	if g.model.ShadowsEnabled && g.shadowSystem != nil {
+		// Collect all shadow casters in screen coordinates
+		var shadowCasters []shadows.ShadowCaster
+
+		// Add celestial bodies as shadow casters (convert to screen coordinates)
+		for _, body := range g.model.CelestialBodies {
+			screenPos := camera.WorldToScreen(body.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
+			screenRadius := camera.RadiusToScreen(body.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
+
+			screenCaster := &shadows.ScreenShadowCaster{
+				Position: screenPos,
+				Radius:   screenRadius,
+			}
+			shadowCasters = append(shadowCasters, screenCaster)
+		}
+
+		// Add asteroids as shadow casters (convert to screen coordinates)
+		for _, asteroid := range g.model.RingAsteroids {
+			screenPos := camera.WorldToScreen(asteroid.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
+			screenRadius := camera.RadiusToScreen(asteroid.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
+
+			screenCaster := &shadows.ScreenShadowCaster{
+				Position: screenPos,
+				Radius:   screenRadius,
+			}
+			shadowCasters = append(shadowCasters, screenCaster)
+		}
+
+		// Use player position as light source in screen coordinates
+		lightPos := camera.WorldToScreen(g.model.Player.Position, constants.ScreenWidth, constants.ScreenHeight)
+
+		// Render shadows with screen coordinate system
+		g.shadowSystem.RenderShadows(screen, lightPos, shadowCasters, false)
+	}
+
 	// Draw the player using astronaut image
 	player := g.model.Player
 	playerScreenPos := camera.WorldToScreen(player.Position, constants.ScreenWidth, constants.ScreenHeight)
@@ -246,6 +284,10 @@ func NewGame() (*Game, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Initialize shadow system
+	g.shadowSystem = shadows.NewShadowSystem(constants.ScreenWidth, constants.ScreenHeight)
+
 	return g, nil
 }
 
@@ -282,6 +324,11 @@ func (g *Game) Update() error {
 	// Handle camera toggle (C key)
 	if g.input.IsCameraTogglePressed() {
 		g.model.ToggleCameraMode()
+	}
+
+	// Handle shadow toggle (S key)
+	if g.input.IsShadowTogglePressed() {
+		g.model.ToggleShadows()
 	}
 
 	// Handle level selection keys (1-9)

@@ -95,6 +95,7 @@ type Input struct {
 	restartKeyPressed   bool // True for one frame when R key is pressed
 	levelKeyPressed     int  // 1-9 if level key was pressed, 0 otherwise
 	cameraTogglePressed bool // True for one frame when C key is pressed
+	shadowTogglePressed bool // True for one frame when S key is pressed
 
 	touches       []ebiten.TouchID
 	touchState    touchState
@@ -148,6 +149,9 @@ func (i *Input) Update() {
 
 	// Check for camera toggle key (C) press
 	i.cameraTogglePressed = inpututil.IsKeyJustPressed(ebiten.KeyC)
+
+	// Check for shadow toggle key (S) press
+	i.shadowTogglePressed = inpututil.IsKeyJustPressed(ebiten.KeyS)
 
 	// Check for level selection keys (1-9)
 	i.levelKeyPressed = 0
@@ -299,4 +303,9 @@ func (i *Input) GetLevelKeyPressed() int {
 // IsCameraTogglePressed returns true if the C key was just pressed this frame
 func (i *Input) IsCameraTogglePressed() bool {
 	return i.cameraTogglePressed
+}
+
+// IsShadowTogglePressed returns true if the S key was just pressed this frame
+func (i *Input) IsShadowTogglePressed() bool {
+	return i.shadowTogglePressed
 }
