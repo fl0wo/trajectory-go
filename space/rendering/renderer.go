@@ -1,6 +1,7 @@
 package rendering
 
 import (
+	_ "embed"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/you/trajectory/constants"
@@ -15,6 +16,9 @@ import (
 	"time"
 )
 
+//go:embed orbit_light.go
+var orbitLightShader []byte
+
 const (
 	fovLight = 90.0
 )
@@ -22,12 +26,20 @@ const (
 // Renderer handles all rendering operations for the game
 type Renderer struct {
 	shadowSystem *shadows.ShadowSystem
+	orbitShader  *ebiten.Shader
 }
 
 // NewRenderer creates a new renderer instance
 func NewRenderer() *Renderer {
+	// Initialize orbit shader
+	var orbitShader *ebiten.Shader
+	if shader, err := ebiten.NewShader(orbitLightShader); err == nil {
+		orbitShader = shader
+	}
+
 	return &Renderer{
 		shadowSystem: shadows.NewShadowSystem(constants.ScreenWidth, constants.ScreenHeight),
+		orbitShader:  orbitShader,
 	}
 }
 
@@ -137,8 +149,8 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 			vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], radius, bodyColor, true)
 		}
 
-		// Draw celestial body's orbit radius as a dashed circle
-		r.drawOrbitCircle(screen, screenPos, camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight), orbitColor)
+		// Draw celestial body's orbit radius as a dashed circle with light effect
+		r.drawOrbitCircleWithLight(screen, model, screenPos, camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight), orbitColor)
 	}
 }
 
@@ -233,6 +245,62 @@ func (r *Renderer) drawPlayerTrail(screen *ebiten.Image, model *Models.SpaceGame
 func (r *Renderer) drawTrajectoryArrow(screen *ebiten.Image, model *Models.SpaceGame) {
 	// This would need access to input dragInfo - will be handled in the main game loop
 	// For now, this is a placeholder for the trajectory arrow rendering logic
+}
+
+// drawOrbitCircleWithLight draws a dashed orbit circle with light inversion effect
+func (r *Renderer) drawOrbitCircleWithLight(screen *ebiten.Image, model *Models.SpaceGame, center f32.Vec2, radius float32, orbitColor color.RGBA) {
+	if radius <= 0 {
+		return
+	}
+
+	// Dashed circle parameters
+	const numDashes = 24
+	const dashPortion = 4.0 / (4.0 + 16.0) // = 0.2
+
+	// Calculate dash and gap lengths
+	circ := 2 * math.Pi * float64(radius)
+	segLen := float32(circ) / float32(numDashes)
+	dashLen := segLen * dashPortion
+	gapLen := segLen * (1.0 - dashPortion)
+
+	// If shadows are enabled and we have the orbit shader, apply light effects
+	if model.ShadowsEnabled && r.orbitShader != nil {
+		camera := model.Camera
+
+		// Get light information (same as shadow system)
+		lightPos := camera.WorldToScreen(model.Player.Position, constants.ScreenWidth, constants.ScreenHeight)
+		lightDirection := camera.WorldToScreen(camera.Position, constants.ScreenWidth, constants.ScreenHeight)
+
+		// Calculate light direction vector (from light pos to camera/target)
+		lightDirVec := f32.Vec2{
+			lightDirection[0] - lightPos[0],
+			lightDirection[1] - lightPos[1],
+		}
+
+		// Calculate max distance for the light cone (same as shadow system)
+		maxDistance := math.Hypot(float64(constants.ScreenWidth), float64(constants.ScreenHeight))
+
+		// Prepare shader uniforms
+		uniforms := map[string]any{
+			"LightPos":       []float32{lightPos[0], lightPos[1]},
+			"LightDirection": []float32{lightDirVec[0], lightDirVec[1]},
+			"FOVAngle":       float32(fovLight * math.Pi / 180.0), // Convert to radians
+			"MaxDistance":    float32(maxDistance),
+			"Zoom":           camera.Zoom,
+			"OriginalColor": []float32{
+				float32(orbitColor.R) / 255.0,
+				float32(orbitColor.G) / 255.0,
+				float32(orbitColor.B) / 255.0,
+				float32(orbitColor.A) / 255.0,
+			},
+		}
+
+		// Use shader-enabled dashed circle
+		util.StrokeDashedCircleTrianglesWithShader(screen, center[0], center[1], radius, 4, orbitColor, dashLen, gapLen, true, r.orbitShader, uniforms)
+	} else {
+		// Fallback to regular dashed circle
+		util.StrokeDashedCircle(screen, center[0], center[1], radius, 4, orbitColor, dashLen, gapLen, true)
+	}
 }
 
 // drawOrbitCircle draws a dashed orbit circle

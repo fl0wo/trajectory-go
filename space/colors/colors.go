@@ -15,7 +15,7 @@ var (
 var (
 	// Planet colors
 	PlanetBody  = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White
-	PlanetOrbit = color.RGBA{R: 0, G: 0, B: 0, A: 255}       // Black
+	PlanetOrbit = color.RGBA{R: 255, G: 255, B: 255, A: 255} // Black
 
 	// Black hole colors
 	BlackHoleBody  = color.RGBA{R: 255, G: 0, B: 0, A: 50} // Transparent red
