@@ -50,33 +50,23 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		// Collect celestial bodies in screen coordinates
 		var celestialPositions []f32.Vec2
 		var celestialRadii []float32
-
 		for _, body := range g.model.CelestialBodies {
-			screenPos := camera.WorldToScreen(body.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
-			screenRadius := camera.RadiusToScreen(body.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
-			celestialPositions = append(celestialPositions, screenPos)
-			celestialRadii = append(celestialRadii, screenRadius)
+			celestialPositions = append(celestialPositions, camera.WorldToScreen(body.GetPosition(), constants.ScreenWidth, constants.ScreenHeight))
+			celestialRadii = append(celestialRadii, camera.RadiusToScreen(body.GetRadius(), constants.ScreenWidth, constants.ScreenHeight))
 		}
 
 		// Collect asteroids in screen coordinates
 		var asteroidPositions []f32.Vec2
 		var asteroidRadii []float32
-
 		for _, asteroid := range g.model.RingAsteroids {
-			screenPos := camera.WorldToScreen(asteroid.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
-			screenRadius := camera.RadiusToScreen(asteroid.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
-			asteroidPositions = append(asteroidPositions, screenPos)
-			asteroidRadii = append(asteroidRadii, screenRadius)
+			asteroidPositions = append(asteroidPositions, camera.WorldToScreen(asteroid.GetPosition(), constants.ScreenWidth, constants.ScreenHeight))
+			asteroidRadii = append(asteroidRadii, camera.RadiusToScreen(asteroid.GetRadius(), constants.ScreenWidth, constants.ScreenHeight))
 		}
 
 		// Use player position as light source in screen coordinates
 		lightPos := camera.WorldToScreen(g.model.Player.Position, constants.ScreenWidth, constants.ScreenHeight)
-
-		winPosScreen := camera.WorldToScreen(camera.Position, constants.ScreenWidth, constants.ScreenHeight)
-		fovAngle := 120.0 // Field of view angle in degrees
-
-		// Render shadows using the new directional system (enable rays for debugging with 'true')
-		g.shadowSystem.RenderShadows(screen, lightPos, winPosScreen, fovAngle, celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, false)
+		lightDirection := camera.WorldToScreen(camera.Position, constants.ScreenWidth, constants.ScreenHeight)
+		g.shadowSystem.RenderShadows(screen, lightPos, lightDirection, 120.0, celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, false)
 	}
 
 	// Draw celestial bodies with camera transform
