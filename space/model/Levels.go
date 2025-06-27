@@ -8,11 +8,20 @@ import (
 )
 
 var PredefinedLevels = map[int]*Level{
+
 	1: NewLevel("Level 1 - Simple Shot",
-		f32.Vec2{0.4, 0.5},
+		f32.Vec2{0.5, 0.5},
 		[]CelestialBody{
+			&Planet{
+				Name:        "Earth",
+				Position:    f32.Vec2{.5, 0.2},
+				Radius:      0.08,
+				Mass:        float32((4.0 / 3.0) * math.Pi * 0.08 * 0.08 * 0.08),
+				OrbitRadius: 0.24,
+				// ImagePath:   resources.EarthImage,
+			},
 			&WhiteHole{
-				Position:    f32.Vec2{constants.AspectRatio / 2, 0.5},
+				Position:    f32.Vec2{.5, 0.8},
 				Radius:      0.03,
 				Mass:        0.1,
 				OrbitRadius: 0.15,
