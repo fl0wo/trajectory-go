@@ -220,3 +220,7 @@ func (p *Player) ClearTrail() {
 func (p *Player) GetTrailPoints() []TrailPoint {
 	return p.Trail
 }
+
+func (p *Player) IsBefore(body CelestialBody) bool {
+	return p.Position[0] < body.GetPosition()[0]+body.GetOrbitRadius()
+}

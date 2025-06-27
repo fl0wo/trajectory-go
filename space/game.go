@@ -52,11 +52,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		var celestialRadii []float32
 
 		for _, body := range g.model.CelestialBodies {
-			screenPos := camera.WorldToScreen(body.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
-			screenRadius := camera.RadiusToScreen(body.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
-
-			celestialPositions = append(celestialPositions, screenPos)
-			celestialRadii = append(celestialRadii, screenRadius)
+			// if player x is < than celestial body x, then ignore
+			if g.model.Player.IsBefore(body) || body.GetType() == Models.CelestialBodyTypeWhiteHole {
+				screenPos := camera.WorldToScreen(body.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
+				screenRadius := camera.RadiusToScreen(body.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
+				celestialPositions = append(celestialPositions, screenPos)
+				celestialRadii = append(celestialRadii, screenRadius)
+			}
 		}
 
 		// Collect asteroids in screen coordinates
@@ -64,11 +66,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		var asteroidRadii []float32
 
 		for _, asteroid := range g.model.RingAsteroids {
-			screenPos := camera.WorldToScreen(asteroid.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
-			screenRadius := camera.RadiusToScreen(asteroid.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
 
-			asteroidPositions = append(asteroidPositions, screenPos)
-			asteroidRadii = append(asteroidRadii, screenRadius)
+			if g.model.Player.IsBefore(asteroid) {
+				screenPos := camera.WorldToScreen(asteroid.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
+				screenRadius := camera.RadiusToScreen(asteroid.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
+				asteroidPositions = append(asteroidPositions, screenPos)
+				asteroidRadii = append(asteroidRadii, screenRadius)
+			}
 		}
 
 		// Use player position as light source in screen coordinates
