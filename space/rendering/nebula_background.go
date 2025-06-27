@@ -49,7 +49,7 @@ func particles(uv vec2, layer float) vec4 {
 
 	// compute a safe, inset center so wiggle never overflows cell
 	radius := 0.008 * size / ((1 + Zoom) * zc)
-	wiggleAmp := 0.90 // ±0.10 UV units
+	wiggleAmp := 0.0001 // ±0.10 UV units
 	pad := radius + 0.2 + wiggleAmp
 	jX := rX*(1.0-2.0*pad) + pad
 	jY := rY*(1.0-2.0*pad) + pad

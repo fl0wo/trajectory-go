@@ -1,6 +1,9 @@
 package colors
 
-import "image/color"
+import (
+	"github.com/you/trajectory/space/util"
+	"image/color"
+)
 
 // Game Background Colors
 var (
@@ -18,15 +21,15 @@ var (
 	PlanetOrbit = color.RGBA{R: 255, G: 255, B: 255, A: 255} // Black
 
 	// Black hole colors
-	BlackHoleBody  = color.RGBA{R: 255, G: 0, B: 0, A: 50} // Transparent red
-	BlackHoleOrbit = color.RGBA{R: 0, G: 0, B: 0, A: 255}  // Black
+	BlackHoleBody  = color.RGBA{R: 255, G: 0, B: 0, A: 255} // Transparent red
+	BlackHoleOrbit = color.RGBA{R: 0, G: 0, B: 0, A: 255}   // Black
 
 	// White hole colors
 	WhiteHoleBody  = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White
 	WhiteHoleOrbit = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White
 
 	// Asteroid colors
-	AsteroidBody    = color.RGBA{R: 139, G: 69, B: 19, A: 255}   // Brown
+	AsteroidBody    = util.RGBAColor(255, 255, 255, 100)         // Brown
 	AsteroidBodyAlt = color.RGBA{R: 255, G: 50, B: 255, A: 50}   // Transparent magenta
 	AsteroidOrbit   = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White
 )

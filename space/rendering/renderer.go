@@ -49,6 +49,7 @@ type Renderer struct {
 	orbitShader  *ebiten.Shader
 	nebulaShader *ebiten.Shader
 	whiteTexture *ebiten.Image
+	startTime    time.Time // Game start time for shader animations
 }
 
 // NewRenderer creates a new renderer instance
@@ -74,6 +75,7 @@ func NewRenderer() *Renderer {
 		orbitShader:  orbitShader,
 		nebulaShader: nebulaShader,
 		whiteTexture: whiteTexture,
+		startTime:    time.Now(), // Initialize start time for shader animations
 	}
 }
 
@@ -318,6 +320,9 @@ func (r *Renderer) drawOrbitCircleWithLight(screen *ebiten.Image, model *Models.
 		// Calculate max distance for the light cone (same as shadow system)
 		maxDistance := math.Hypot(float64(constants.ScreenWidth), float64(constants.ScreenHeight))
 
+		// Calculate elapsed time since game start for rotation animation
+		currentTime := float32(time.Since(r.startTime).Seconds())
+
 		// Prepare shader uniforms
 		uniforms := map[string]any{
 			"LightPos":       []float32{lightPos[0], lightPos[1]},
@@ -331,6 +336,10 @@ func (r *Renderer) drawOrbitCircleWithLight(screen *ebiten.Image, model *Models.
 				float32(orbitColor.B) / 255.0,
 				float32(orbitColor.A) / 255.0,
 			},
+			"Time":              currentTime,
+			"RotationDirection": float32(1.0), // Counterclockwise rotation
+			"CircleCenter":      []float32{center[0], center[1]},
+			"CircleRadius":      radius,
 		}
 
 		// Use shader-enabled dashed circle
@@ -573,14 +582,12 @@ func (r *Renderer) drawNebulaBackground(screen *ebiten.Image, model *Models.Spac
 
 	camera := model.Camera
 
-	// Calculate current time in seconds for animations
-	currentTime := float32(time.Since(time.Time{}).Seconds())
+	// Calculate elapsed time since game start for animations
+	currentTime := float32(time.Since(r.startTime).Seconds())
 
 	// Get player and camera positions for parallax
 	playerPos := model.Player.Position
 	cameraPos := camera.Position
-
-	print("currentTime", currentTime)
 
 	// Prepare shader uniforms
 	uniforms := map[string]any{
