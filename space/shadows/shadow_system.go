@@ -322,7 +322,9 @@ func (ss *ShadowSystem) RenderShadows(
 func NewShadowSystem(screenWidth, screenHeight int) *ShadowSystem {
 	shadowImage := ebiten.NewImage(screenWidth, screenHeight)
 	triangleImage := ebiten.NewImage(screenWidth, screenHeight)
-	triangleImage.Fill(color.White)
+	triangleImage.Fill(color.RGBA{
+		R: 254, G: 254, B: 254, A: 0, // Fully transparent white
+	})
 
 	// Initialize the stepped light shader
 	var lightShader *ebiten.Shader

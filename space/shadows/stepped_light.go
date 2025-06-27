@@ -4,40 +4,61 @@
 
 package main
 
-// Uniform variables.
+// Uniforms
 var LightPos vec2
 var MaxDistance float
-var Zoom float // zoom 1 = standard zoom, > 1 = zoomed in, < 1 = zoomed out
+var Zoom float // 1 = standard, >1 = in, <1 = out
 
-// IMPORTANT: Must return premultiplied alpha for proper blending!
 func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
-	// Get the current pixel position relative to the destination origin
-	// then convert from screen‐space to world‐space
-	pos := (dstPos.xy - imageDstOrigin())
-	// Calculate distance from light position to current pixel (in world units)
-	distance := length(pos-LightPos) / Zoom
-	// Normalize distance (0.0 to 1.0 based on MaxDistance in world units)
-	normalizedDistance := min(distance/MaxDistance, 1.0)
-	// Exponential‐spaced steps:
-	//   widths are X, 2X, 4X, 8X, 16X  (for STEPS=5)
-	//   sum = (2^5 - 1) * X  → X = 1/31
+	// world-space pixel pos
+	pos := dstPos.xy - imageDstOrigin()
+	// normalized distance 0→1
+	dist := length(pos-LightPos) / Zoom
+	t := min(dist/MaxDistance, 1.0)
+
 	const STEPS = 5
-	const TOTAL_UNITS = 31.0 // 2^5 - 1
-	const BASE_STEP = 1.0 / TOTAL_UNITS
-	// brightness levels for each band
-	var alphas = [STEPS]float{0.8, 0.6, 0.4, 0.25, 0.1}
-	// walk outward through the bands
+	const TOTAL_UNITS = 31.0
+
+	// 1) per-band alpha
+	var alphas = [STEPS]float{
+		.8,  // band 1
+		.2,  // band 2
+		.2,  // band 3
+		0.0, // band 4 (transparent)
+		.1,  // band 5
+	}
+
+	// 2) per-band color
+	var colors = [STEPS]vec3{
+		vec3(254.0/255.0, 254.0/255.0, 254.0/255.0), // rgb(254,254,254)
+		vec3(253.0/255.0, 218.0/255.0, 145.0/255.0), // rgb(253,218,145)
+		vec3(254.0/255.0, 166.0/255.0, 59.0/255.0),  // rgb(254,166,59)
+		vec3(0.0, 0.0, 0.0),                         // transparent
+		vec3(245.0/255.0, 57.0/255.0, 68.0/255.0),   // rgb(245,57,68)
+	}
+
+	// 3) explicit spacing for each band (must sum ≤ 1.0)
+	var spaces = [STEPS]float{
+		10.0 / TOTAL_UNITS, // band 1 width
+		0.5 / TOTAL_UNITS,  // band 2 width
+		0.5 / TOTAL_UNITS,  // band 3 width
+		1.0 / TOTAL_UNITS,  // band 4 width
+		0.25 / TOTAL_UNITS, // band 5 width
+	}
+
+	// walk outward summing spaces[]
 	var threshold = 0.0
-	var width = BASE_STEP
 	var alpha = 0.0
+	var lightColor = vec3(0.0)
 	for i := 0; i < STEPS; i++ {
-		threshold += width
-		if normalizedDistance < threshold {
+		threshold += spaces[i]
+		if t < threshold {
 			alpha = alphas[i]
+			lightColor = colors[i]
 			break
 		}
-		width *= 2.0
 	}
-	lightColor := vec3(1.0, 1.0, 1.0)
+
+	// premultiplied alpha
 	return vec4(lightColor*alpha, alpha)
 }

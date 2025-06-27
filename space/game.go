@@ -8,6 +8,7 @@ import (
 	Models "github.com/you/trajectory/space/model"
 	"github.com/you/trajectory/space/resources"
 	"github.com/you/trajectory/space/shadows"
+	"github.com/you/trajectory/space/util"
 	"golang.org/x/image/math/f32"
 	"image/color"
 	"math"
@@ -26,6 +27,8 @@ const (
 	maxDragDistance = float32(0.25)
 	// Maximum velocity magnitude to prevent excessive speeds
 	maxVelocity = float32(0.5)
+
+	fovLight = 90.0
 )
 
 type Game struct {
@@ -66,7 +69,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		// Use player position as light source in screen coordinates
 		lightPos := camera.WorldToScreen(g.model.Player.Position, constants.ScreenWidth, constants.ScreenHeight)
 		lightDirection := camera.WorldToScreen(camera.Position, constants.ScreenWidth, constants.ScreenHeight)
-		g.shadowSystem.RenderShadows(screen, lightPos, lightDirection, 120.0, camera.Zoom, celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, false)
+		g.shadowSystem.RenderShadows(screen, lightPos, lightDirection, fovLight, camera.Zoom, celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, false)
 	}
 
 	// Draw celestial bodies with camera transform
@@ -81,17 +84,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		switch body.GetType() {
 		case Models.CelestialBodyTypePlanet:
-			bodyColor = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White for planets
-			orbitColor = color.RGBA{R: 255, G: 255, B: 0, A: 128}  // Yellow orbit for planets
+			bodyColor = util.RGBAColor(255, 255, 255, 255)
+			orbitColor = util.RGBAColor(0, 0, 0, 255)
 		case Models.CelestialBodyTypeBlackHole:
-			bodyColor = color.RGBA{R: 128, G: 128, B: 128, A: 255} // Gray for blackholes
-			orbitColor = color.RGBA{R: 128, G: 0, B: 128, A: 128}  // Purple orbit for blackholes
+			bodyColor = util.RGBAColor(255, 0, 0, 50)
+			orbitColor = util.RGBAColor(0, 0, 0, 255)
 		case Models.CelestialBodyTypeWhiteHole:
-			bodyColor = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White for white holes (victory)
-			orbitColor = color.RGBA{R: 0, G: 255, B: 0, A: 128}    // Green orbit for white holes
+			bodyColor = util.RGBAColor(255, 255, 255, 255)
+			orbitColor = util.RGBAColor(255, 255, 255, 255)
 		case Models.CelestialBodyTypeAsteroid:
-			bodyColor = color.RGBA{R: 139, G: 69, B: 19, A: 255} // Brown for asteroids
-			orbitColor = color.RGBA{R: 0, G: 0, B: 0, A: 0}      // No orbit for asteroids
+			bodyColor = util.RGBAColor(255, 50, 255, 50)
+			orbitColor = util.RGBAColor(255, 255, 255, 255)
 		}
 
 		// Only draw if on screen (simple culling)
@@ -124,21 +127,35 @@ func (g *Game) Draw(screen *ebiten.Image) {
 				screenPos[0],
 				screenPos[1],
 				radius,
-				bodyColor, true,
+				bodyColor,
+				true,
 			)
 		}
 		// Draw celestial body's orbit radius as a circle
 		orbitRadius := camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
 		if orbitRadius > 0 {
-			vector.StrokeCircle(
+			// how many dashes you always want:
+			const numDashes = 24
+			const dashPortion = 4.0 / (4.0 + 16.0) // = 0.2
+			// const gapPortion = 1.0 - dashPortion // = 0.8
+			// the circle’s current circumference in screen‐space:
+			circ := 2 * math.Pi * float64(orbitRadius)
+			// each on+off segment length so that we get numDashes segments:
+			segLen := float32(circ) / float32(numDashes)
+			// split that segment up according to your dash:gap ratio:
+			dashLen := segLen * dashPortion
+			gapLen := segLen * (1.0 - dashPortion)
+			util.StrokeDashedCircle(
 				screen,
 				screenPos[0],
 				screenPos[1],
 				orbitRadius,
-				2,          // Line width
-				orbitColor, // Color based on body type
-				true,       // Closed
+				4,          // stroke width
+				orbitColor, // your color
+				dashLen, gapLen,
+				true, // antialias/closed
 			)
+
 		}
 	}
 
@@ -521,7 +538,7 @@ func (g *Game) drawPlayerTrail(screen *ebiten.Image) {
 		currScreen := camera.WorldToScreen(currPoint.Position, constants.ScreenWidth, constants.ScreenHeight)
 
 		// Trail color with fading alpha (cyan-ish color)
-		trailColor := color.RGBA{R: 0, G: 255, B: 255, A: alpha}
+		trailColor := color.RGBA{R: 254, G: 254, B: 254, A: alpha}
 
 		// Calculate line width based on age (newer = thicker)
 		width := float32(1 + (1.0-ageRatio)*2) // Width from 1 to 3
