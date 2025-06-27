@@ -42,11 +42,11 @@ func NewSpaceGameWithLevel(levelNum int) (*SpaceGame, error) {
 
 	var player = &Player{
 		Position:     level.PlayerStart,
-		Radius:       0.04,           // Player radius for collision detection
+		Radius:       0.02,           // Player radius for collision detection
 		Velocity:     f32.Vec2{0, 0}, // No initial velocity
 		Acceleration: f32.Vec2{0, 0}, // No initial acceleration
 		State:        PlayerStateIdle,
-		Mass:         10.0, // Default mass
+		Mass:         8.0, // Default mass
 	}
 
 	// Create camera

@@ -34,7 +34,7 @@ var (
 // Player Colors
 var (
 	// Player body color (green circle fallback)
-	PlayerBody = color.RGBA{R: 0, G: 255, B: 0, A: 255} // Green
+	PlayerBody = color.RGBA{R: 255, G: 0, B: 0, A: 255} // Green
 
 	// Player trail color (fading white)
 	PlayerTrail = color.RGBA{R: 254, G: 254, B: 254, A: 255} // Nearly white
@@ -65,7 +65,7 @@ var (
 // Nebula Background Colors
 var (
 	// Main background color - darkest midnight
-	NebulaBackground = color.RGBA{R: 5, G: 1, B: 20, A: 255} // #050114
+	NebulaBackground = color.RGBA{R: 6, G: 2, B: 25, A: 255} // #050114
 
 	// Particle colors for the dynamic background
 	RussianViolet = color.RGBA{R: 33, G: 15, B: 80, A: 255}    // #210F50
