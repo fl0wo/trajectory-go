@@ -17,251 +17,288 @@ type ShadowSystem struct {
 	screenHeight  int
 }
 
-// NewShadowSystem creates a new shadow system
-func NewShadowSystem(screenWidth, screenHeight int) *ShadowSystem {
-	shadowImage := ebiten.NewImage(screenWidth, screenHeight)
-	triangleImage := ebiten.NewImage(screenWidth, screenHeight)
-	triangleImage.Fill(color.White)
+type line struct{ X1, Y1, X2, Y2 float64 }
 
-	return &ShadowSystem{
-		shadowImage:   shadowImage,
-		triangleImage: triangleImage,
-		screenWidth:   screenWidth,
-		screenHeight:  screenHeight,
-	}
-}
-
-// line represents a line segment for raycasting calculations
-type line struct {
-	X1, Y1, X2, Y2 float64
-}
-
-// angle calculates the angle of the line from start to end point
-func (l *line) angle() float64 {
-	return math.Atan2(l.Y2-l.Y1, l.X2-l.X1)
-}
-
-// newRay creates a ray starting from x,y with given length and angle
+func (l *line) angle() float64 { return math.Atan2(l.Y2-l.Y1, l.X2-l.X1) }
 func newRay(x, y, length, angle float64) line {
-	return line{
-		X1: x,
-		Y1: y,
-		X2: x + length*math.Cos(angle),
-		Y2: y + length*math.Sin(angle),
-	}
+	return line{x, y, x + length*math.Cos(angle), y + length*math.Sin(angle)}
 }
 
-// intersection calculates the intersection of two lines
+// clipRay fires a single ray at 'angle' and stops it at the first occluder (or lets it run full-length)
+func clipRay(
+	lightX, lightY, length, angle float64,
+	occluderLines []line,
+) line {
+	r := newRay(lightX, lightY, length, angle)
+	var hits [][2]float64
+	for _, ol := range occluderLines {
+		if px, py, ok := intersection(r, ol); ok {
+			hits = append(hits, [2]float64{px, py})
+		}
+	}
+	if len(hits) > 0 {
+		minD := math.Inf(1)
+		var closest [2]float64
+		for _, p := range hits {
+			d := (lightX-p[0])*(lightX-p[0]) + (lightY-p[1])*(lightY-p[1])
+			if d < minD {
+				minD = d
+				closest = p
+			}
+		}
+		return line{lightX, lightY, closest[0], closest[1]}
+	}
+	return r
+}
+
 func intersection(l1, l2 line) (float64, float64, bool) {
-	// https://en.wikipedia.org/wiki/Line%E2%80%93line_intersection#Given_two_points_on_each_line
-	denom := (l1.X1-l1.X2)*(l2.Y1-l2.Y2) - (l1.Y1-l1.Y2)*(l2.X1-l2.X2)
-	tNum := (l1.X1-l2.X1)*(l2.Y1-l2.Y2) - (l1.Y1-l2.Y1)*(l2.X1-l2.X2)
-	uNum := -((l1.X1-l1.X2)*(l1.Y1-l2.Y1) - (l1.Y1-l1.Y2)*(l1.X1-l2.X1))
-
-	if denom == 0 {
+	den := (l1.X1-l1.X2)*(l2.Y1-l2.Y2) - (l1.Y1-l1.Y2)*(l2.X1-l2.X2)
+	if den == 0 {
 		return 0, 0, false
 	}
-
-	t := tNum / denom
-	if t > 1 || t < 0 {
+	t := ((l1.X1-l2.X1)*(l2.Y1-l2.Y2) - (l1.Y1-l2.Y1)*(l2.X1-l2.X2)) / den
+	if t < 0 || t > 1 {
 		return 0, 0, false
 	}
-
-	u := uNum / denom
-	if u > 1 || u < 0 {
+	u := -((l1.X1-l1.X2)*(l1.Y1-l2.Y1) - (l1.Y1-l1.Y2)*(l1.X1-l2.X1)) / den
+	if u < 0 || u > 1 {
 		return 0, 0, false
 	}
-
 	x := l1.X1 + t*(l1.X2-l1.X1)
 	y := l1.Y1 + t*(l1.Y2-l1.Y1)
 	return x, y, true
 }
 
-// circleToLines converts a circle (celestial body) to line segments for raycasting
 func circleToLines(center f32.Vec2, radius float32, segments int) []line {
 	var lines []line
-	angleStep := 2 * math.Pi / float64(segments)
-
+	step := 2 * math.Pi / float64(segments)
 	for i := 0; i < segments; i++ {
-		angle1 := float64(i) * angleStep
-		angle2 := float64(i+1) * angleStep
-
-		x1 := float64(center[0]) + float64(radius)*math.Cos(angle1)
-		y1 := float64(center[1]) + float64(radius)*math.Sin(angle1)
-		x2 := float64(center[0]) + float64(radius)*math.Cos(angle2)
-		y2 := float64(center[1]) + float64(radius)*math.Sin(angle2)
-
-		lines = append(lines, line{X1: x1, Y1: y1, X2: x2, Y2: y2})
+		a1 := float64(i) * step
+		a2 := float64(i+1) * step
+		x1 := float64(center[0]) + float64(radius)*math.Cos(a1)
+		y1 := float64(center[1]) + float64(radius)*math.Sin(a1)
+		x2 := float64(center[0]) + float64(radius)*math.Cos(a2)
+		y2 := float64(center[1]) + float64(radius)*math.Sin(a2)
+		lines = append(lines, line{x1, y1, x2, y2})
 	}
-
 	return lines
 }
 
-// getAllOccluderPoints extracts all relevant points from celestial bodies and asteroids for raycasting
-func getAllOccluderPoints(celestialPositions []f32.Vec2, celestialRadii []float32, asteroidPositions []f32.Vec2, asteroidRadii []float32) [][2]float64 {
-	var points [][2]float64
-
-	// Add points from celestial bodies (use fewer segments for performance)
+func getAllOccluderPoints(
+	celestialPositions []f32.Vec2, celestialRadii []float32,
+	asteroidPositions []f32.Vec2, asteroidRadii []float32,
+) [][2]float64 {
+	var pts [][2]float64
 	for i, pos := range celestialPositions {
-		radius := celestialRadii[i]
-		segments := 16 // 16 segments per circle for good balance of quality vs performance
-
-		for j := 0; j < segments; j++ {
-			angle := 2 * math.Pi * float64(j) / float64(segments)
-			x := float64(pos[0]) + float64(radius)*math.Cos(angle)
-			y := float64(pos[1]) + float64(radius)*math.Sin(angle)
-			points = append(points, [2]float64{x, y})
+		r := celestialRadii[i]
+		for j := 0; j < 16; j++ {
+			θ := 2 * math.Pi * float64(j) / 16
+			pts = append(pts, [2]float64{
+				float64(pos[0]) + float64(r)*math.Cos(θ),
+				float64(pos[1]) + float64(r)*math.Sin(θ),
+			})
 		}
 	}
-
-	// Add points from asteroids (fewer segments since they're smaller)
 	for i, pos := range asteroidPositions {
-		radius := asteroidRadii[i]
-		segments := 8 // Fewer segments for smaller asteroids
-
-		for j := 0; j < segments; j++ {
-			angle := 2 * math.Pi * float64(j) / float64(segments)
-			x := float64(pos[0]) + float64(radius)*math.Cos(angle)
-			y := float64(pos[1]) + float64(radius)*math.Sin(angle)
-			points = append(points, [2]float64{x, y})
+		r := asteroidRadii[i]
+		for j := 0; j < 8; j++ {
+			θ := 2 * math.Pi * float64(j) / 8
+			pts = append(pts, [2]float64{
+				float64(pos[0]) + float64(r)*math.Cos(θ),
+				float64(pos[1]) + float64(r)*math.Sin(θ),
+			})
 		}
 	}
-
-	return points
+	return pts
 }
 
-// getAllOccluderLines creates line segments from all celestial bodies and asteroids
-func getAllOccluderLines(celestialPositions []f32.Vec2, celestialRadii []float32, asteroidPositions []f32.Vec2, asteroidRadii []float32) []line {
+func getAllOccluderLines(
+	celestialPositions []f32.Vec2, celestialRadii []float32,
+	asteroidPositions []f32.Vec2, asteroidRadii []float32,
+) []line {
 	var lines []line
-
-	// Add lines from celestial bodies
 	for i, pos := range celestialPositions {
-		radius := celestialRadii[i]
-		bodyLines := circleToLines(pos, radius, 16) // 16 segments per celestial body
-		lines = append(lines, bodyLines...)
+		lines = append(lines, circleToLines(pos, celestialRadii[i], 16)...)
 	}
-
-	// Add lines from asteroids
 	for i, pos := range asteroidPositions {
-		radius := asteroidRadii[i]
-		asteroidLines := circleToLines(pos, radius, 8) // 8 segments per asteroid
-		lines = append(lines, asteroidLines...)
+		lines = append(lines, circleToLines(pos, asteroidRadii[i], 8)...)
 	}
-
 	return lines
 }
 
-// rayCasting performs raycasting from a light source to create shadow rays
-func rayCasting(lightX, lightY float64, celestialPositions []f32.Vec2, celestialRadii []float32, asteroidPositions []f32.Vec2, asteroidRadii []float32) []line {
-	const rayLength = 3000 // Large enough to reach screen edges
+func normalizeAngle(a float64) float64 {
+	for a <= -math.Pi {
+		a += 2 * math.Pi
+	}
+	for a > math.Pi {
+		a -= 2 * math.Pi
+	}
+	return a
+}
 
-	// Get all occluder points
-	occluderPoints := getAllOccluderPoints(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii)
-	occluderLines := getAllOccluderLines(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii)
+func rayCasting(
+	lightX, lightY float64,
+	celestialPositions []f32.Vec2, celestialRadii []float32,
+	asteroidPositions []f32.Vec2, asteroidRadii []float32,
+) []line {
+	const rayLength = 3000
+	points := getAllOccluderPoints(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii)
+	olines := getAllOccluderLines(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii)
 
 	var rays []line
-
-	// Cast rays toward each occluder point (with small angle offsets for better shadows)
-	for _, point := range occluderPoints {
-		l := line{lightX, lightY, point[0], point[1]}
-		angle := l.angle()
-
-		// Cast two rays with slight angle offsets to capture shadow edges better
-		for _, offset := range []float64{-0.002, 0.002} {
-			ray := newRay(lightX, lightY, rayLength, angle+offset)
-
-			// Find closest intersection with any occluder
-			var intersectionPoints [][2]float64
-			for _, occluderLine := range occluderLines {
-				if px, py, ok := intersection(ray, occluderLine); ok {
-					intersectionPoints = append(intersectionPoints, [2]float64{px, py})
+	for _, pt := range points {
+		base := line{lightX, lightY, pt[0], pt[1]}
+		ang := base.angle()
+		for _, off := range []float64{-0.002, 0.002} {
+			r := newRay(lightX, lightY, rayLength, ang+off)
+			var hits [][2]float64
+			for _, ol := range olines {
+				if x, y, ok := intersection(r, ol); ok {
+					hits = append(hits, [2]float64{x, y})
 				}
 			}
-
-			// Find the closest intersection point
-			if len(intersectionPoints) > 0 {
-				minDist := math.Inf(1)
-				var closestPoint [2]float64
-
-				for _, p := range intersectionPoints {
-					dist := (lightX-p[0])*(lightX-p[0]) + (lightY-p[1])*(lightY-p[1])
-					if dist < minDist {
-						minDist = dist
-						closestPoint = p
+			if len(hits) > 0 {
+				minD := math.Inf(1)
+				var cpt [2]float64
+				for _, h := range hits {
+					d := (lightX-h[0])*(lightX-h[0]) + (lightY-h[1])*(lightY-h[1])
+					if d < minD {
+						minD = d
+						cpt = h
 					}
 				}
-
-				rays = append(rays, line{lightX, lightY, closestPoint[0], closestPoint[1]})
+				rays = append(rays, line{lightX, lightY, cpt[0], cpt[1]})
 			} else {
-				// No intersection, ray goes to full length
-				rays = append(rays, ray)
+				rays = append(rays, r)
 			}
 		}
 	}
-
-	// Sort rays by angle for proper triangle rendering
 	sort.Slice(rays, func(i, j int) bool {
 		return rays[i].angle() < rays[j].angle()
 	})
-
 	return rays
 }
 
-// rayVertices creates vertices for shadow triangles
 func rayVertices(x1, y1, x2, y2, x3, y3 float64) []ebiten.Vertex {
 	return []ebiten.Vertex{
-		{DstX: float32(x1), DstY: float32(y1), SrcX: 0, SrcY: 0, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
-		{DstX: float32(x2), DstY: float32(y2), SrcX: 0, SrcY: 0, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
-		{DstX: float32(x3), DstY: float32(y3), SrcX: 0, SrcY: 0, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
+		{DstX: float32(x1), DstY: float32(y1), ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
+		{DstX: float32(x2), DstY: float32(y2), ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
+		{DstX: float32(x3), DstY: float32(y3), ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
 	}
 }
 
-// RenderShadows renders the shadow system to the screen
-func (ss *ShadowSystem) RenderShadows(screen *ebiten.Image, lightPos f32.Vec2, celestialPositions []f32.Vec2, celestialRadii []float32, asteroidPositions []f32.Vec2, asteroidRadii []float32, showRays bool) {
-	// Skip rendering if no occluders
+// RenderShadows renders a spotlight of fovAngle (degrees) aimed at winPos
+func (ss *ShadowSystem) RenderShadows(
+	screen *ebiten.Image,
+	lightPos f32.Vec2,
+	winPos f32.Vec2,
+	fovAngle float64,
+	celestialPositions []f32.Vec2,
+	celestialRadii []float32,
+	asteroidPositions []f32.Vec2,
+	asteroidRadii []float32,
+	showRays bool,
+) {
 	if len(celestialPositions) == 0 && len(asteroidPositions) == 0 {
 		return
 	}
 
-	// Reset shadow image to black (full shadow)
-	ss.shadowImage.Fill(color.RGBA{
-		R: 6, G: 2, B: 25, A: 255,
+	// 1) Darken entire screen
+	ss.shadowImage.Fill(color.RGBA{R: 6, G: 2, B: 25, A: 255})
+
+	lightX, lightY := float64(lightPos[0]), float64(lightPos[1])
+
+	// 2) Get all interior (already clipped) rays
+	allRays := rayCasting(
+		lightX, lightY,
+		celestialPositions, celestialRadii,
+		asteroidPositions, asteroidRadii,
+	)
+
+	// 3) Spotlight center & half‐FOV
+	base := math.Atan2(
+		float64(winPos[1])-lightY,
+		float64(winPos[0])-lightX,
+	)
+	half := (fovAngle * math.Pi / 180) / 2
+
+	// 4) Filter interior rays inside cone
+	var interior []line
+	for _, r := range allRays {
+		if math.Abs(normalizeAngle(r.angle()-base)) <= half {
+			interior = append(interior, r)
+		}
+	}
+	sort.Slice(interior, func(i, j int) bool {
+		return normalizeAngle(interior[i].angle()-base) <
+			normalizeAngle(interior[j].angle()-base)
 	})
 
-	// Perform raycasting
-	rays := rayCasting(float64(lightPos[0]), float64(lightPos[1]), celestialPositions, celestialRadii, asteroidPositions, asteroidRadii)
+	// 5) Build occluderLines for boundary clipping
+	occluderLines := getAllOccluderLines(
+		celestialPositions, celestialRadii,
+		asteroidPositions, asteroidRadii,
+	)
+	diag := math.Hypot(float64(ss.screenWidth), float64(ss.screenHeight))
 
-	// Create illuminated areas by subtracting light triangles from shadow
-	opt := &ebiten.DrawTrianglesOptions{}
-	opt.Address = ebiten.AddressRepeat
-	opt.Blend = ebiten.BlendSourceOut // Subtract mode - removes shadow where light hits
+	// 6) Clip the two boundary rays
+	left := clipRay(lightX, lightY, diag, base-half, occluderLines)
+	right := clipRay(lightX, lightY, diag, base+half, occluderLines)
 
-	for i, ray := range rays {
-		nextRay := rays[(i+1)%len(rays)]
+	// 7) Assemble final ray list: left boundary, interior, right boundary
+	finalRays := make([]line, 0, len(interior)+2)
+	finalRays = append(finalRays, left)
+	finalRays = append(finalRays, interior...)
+	finalRays = append(finalRays, right)
 
-		// Create triangle between light source and two consecutive rays
-		vertices := rayVertices(
-			float64(lightPos[0]), float64(lightPos[1]), // Light source
-			nextRay.X2, nextRay.Y2, // End of next ray
-			ray.X2, ray.Y2, // End of current ray
-		)
-
-		// Draw the illuminated triangle (removes shadow)
-		ss.shadowImage.DrawTriangles(vertices, []uint16{0, 1, 2}, ss.triangleImage, opt)
+	// 8) Carve holes in the shadow image
+	triOpt := &ebiten.DrawTrianglesOptions{Address: ebiten.AddressRepeat}
+	triOpt.Blend = ebiten.BlendSourceOut
+	for i := 0; i < len(finalRays)-1; i++ {
+		a, b := finalRays[i], finalRays[i+1]
+		vs := rayVertices(lightX, lightY, b.X2, b.Y2, a.X2, a.Y2)
+		ss.shadowImage.DrawTriangles(vs, []uint16{0, 1, 2}, ss.triangleImage, triOpt)
 	}
 
-	// Render shadow overlay on screen with transparency
+	// 9) Overlay the semi-transparent shadow
 	shadowOpt := &ebiten.DrawImageOptions{}
-	shadowOpt.ColorScale.ScaleAlpha(0.7) // 70% opacity for shadows
+	shadowOpt.ColorScale.ScaleAlpha(0.7)
 	screen.DrawImage(ss.shadowImage, shadowOpt)
 
-	// Optionally draw rays for debugging
-	if showRays {
-		for _, ray := range rays {
-			vector.StrokeLine(screen,
-				float32(ray.X1), float32(ray.Y1),
-				float32(ray.X2), float32(ray.Y2),
-				1, color.RGBA{R: 255, G: 255, B: 0, A: 150}, true)
+	// 10) Draw the white cone at 30% opacity
+	lightOpt := &ebiten.DrawTrianglesOptions{Address: ebiten.AddressRepeat}
+	for i := 0; i < len(finalRays)-1; i++ {
+		a, b := finalRays[i], finalRays[i+1]
+		vs := rayVertices(lightX, lightY, b.X2, b.Y2, a.X2, a.Y2)
+		for j := range vs {
+			vs[j].ColorA = 0.3
 		}
+		screen.DrawTriangles(vs, []uint16{0, 1, 2}, ss.triangleImage, lightOpt)
+	}
+
+	// 11) Optional debug rays
+	if showRays {
+		for _, r := range finalRays {
+			vector.StrokeLine(
+				screen,
+				float32(r.X1), float32(r.Y1),
+				float32(r.X2), float32(r.Y2),
+				1, color.RGBA{R: 255, G: 255, B: 0, A: 150},
+				true,
+			)
+		}
+	}
+}
+
+// NewShadowSystem creates a new shadow system
+func NewShadowSystem(screenWidth, screenHeight int) *ShadowSystem {
+	shadowImage := ebiten.NewImage(screenWidth, screenHeight)
+	triangleImage := ebiten.NewImage(screenWidth, screenHeight)
+	triangleImage.Fill(color.White)
+	return &ShadowSystem{
+		shadowImage:   shadowImage,
+		triangleImage: triangleImage,
+		screenWidth:   screenWidth,
+		screenHeight:  screenHeight,
 	}
 }

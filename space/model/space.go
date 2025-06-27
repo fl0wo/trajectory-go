@@ -384,6 +384,15 @@ func (sg *SpaceGame) GetCameraModeString() string {
 	}
 }
 
+func (sg *SpaceGame) GetWinPosition() f32.Vec2 {
+	for _, body := range sg.CelestialBodies {
+		if body.GetType() == CelestialBodyTypeWhiteHole {
+			return body.GetPosition()
+		}
+	}
+	return f32.Vec2{0, 0} // Default if no white hole found
+}
+
 func randomCelestialBodies(numBodies int, margin float32) []CelestialBody {
 	var bodies = make([]CelestialBody, numBodies)
 
