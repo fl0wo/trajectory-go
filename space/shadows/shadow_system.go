@@ -1,6 +1,7 @@
 package shadows
 
 import (
+	_ "embed"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"golang.org/x/image/math/f32"
@@ -9,10 +10,14 @@ import (
 	"sort"
 )
 
+//go:embed stepped_light.go
+var steppedLightShader []byte
+
 // ShadowSystem handles raycasting and shadow rendering for the space game
 type ShadowSystem struct {
 	shadowImage   *ebiten.Image
 	triangleImage *ebiten.Image
+	lightShader   *ebiten.Shader
 	screenWidth   int
 	screenHeight  int
 }
@@ -265,15 +270,36 @@ func (ss *ShadowSystem) RenderShadows(
 	shadowOpt.ColorScale.ScaleAlpha(0.7)
 	screen.DrawImage(ss.shadowImage, shadowOpt)
 
-	// 10) Draw the white cone at 30% opacity
-	lightOpt := &ebiten.DrawTrianglesOptions{Address: ebiten.AddressRepeat}
-	for i := 0; i < len(finalRays)-1; i++ {
-		a, b := finalRays[i], finalRays[i+1]
-		vs := rayVertices(lightX, lightY, b.X2, b.Y2, a.X2, a.Y2)
-		for j := range vs {
-			vs[j].ColorA = 0.3
+	// 10) Draw the light cone with stepped falloff shader
+	if ss.lightShader != nil {
+		// Calculate max distance for the light cone
+		maxDistance := math.Hypot(float64(ss.screenWidth), float64(ss.screenHeight))
+
+		lightOpt := &ebiten.DrawTrianglesShaderOptions{}
+		lightOpt.Uniforms = map[string]any{
+			"LightPos":    []float32{float32(lightX), float32(lightY)},
+			"MaxDistance": float32(maxDistance),
 		}
-		screen.DrawTriangles(vs, []uint16{0, 1, 2}, ss.triangleImage, lightOpt)
+		lightOpt.Images[0] = ss.triangleImage
+		lightOpt.Blend = ebiten.BlendSourceOver
+
+		// Draw each triangle of the light cone with the shader applied
+		for i := 0; i < len(finalRays)-1; i++ {
+			a, b := finalRays[i], finalRays[i+1]
+			vs := rayVertices(lightX, lightY, b.X2, b.Y2, a.X2, a.Y2)
+			screen.DrawTrianglesShader(vs, []uint16{0, 1, 2}, ss.lightShader, lightOpt)
+		}
+	} else {
+		// Fallback to original white cone rendering
+		//lightOpt := &ebiten.DrawTrianglesOptions{Address: ebiten.AddressRepeat}
+		//for i := 0; i < len(finalRays)-1; i++ {
+		//	a, b := finalRays[i], finalRays[i+1]
+		//	vs := rayVertices(lightX, lightY, b.X2, b.Y2, a.X2, a.Y2)
+		//	for j := range vs {
+		//		vs[j].ColorA = 0.3
+		//	}
+		//	screen.DrawTriangles(vs, []uint16{0, 1, 2}, ss.triangleImage, lightOpt)
+		//}
 	}
 
 	// 11) Optional debug rays
@@ -295,9 +321,17 @@ func NewShadowSystem(screenWidth, screenHeight int) *ShadowSystem {
 	shadowImage := ebiten.NewImage(screenWidth, screenHeight)
 	triangleImage := ebiten.NewImage(screenWidth, screenHeight)
 	triangleImage.Fill(color.White)
+
+	// Initialize the stepped light shader
+	var lightShader *ebiten.Shader
+	if shader, err := ebiten.NewShader(steppedLightShader); err == nil {
+		lightShader = shader
+	}
+
 	return &ShadowSystem{
 		shadowImage:   shadowImage,
 		triangleImage: triangleImage,
+		lightShader:   lightShader,
 		screenWidth:   screenWidth,
 		screenHeight:  screenHeight,
 	}
