@@ -170,8 +170,8 @@ func (sg *SpaceGame) CalculateTimeDilation() float32 {
 	playerPos := sg.Player.Position
 
 	// Curve parameters
-	const minTimeScaleAtCenter = 0.025 // 10x slower at the body’s surface
-	const exponent = 1.25              // >1 = sharper ease-in
+	const minTimeScaleAtCenter = 0.010 // 10x slower at the body’s surface
+	const exponent = 1.15              // >1 = sharper ease-in
 
 	// Check proximity to all celestial bodies
 	for _, body := range sg.CelestialBodies {
