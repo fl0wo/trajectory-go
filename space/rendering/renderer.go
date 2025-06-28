@@ -762,7 +762,7 @@ func (r *Renderer) drawBorderIndicators(screen *ebiten.Image, model *Models.Spac
 	topRightScreen := camera.WorldToScreen(border.TopRight, constants.ScreenWidth, constants.ScreenHeight)
 
 	// Create semi-transparent white color for the border markers
-	borderColor := color.RGBA{R: 255, G: 255, B: 255, A: 128} // 50% transparency
+	borderColor := colors.BorderIndicator
 
 	// Size of the "+" markers
 	const markerSize = float32(15.0)
