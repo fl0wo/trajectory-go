@@ -49,6 +49,12 @@ const (
 	fovLight = 90.0
 )
 
+const (
+	baseArm       = float32(10) // half-length of each arm by default
+	stretchFactor = float32(1)  // how much longer the interior arms get
+	lineWidth     = float32(3)
+)
+
 // Renderer handles all rendering operations for the game
 type Renderer struct {
 	shadowSystem          *shadows.ShadowSystem
@@ -749,47 +755,101 @@ func (r *Renderer) drawLineWithShader(screen *ebiten.Image, start, end f32.Vec2,
 	screen.DrawTrianglesShader(vs, is, shader, op)
 }
 
-// drawBorderIndicators draws "+" markers at the four border corners
+// drawBorderIndicators draws “+” markers at each corner of the game border,
+// stretching only the two interior-facing arms of each cross.
 func (r *Renderer) drawBorderIndicators(screen *ebiten.Image, model *Models.SpaceGame) {
-	// Get border positions from the game model
+	// 1) Get border corners in screen space
 	border := model.CalculateBorders()
-	camera := model.Camera
+	cam := model.Camera
+	bl := cam.WorldToScreen(border.BottomLeft, constants.ScreenWidth, constants.ScreenHeight)
+	br := cam.WorldToScreen(border.BottomRight, constants.ScreenWidth, constants.ScreenHeight)
+	tl := cam.WorldToScreen(border.TopLeft, constants.ScreenWidth, constants.ScreenHeight)
+	tr := cam.WorldToScreen(border.TopRight, constants.ScreenWidth, constants.ScreenHeight)
 
-	// Convert world coordinates to screen coordinates
-	bottomLeftScreen := camera.WorldToScreen(border.BottomLeft, constants.ScreenWidth, constants.ScreenHeight)
-	bottomRightScreen := camera.WorldToScreen(border.BottomRight, constants.ScreenWidth, constants.ScreenHeight)
-	topLeftScreen := camera.WorldToScreen(border.TopLeft, constants.ScreenWidth, constants.ScreenHeight)
-	topRightScreen := camera.WorldToScreen(border.TopRight, constants.ScreenWidth, constants.ScreenHeight)
+	// 2) Precompute stretched length
+	stretchArm := baseArm * stretchFactor
+	col := colors.BorderIndicator
 
-	// Create semi-transparent white color for the border markers
-	borderColor := colors.BorderIndicator
-
-	// Size of the "+" markers
-	const markerSize = float32(15.0)
-	const lineWidth = float32(2.0)
-
-	// Draw "+" at each corner
-	r.drawPlusMarker(screen, bottomLeftScreen, markerSize, lineWidth, borderColor)
-	r.drawPlusMarker(screen, bottomRightScreen, markerSize, lineWidth, borderColor)
-	r.drawPlusMarker(screen, topLeftScreen, markerSize, lineWidth, borderColor)
-	r.drawPlusMarker(screen, topRightScreen, markerSize, lineWidth, borderColor)
+	// 3) Draw each corner, telling the helper which arms to stretch:
+	//    bottom-left → stretch right (+X) and up (+Y)
+	r.drawCornerPlus(screen, bl, baseArm, stretchArm /*stretchRight=*/, true /*stretchUp=*/, true, col)
+	//    bottom-right → stretch left (−X) and up (+Y)
+	r.drawCornerPlus(screen, br, baseArm, stretchArm /*stretchRight=*/, false /*stretchUp=*/, true, col)
+	//    top-left → stretch right (+X) and down (−Y)
+	r.drawCornerPlus(screen, tl, baseArm, stretchArm /*stretchRight=*/, true /*stretchUp=*/, false, col)
+	//    top-right → stretch left (−X) and down (−Y)
+	r.drawCornerPlus(screen, tr, baseArm, stretchArm /*stretchRight=*/, false /*stretchUp=*/, false, col)
 }
 
-// drawPlusMarker draws a "+" marker at the specified position
-func (r *Renderer) drawPlusMarker(screen *ebiten.Image, position f32.Vec2, size, lineWidth float32, color color.RGBA) {
-	halfSize := size / 2.0
+// drawCornerPlus draws a “+” at center, with its two interior-facing arms
+// stretched. If stretchRight is true, the right arm is long; otherwise left
+// arm is long. If stretchUp is true, the up arm is long; otherwise down arm
+// is long.
+func (r *Renderer) drawCornerPlus(
+	screen *ebiten.Image,
+	center f32.Vec2,
+	baseArm, stretchArm float32,
+	stretchRight, stretchUp bool,
+	clr color.RGBA,
+) {
+	// decide horizontal lengths
+	var leftLen, rightLen = baseArm, baseArm
+	if stretchRight {
+		rightLen = stretchArm
+	} else {
+		leftLen = stretchArm
+	}
 
-	// Draw horizontal line
-	vector.StrokeLine(screen,
-		position[0]-halfSize, position[1],
-		position[0]+halfSize, position[1],
-		lineWidth, color, true)
+	// decide vertical lengths
+	var downLen, upLen = baseArm, baseArm
+	if stretchUp {
+		upLen = stretchArm
+	} else {
+		downLen = stretchArm
+	}
 
-	// Draw vertical line
-	vector.StrokeLine(screen,
-		position[0], position[1]-halfSize,
-		position[0], position[1]+halfSize,
-		lineWidth, color, true)
+	// draw horizontal stroke
+	r.DrawLine(screen,
+		center[0]-leftLen, center[1],
+		center[0]+rightLen, center[1],
+		lineWidth, clr,
+	)
+	// draw vertical stroke
+	r.DrawLine(screen,
+		center[0], center[1]-downLen,
+		center[0], center[1]+upLen,
+		lineWidth, clr,
+	)
+}
+
+// helper to compute Euclidean distance between two screen points
+func distance(a, b f32.Vec2) float32 {
+	dx := a[0] - b[0]
+	dy := a[1] - b[1]
+	return float32(math.Hypot(float64(dx), float64(dy)))
+}
+
+// DrawPlusMarker now takes two arm lengths (half-width & half-height)
+func (r *Renderer) DrawPlusMarker(
+	screen *ebiten.Image,
+	center f32.Vec2,
+	armX, armY,
+	offX, offY float32,
+	lineWidth float32,
+	clr color.RGBA,
+) {
+	// draw a horizontal line of length 2*armX centered at `center`
+	r.DrawLine(screen,
+		center[0]-offX, center[1],
+		center[0]+offX, center[1],
+		lineWidth, clr,
+	)
+	// draw a vertical   line of length 2*armY centered at `center`
+	r.DrawLine(screen,
+		center[0], center[1]-armY,
+		center[0], center[1]+armY,
+		lineWidth, clr,
+	)
 }
 
 // drawArrowHeadWithShader draws an arrowhead using triangles with the specified shader
@@ -828,4 +888,9 @@ func (r *Renderer) drawArrowHeadWithShader(screen *ebiten.Image, start, end f32.
 	// Draw arrow head lines with shader
 	r.drawLineWithShader(screen, end, f32.Vec2{leftX, leftY}, 3, color, shader, uniforms)
 	r.drawLineWithShader(screen, end, f32.Vec2{rightX, rightY}, 3, color, shader, uniforms)
+}
+
+func (r *Renderer) DrawLine(screen *ebiten.Image, f float32, f2 float32, f3 float32, f4 float32, width float32, clr color.RGBA) {
+	// Draw a line using vector graphics
+	vector.StrokeLine(screen, f, f2, f3, f4, width, clr, true)
 }

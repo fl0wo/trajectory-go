@@ -29,11 +29,11 @@ var (
 	WhiteHoleOrbit = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White
 
 	// AsteroidBody Asteroid colors
-	AsteroidBody    = util.RGBAColor(255, 255, 255, 100)         // Brown
+	AsteroidBody    = util.RGBAColor(255, 255, 255, 100)
 	AsteroidBodyAlt = color.RGBA{R: 255, G: 50, B: 255, A: 50}   // Transparent magenta
 	AsteroidOrbit   = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White
 
-	BorderIndicator = util.RGBAColor(144, 152, 161, 255)
+	BorderIndicator = util.RGBAColor(120, 113, 137, 255) // Border indicator color (purple-ish)
 )
 
 // Player Colors
