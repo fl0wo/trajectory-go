@@ -124,6 +124,9 @@ func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
 	// Draw trajectory arrow if dragging
 	r.drawTrajectoryArrow(screen, model)
 
+	// Draw border indicators
+	r.drawBorderIndicators(screen, model)
+
 	// Draw FPS counter
 	r.drawFPS(screen)
 }
@@ -744,6 +747,49 @@ func (r *Renderer) drawLineWithShader(screen *ebiten.Image, start, end f32.Vec2,
 	op.Uniforms = uniforms
 	op.Images[0] = r.whiteTexture
 	screen.DrawTrianglesShader(vs, is, shader, op)
+}
+
+// drawBorderIndicators draws "+" markers at the four border corners
+func (r *Renderer) drawBorderIndicators(screen *ebiten.Image, model *Models.SpaceGame) {
+	// Get border positions from the game model
+	border := model.CalculateBorders()
+	camera := model.Camera
+
+	// Convert world coordinates to screen coordinates
+	bottomLeftScreen := camera.WorldToScreen(border.BottomLeft, constants.ScreenWidth, constants.ScreenHeight)
+	bottomRightScreen := camera.WorldToScreen(border.BottomRight, constants.ScreenWidth, constants.ScreenHeight)
+	topLeftScreen := camera.WorldToScreen(border.TopLeft, constants.ScreenWidth, constants.ScreenHeight)
+	topRightScreen := camera.WorldToScreen(border.TopRight, constants.ScreenWidth, constants.ScreenHeight)
+
+	// Create semi-transparent white color for the border markers
+	borderColor := color.RGBA{R: 255, G: 255, B: 255, A: 128} // 50% transparency
+
+	// Size of the "+" markers
+	const markerSize = float32(15.0)
+	const lineWidth = float32(2.0)
+
+	// Draw "+" at each corner
+	r.drawPlusMarker(screen, bottomLeftScreen, markerSize, lineWidth, borderColor)
+	r.drawPlusMarker(screen, bottomRightScreen, markerSize, lineWidth, borderColor)
+	r.drawPlusMarker(screen, topLeftScreen, markerSize, lineWidth, borderColor)
+	r.drawPlusMarker(screen, topRightScreen, markerSize, lineWidth, borderColor)
+}
+
+// drawPlusMarker draws a "+" marker at the specified position
+func (r *Renderer) drawPlusMarker(screen *ebiten.Image, position f32.Vec2, size, lineWidth float32, color color.RGBA) {
+	halfSize := size / 2.0
+
+	// Draw horizontal line
+	vector.StrokeLine(screen,
+		position[0]-halfSize, position[1],
+		position[0]+halfSize, position[1],
+		lineWidth, color, true)
+
+	// Draw vertical line
+	vector.StrokeLine(screen,
+		position[0], position[1]-halfSize,
+		position[0], position[1]+halfSize,
+		lineWidth, color, true)
 }
 
 // drawArrowHeadWithShader draws an arrowhead using triangles with the specified shader

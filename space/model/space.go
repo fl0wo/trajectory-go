@@ -110,53 +110,121 @@ func (sg *SpaceGame) LoadLevel(levelNum int) error {
 	return nil
 }
 
-//  1. calculateBorders computes the current game border corners.
-//     If you have >3 celestial bodies, build their AABB and pad it by 50%.
-//     Otherwise fall back to a fixed box: x∈[-0.5,1.5], y∈[-0.5,1.5].
-func (sg *SpaceGame) calculateBorders() Border {
-	// default rect
-	minX, maxX := -0.5, 1.5
-	minY, maxY := -0.5, 1.5
+func (sg *SpaceGame) NumNonAsteroids() int {
+	count := 0
+	for _, b := range sg.CelestialBodies {
+		if b.GetType() != CelestialBodyTypeAsteroid {
+			count++
+		}
+	}
+	return count
+}
 
-	if len(sg.CelestialBodies) > 3 {
-		// build AABB over bodies
+// CalculateBorders computes the current game border corners.
+//
+//	1 celestial body: square 50% bigger than its orbit radius
+//	2 celestial bodies: rectangle using biggest orbit as one side, distance between orbits as other side, + 50% padding
+//	3+ celestial bodies: build their AABB and pad it by 50%
+//	0 celestial bodies: fall back to a fixed box: x∈[-0.5,1.5], y∈[-0.5,1.5]
+func (sg *SpaceGame) CalculateBorders() Border {
+	numBodies := sg.NumNonAsteroids()
+
+	switch numBodies {
+	case 0:
+		// Default fallback rect
+		return Border{
+			BottomLeft:  f32.Vec2{-0.5, -0.5},
+			BottomRight: f32.Vec2{1.5, -0.5},
+			TopLeft:     f32.Vec2{-0.5, 1.5},
+			TopRight:    f32.Vec2{1.5, 1.5},
+		}
+
+	case 1:
+		// Single body: square 50% bigger than its orbit radius
+		body := sg.CelestialBodies[0]
+		pos := body.GetPosition()
+		orbitRadius := body.GetOrbitRadius()
+
+		// Create square centered on the body, size = orbit diameter + 50%
+		squareHalfSize := orbitRadius * 1.5 // 50% bigger than orbit radius
+
+		minX := float64(pos[0]) - float64(squareHalfSize)
+		maxX := float64(pos[0]) + float64(squareHalfSize)
+		minY := float64(pos[1]) - float64(squareHalfSize)
+		maxY := float64(pos[1]) + float64(squareHalfSize)
+
+		return Border{
+			BottomLeft:  f32.Vec2{float32(minX), float32(minY)},
+			BottomRight: f32.Vec2{float32(maxX), float32(minY)},
+			TopLeft:     f32.Vec2{float32(minX), float32(maxY)},
+			TopRight:    f32.Vec2{float32(maxX), float32(maxY)},
+		}
+
+	case 2:
+		// Two bodies: rectangle with biggest orbit as one dimension, distance between orbits as other
+		body1 := sg.CelestialBodies[0]
+		body2 := sg.CelestialBodies[1]
+
+		pos1 := body1.GetPosition()
+		pos2 := body2.GetPosition()
+		orbit1 := body1.GetOrbitRadius()
+		orbit2 := body2.GetOrbitRadius()
+
+		// find smallest & largest X and Y coordinates
+		minX := math.Min(float64(pos1[0]-orbit1), float64(pos2[0]-orbit2))
+		maxX := math.Max(float64(pos1[0]+orbit1), float64(pos2[0]+orbit2))
+		minY := math.Min(float64(pos1[1]-orbit1), float64(pos2[1]-orbit2))
+		maxY := math.Max(float64(pos1[1]+orbit1), float64(pos2[1]+orbit2))
+
+		pad := 0.1 // 10% padding on each side
+		minX -= pad * (maxX - minX)
+		maxX += pad * (maxX - minX)
+		minY -= pad * (maxY - minY)
+		maxY += pad * (maxY - minY)
+
+		return Border{
+			BottomLeft:  f32.Vec2{float32(minX), float32(minY)},
+			BottomRight: f32.Vec2{float32(maxX), float32(minY)},
+			TopLeft:     f32.Vec2{float32(minX), float32(maxY)},
+			TopRight:    f32.Vec2{float32(maxX), float32(maxY)},
+		}
+
+	default:
+		// 3+ bodies: build AABB over bodies and pad by 50%
 		p0 := sg.CelestialBodies[0].GetPosition()
-		minX, maxX = float64(p0[0]), float64(p0[0])
-		minY, maxY = float64(p0[1]), float64(p0[1])
+		minX, maxX := p0[0], p0[0]
+		minY, maxY := p0[1], p0[1]
+
 		for _, b := range sg.CelestialBodies {
 			p := b.GetPosition()
-			if f := float64(p[0]); f < minX {
-				minX = f
-			} else if f > maxX {
-				maxX = f
-			}
-			if f := float64(p[1]); f < minY {
-				minY = f
-			} else if f > maxY {
-				maxY = f
-			}
+			r := b.GetOrbitRadius()
+			minX = min(minX, p[0]-r)
+			maxX = max(maxX, p[0]+r)
+			minY = min(minY, p[1]-r)
+			maxY = max(maxY, p[1]+r)
 		}
-		// pad by 50%
-		halfW := (maxX - minX) * 0.5
-		halfH := (maxY - minY) * 0.5
+
+		// Pad by 10% of the width and height
+		halfW := (maxX - minX) * 0.1
+		halfH := (maxY - minY) * 0.1
 		minX -= halfW
 		maxX += halfW
 		minY -= halfH
 		maxY += halfH
-	}
 
-	return Border{
-		BottomLeft:  f32.Vec2{float32(minX), float32(minY)},
-		BottomRight: f32.Vec2{float32(maxX), float32(minY)},
-		TopLeft:     f32.Vec2{float32(minX), float32(maxY)},
-		TopRight:    f32.Vec2{float32(maxX), float32(maxY)},
+		return Border{
+			BottomLeft:  f32.Vec2{float32(minX), float32(minY)},
+			BottomRight: f32.Vec2{float32(maxX), float32(minY)},
+			TopLeft:     f32.Vec2{float32(minX), float32(maxY)},
+			TopRight:    f32.Vec2{float32(maxX), float32(maxY)},
+		}
 	}
 }
 
-// 2) distanceToBorder returns signed distance of pos to the nearest border edge.
+// DistanceToBorder returns signed distance of pos to the nearest border edge.
 //   - Inside the rect → negative, = −min(distance to any edge).
 //   - Outside the rect → positive, = how far past the closest edge you are.
-func distanceToBorder(pos f32.Vec2, b Border) float32 {
+func DistanceToBorder(pos f32.Vec2, b Border) float32 {
 	minX := b.BottomLeft[0]
 	maxX := b.BottomRight[0]
 	minY := b.BottomLeft[1]
@@ -193,7 +261,7 @@ func distanceToBorder(pos f32.Vec2, b Border) float32 {
 	return -nearestEdge
 }
 
-// 3) CalculateLevelCenter ties it all together:
+// CalculateLevelCenter ties it all together:
 //   - if no entities, stick to player
 //   - if distanceToBorder > 0, player “lost” → return player
 //   - else fall back to weighted centroid.
@@ -204,8 +272,8 @@ func (sg *SpaceGame) CalculateLevelCenter() f32.Vec2 {
 	}
 
 	// build border & measure
-	border := sg.calculateBorders()
-	d := distanceToBorder(sg.Player.Position, border)
+	border := sg.CalculateBorders()
+	d := DistanceToBorder(sg.Player.Position, border)
 	if d > 0 {
 		// outside → lost
 		return sg.Player.Position
