@@ -5,34 +5,35 @@
 
 package main
 
-// Evil eye parameters (angular and menacing)
+// Evil eye parameters
 const EyeSeparation = 0.32
 const EyeVertical = -0.35
 const EyeRadius = 0.070
-const PupilRadius = 0.055  // Larger pupils for more intense look
+const PupilRadius = 0.055
+const EyeCutOffset = 0.02 // inset so we cut slightly less than half
 
-// Evil mouth parameters (frown instead of smile)
+// Evil mouth parameters
 const MouthVertical = -0.52
 const MouthRadius = 0.028
 const MouthArcRadius = 0.048
-const MouthArcCos = 0.15  // Wider frown arc
+const MouthArcCos = 0.15
 
-// Uniforms from Go
-var PlayerPos vec2          // [0..1] world-space player center
-var BlackHolePos vec2       // [0..1] world-space black hole center
-var BlackHoleOrbitRadius float // [0..1] orbit radius (for dynamic mouth)
-var CameraPos vec2          // [0..1]
+// Uniforms
+var PlayerPos vec2
+var BlackHolePos vec2
+var BlackHoleOrbitRadius float
+var CameraPos vec2
 var Zoom float
-var Radius float            // black hole radius in world units [0..1]
+var Radius float
 var Time float
-var ScreenSize vec2         // [width, height] in pixels
+var ScreenSize vec2
 
-// SDF for a circle at c with radius r
+// sdfCircle: distance field for circle at c with radius r
 func sdfCircle(p, c vec2, r float) float {
 	return length(p-c) - r
 }
 
-// Exact coordinate mapping as the working planet shader
+// toLocal: map screen pixel → unit‐circle coords around black hole
 func toLocal(dstPos vec4) vec2 {
 	uv := dstPos.xy / ScreenSize
 	c := uv - vec2(0.5)
@@ -42,32 +43,26 @@ func toLocal(dstPos vec4) vec2 {
 	zoomSafe := max(0.01, min(Zoom, 100.0))
 	c /= zoomSafe
 
-	// world-space
 	world := CameraPos + c
 	radiusSafe := max(0.0001, min(Radius, 1.0))
 	return (world - BlackHolePos) / radiusSafe
 }
 
 func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
-	// 1) Into local circle coords & flip 180°
+	// 1) Into local coords & flip face
 	p := toLocal(dstPos)
 	p = -p
 
-	// 2) Compute alpha for the circle with anti-aliasing
-	distBlackHole := length(p)
-	sdfBlackHole := distBlackHole - 1.0
-	wBlackHole := fwidth(sdfBlackHole)
-	aBlackHole := smoothstep(wBlackHole, -wBlackHole, sdfBlackHole)
-
-	// 3) Early exit if fully outside
-	if aBlackHole < 0.001 {
+	// 2) AA‐alpha for the black hole circle
+	distBH := length(p)
+	sdfBH := distBH - 1.0
+	wBH := fwidth(sdfBH)
+	aBH := smoothstep(wBH, -wBH, sdfBH)
+	if aBH < 0.001 {
 		return vec4(0.0)
 	}
 
-	// 4) Build evil facial features
-	outCol := vec4(0.0)
-
-	// 5) Look-direction axes
+	// 3) Compute look‐direction axes
 	delta := PlayerPos - BlackHolePos
 	dir := vec2(0.0, 1.0)
 	if length(delta) > 0.0001 {
@@ -77,79 +72,104 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 	rightDir := vec2(dir.y, -dir.x)
 	leftDir := -rightDir
 
-	// 6) Draw evil eyes (angular and intense)
+	// 4) Are we inside the orbit?
+	distWorld := length(delta)
+	inOrbit := step(distWorld, BlackHoleOrbitRadius)
+
+	// 5) Face‐rotation matrix (cosφ, sinφ)
+	c := dir.y
+	s := -dir.x
+
+	// 6) Local face‐space cut normals at ±45°
+	const c45 = 0.70710678
+	localL := vec2(c45, c45)  // +45° for left
+	localR := vec2(-c45, c45) // +135° (−45°) for right
+
+	// 7) Rotate into world‐space, then rotate 180° more by negating
+	cutL := vec2(c*localL.x-s*localL.y, s*localL.x+c*localL.y)
+	cutR := vec2(c*localR.x-s*localR.y, s*localR.x+c*localR.y)
+	cutL = -cutL
+	cutR = -cutR
+
+	outCol := vec4(0.0)
+
+	// 8) Left eye (sclera + pupil), bottom‐half kept when angry
 	{
-		// Left eye (white sclera)
 		leftPos := leftDir*EyeSeparation + dir*EyeVertical
+		qL := p - leftPos
+
+		// sclera
 		dL := sdfCircle(p, leftPos, EyeRadius)
 		wL := fwidth(dL)
-		aL := smoothstep(-wL, wL, -dL) * aBlackHole
-		outCol = mix(outCol, vec4(1.0, 0.0, 0.0, 1.0), aL) // Red eyes for evil effect
+		aL0 := smoothstep(-wL, wL, -dL) * aBH
+		maskL := step(-EyeCutOffset, dot(cutL, qL))
+		aL := aL0 * (inOrbit*maskL + (1.0 - inOrbit))
+		outCol = mix(outCol, vec4(1, 0, 0, 1), aL)
 
-		// Right eye (white sclera)
+		// pupil
+		pupilL := leftPos + dir*(EyeRadius-PupilRadius)*0.6
+		dPL := sdfCircle(p, pupilL, PupilRadius)
+		wPL := fwidth(dPL)
+		aPL0 := smoothstep(-wPL, wPL, -dPL) * aBH
+		aPL := aPL0 * (inOrbit*maskL + (1.0 - inOrbit))
+		outCol = mix(outCol, vec4(0, 0, 0, 1), aPL)
+	}
+
+	// 9) Right eye
+	{
 		rightPos := rightDir*EyeSeparation + dir*EyeVertical
+		qR := p - rightPos
+
+		// sclera
 		dR := sdfCircle(p, rightPos, EyeRadius)
 		wR := fwidth(dR)
-		aR := smoothstep(-wR, wR, -dR) * aBlackHole
-		outCol = mix(outCol, vec4(1.0, 0.0, 0.0, 1.0), aR) // Red eyes for evil effect
+		aR0 := smoothstep(-wR, wR, -dR) * aBH
+		maskR := step(-EyeCutOffset, dot(cutR, qR))
+		aR := aR0 * (inOrbit*maskR + (1.0 - inOrbit))
+		outCol = mix(outCol, vec4(1, 0, 0, 1), aR)
 
-		// Large black pupils for intensity
-		leftPupilPos := leftPos + dir * (EyeRadius - PupilRadius) * 0.6
-		dLP := sdfCircle(p, leftPupilPos, PupilRadius)
-		wLP := fwidth(dLP)
-		aLP := smoothstep(-wLP, wLP, -dLP) * aBlackHole
-		outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), aLP)
-
-		rightPupilPos := rightPos + dir * (EyeRadius - PupilRadius) * 0.6
-		dRP := sdfCircle(p, rightPupilPos, PupilRadius)
-		wRP := fwidth(dRP)
-		aRP := smoothstep(-wRP, wRP, -dRP) * aBlackHole
-		outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), aRP)
+		// pupil
+		pupilR := rightPos + dir*(EyeRadius-PupilRadius)*0.6
+		dPR := sdfCircle(p, pupilR, PupilRadius)
+		wPR := fwidth(dPR)
+		aPR0 := smoothstep(-wPR, wPR, -dPR) * aBH
+		aPR := aPR0 * (inOrbit*maskR + (1.0 - inOrbit))
+		outCol = mix(outCol, vec4(0, 0, 0, 1), aPR)
 	}
 
-	// 7) Dynamic mouth-scaling (gets more evil when player is closer)
-	playerDist := length(delta)
-	mouthScale := 1.0
-	if playerDist < BlackHoleOrbitRadius {
-		// 1.0 at orbit edge → 6.0 at center (more dramatic than planets)
-		frac := 1.0 - (playerDist / BlackHoleOrbitRadius)
-		mouthScale = 1.0 + frac*5.0
-	}
-	scaledArcR := MouthArcRadius * mouthScale
-
-	// 8) Draw evil frown (inverted smile)
+	// 10) Dynamic frown mouth (unchanged)
 	{
+		frac := clamp(1.0-distWorld/BlackHoleOrbitRadius, 0.0, 1.0)
+		mouthScale := 1.0 + frac*5.0
+		scaledR := MouthArcRadius * mouthScale
+
 		arcCenter := dir * MouthVertical
 		q := p - arcCenter
 		d := length(q)
 
-		// arc strip
-		sdfArc := abs(d-scaledArcR) - MouthRadius
+		sdfArc := abs(d-scaledR) - MouthRadius
 		wM := fwidth(sdfArc)
 		mThick := smoothstep(-wM, wM, -sdfArc)
 
-		// angular mask for frown (using positive dir for downward curve)
 		nq := q / max(d, 0.0001)
-		mAngle := step(MouthArcCos, dot(nq, dir)) // Note: using positive dir for frown
-		mArc := mThick * mAngle * aBlackHole
+		mAngle := step(MouthArcCos, dot(nq, dir))
+		mArc := mThick * mAngle * aBH
 
-		// end-caps
-		sinArc := sqrt(max(0.0, 1.0-MouthArcCos*MouthArcCos))
-
-		vL := dir*MouthArcCos + leftDir*sinArc  // Flipped for frown
-		epL := arcCenter + vL*scaledArcR
+		sinA := sqrt(max(0.0, 1.0-MouthArcCos*MouthArcCos))
+		vL := dir*MouthArcCos + leftDir*sinA
+		epL := arcCenter + vL*scaledR
 		dE1 := sdfCircle(p, epL, MouthRadius)
 		wE1 := fwidth(dE1)
-		aE1 := smoothstep(-wE1, wE1, -dE1) * aBlackHole
+		aE1 := smoothstep(-wE1, wE1, -dE1) * aBH
 
-		vR := dir*MouthArcCos + rightDir*sinArc  // Flipped for frown
-		epR := arcCenter + vR*scaledArcR
+		vR := dir*MouthArcCos + rightDir*sinA
+		epR := arcCenter + vR*scaledR
 		dE2 := sdfCircle(p, epR, MouthRadius)
 		wE2 := fwidth(dE2)
-		aE2 := smoothstep(-wE2, wE2, -dE2) * aBlackHole
+		aE2 := smoothstep(-wE2, wE2, -dE2) * aBH
 
 		mMask := max(mArc, max(aE1, aE2))
-		outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), mMask)
+		outCol = mix(outCol, vec4(0, 0, 0, 1), mMask)
 	}
 
 	return outCol

@@ -9,22 +9,22 @@ package main
 const EyeSeparation = 0.30
 const EyeVertical = -0.38
 const EyeRadius = 0.060
-const PupilRadius = 0.035  // Moderate pupil size for calm look
+const PupilRadius = 0.035 // Moderate pupil size for calm look
 
 // Neutral mouth parameters (straight line)
 const MouthVertical = -0.50
 const MouthRadius = 0.022
-const MouthHalfWidth = 0.035  // Half-width of straight mouth line
+const MouthHalfWidth = 0.15 // Half-width of straight mouth line
 
 // Uniforms from Go
-var PlayerPos vec2          // [0..1] world-space player center
-var WhiteHolePos vec2       // [0..1] world-space white hole center
+var PlayerPos vec2             // [0..1] world-space player center
+var WhiteHolePos vec2          // [0..1] world-space white hole center
 var WhiteHoleOrbitRadius float // [0..1] orbit radius (for dynamic mouth)
-var CameraPos vec2          // [0..1]
+var CameraPos vec2             // [0..1]
 var Zoom float
-var Radius float            // white hole radius in world units [0..1]
+var Radius float // white hole radius in world units [0..1]
 var Time float
-var ScreenSize vec2         // [width, height] in pixels
+var ScreenSize vec2 // [width, height] in pixels
 
 // SDF for a circle at c with radius r
 func sdfCircle(p, c vec2, r float) float {
@@ -36,7 +36,7 @@ func sdfCapsule(p, a, b vec2, r float) float {
 	pa := p - a
 	ba := b - a
 	h := clamp(dot(pa, ba)/dot(ba, ba), 0.0, 1.0)
-	return length(pa - ba*h) - r
+	return length(pa-ba*h) - r
 }
 
 // Exact coordinate mapping as the working planet shader
@@ -101,13 +101,13 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 		outCol = mix(outCol, vec4(1.0, 1.0, 1.0, 1.0), aR) // White eyes for neutral look
 
 		// Moderate black pupils (looking at player)
-		leftPupilPos := leftPos + dir * (EyeRadius - PupilRadius) * 0.7
+		leftPupilPos := leftPos + dir*(EyeRadius-PupilRadius)*0.7
 		dLP := sdfCircle(p, leftPupilPos, PupilRadius)
 		wLP := fwidth(dLP)
 		aLP := smoothstep(-wLP, wLP, -dLP) * aWhiteHole
 		outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), aLP)
 
-		rightPupilPos := rightPos + dir * (EyeRadius - PupilRadius) * 0.7
+		rightPupilPos := rightPos + dir*(EyeRadius-PupilRadius)*0.7
 		dRP := sdfCircle(p, rightPupilPos, PupilRadius)
 		wRP := fwidth(dRP)
 		aRP := smoothstep(-wRP, wRP, -dRP) * aWhiteHole
@@ -127,16 +127,16 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 	// 8) Draw neutral straight mouth line
 	{
 		mouthCenter := dir * MouthVertical
-		
+
 		// Create horizontal line endpoints relative to the face direction
-		leftEnd := mouthCenter + leftDir * scaledMouthWidth
-		rightEnd := mouthCenter + rightDir * scaledMouthWidth
-		
+		leftEnd := mouthCenter + leftDir*scaledMouthWidth
+		rightEnd := mouthCenter + rightDir*scaledMouthWidth
+
 		// Use capsule SDF for straight line with rounded ends
 		dMouth := sdfCapsule(p, leftEnd, rightEnd, MouthRadius)
 		wMouth := fwidth(dMouth)
 		aMouth := smoothstep(-wMouth, wMouth, -dMouth) * aWhiteHole
-		
+
 		outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), aMouth)
 	}
 
