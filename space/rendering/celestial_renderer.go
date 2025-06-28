@@ -14,7 +14,6 @@ import (
 	"time"
 )
 
-// drawCelestialBodies renders all celestial bodies
 func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.SpaceGame) {
 	camera := model.Camera
 
@@ -23,60 +22,69 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 		screenPos := camera.WorldToScreen(bodyPos, constants.ScreenWidth, constants.ScreenHeight)
 		radius := camera.RadiusToScreen(body.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
 
-		// Choose colors based on celestial body type
 		var bodyColor color.RGBA
 		var orbitColor color.RGBA
 
 		switch body.GetType() {
 		case Models.CelestialBodyTypePlanet:
-			bodyColor = colors.PlanetBody
+			bodyColor = color.RGBA{255, 255, 255, 255} // White planet
 			orbitColor = colors.PlanetOrbit
 		case Models.CelestialBodyTypeBlackHole:
 			bodyColor = colors.BlackHoleBody
 			orbitColor = colors.BlackHoleOrbit
 		case Models.CelestialBodyTypeWhiteHole:
-			bodyColor = colors.WhiteHoleBody
+			bodyColor = color.RGBA{255, 255, 255, 255} // White hole
 			orbitColor = colors.WhiteHoleOrbit
 		case Models.CelestialBodyTypeAsteroid:
 			bodyColor = colors.AsteroidBodyAlt
 			orbitColor = colors.AsteroidOrbit
 		}
 
-		// Check if this celestial body has an image
-		var imagePath string
-		switch body.GetType() {
-		case Models.CelestialBodyTypePlanet:
-			if planet, ok := body.(*Models.Planet); ok && planet.ImagePath != "" {
-				imagePath = planet.ImagePath
-			}
-		case Models.CelestialBodyTypeBlackHole:
-			if blackHole, ok := body.(*Models.BlackHole); ok && blackHole.ImagePath != "" {
-				imagePath = blackHole.ImagePath
-			}
-		case Models.CelestialBodyTypeWhiteHole:
-			if whiteHole, ok := body.(*Models.WhiteHole); ok && whiteHole.ImagePath != "" {
-				imagePath = whiteHole.ImagePath
-			}
-		}
 
-		if imagePath != "" {
-			// Render with image
-			r.drawCelestialBodyWithImage(screen, screenPos, radius, imagePath)
+		if body.GetType() == Models.CelestialBodyTypePlanet {
+			r.DrawPlanetWithFace(screen, model, bodyPos, body.GetRadius(), bodyColor)
 		} else {
-			// Fallback to circle rendering
+			// Draw celestial body as a filled circle
 			vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], radius, bodyColor, true)
 		}
 
-		// Draw celestial body's orbit radius as a dashed circle with light effect
 		orbitRadius := camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
-
-		// Use reveal shader for black holes, regular light effect for others
 		if body.GetType() == Models.CelestialBodyTypeBlackHole {
 			r.drawOrbitCircleWithReveal(screen, model, screenPos, orbitRadius, orbitColor)
 		} else {
 			r.drawOrbitCircleWithLight(screen, model, screenPos, orbitRadius, orbitColor)
 		}
 	}
+}
+
+func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceGame, planetPos f32.Vec2, worldRadius float32, planetColor color.RGBA) {
+	if r.planetShader == nil {
+		screenPos := model.Camera.WorldToScreen(planetPos, constants.ScreenWidth, constants.ScreenHeight)
+		screenRadius := worldRadius * model.Camera.GetTotalZoom() * float32(constants.ScreenHeight)
+		vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], screenRadius, planetColor, true)
+		return
+	}
+
+	sw := float32(constants.ScreenWidth)
+	sh := float32(constants.ScreenHeight)
+	zoom := model.Camera.GetTotalZoom()
+	t := float32(time.Since(r.startTime).Seconds())
+
+	uniforms := map[string]any{
+		"PlayerPos":   []float32{model.Player.Position[0], model.Player.Position[1]},
+		"PlanetPos":   []float32{planetPos[0], planetPos[1]},
+		"PlanetColor": []float32{float32(planetColor.R), float32(planetColor.G), float32(planetColor.B), float32(planetColor.A)},
+		"CameraPos":   []float32{model.Camera.Position[0], model.Camera.Position[1]},
+		"Zoom":        zoom,
+		"Radius":      worldRadius,
+		"Time":        t,
+		"ScreenSize":  []float32{sw, sh},
+	}
+
+	// Draw directly to screen using the shader - no intermediate texture needed
+	opts := &ebiten.DrawRectShaderOptions{Uniforms: uniforms}
+	opts.Images[0] = r.whiteTexture // Use pre-allocated white texture as source
+	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.planetShader, opts)
 }
 
 // drawAsteroids renders all asteroids

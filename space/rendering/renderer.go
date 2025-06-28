@@ -36,6 +36,9 @@ var revealOnLightShader []byte
 //go:embed alien_trail.go
 var alienTrailShader []byte
 
+//go:embed planet.go
+var planetShader []byte
+
 var (
 	mplusFaceSource *text.GoTextFaceSource
 )
@@ -68,6 +71,7 @@ type Renderer struct {
 	invertOnLightShader   *ebiten.Shader
 	revealOnLightShader   *ebiten.Shader
 	alienTrailShader      *ebiten.Shader
+	planetShader          *ebiten.Shader
 	whiteTexture          *ebiten.Image
 	startTime             time.Time // Game start time for shader animations
 }
@@ -118,6 +122,14 @@ func NewRenderer() *Renderer {
 		log.Println("Failed to load alien trail shader:", err)
 	}
 
+	// Initialize planet shader
+	var planetShaderObj *ebiten.Shader
+	if shader, err := ebiten.NewShader(planetShader); err == nil {
+		planetShaderObj = shader
+	} else {
+		log.Println("Failed to load planet shader:", err)
+	}
+
 	// Create a white texture matching screen size for shaders that need a source image
 	whiteTexture := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
 	whiteTexture.Fill(color.White)
@@ -131,6 +143,7 @@ func NewRenderer() *Renderer {
 		invertOnLightShader:   invertOnLightShaderObj,
 		revealOnLightShader:   revealOnLightShaderObj,
 		alienTrailShader:      alienTrailShaderObj,
+		planetShader:          planetShaderObj,
 		whiteTexture:          whiteTexture,
 		startTime:             time.Now(), // Initialize start time for shader animations
 	}
