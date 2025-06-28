@@ -69,7 +69,7 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 
 		// Draw celestial body's orbit radius as a dashed circle with light effect
 		orbitRadius := camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
-		
+
 		// Use reveal shader for black holes, regular light effect for others
 		if body.GetType() == Models.CelestialBodyTypeBlackHole {
 			r.drawOrbitCircleWithReveal(screen, model, screenPos, orbitRadius, orbitColor)
@@ -177,7 +177,7 @@ func (r *Renderer) drawOrbitCircleWithLight(screen *ebiten.Image, model *Models.
 			"LightDirection": []float32{lightDirVec[0], lightDirVec[1]},
 			"FOVAngle":       float32(fov * math.Pi / 180.0), // Convert to radians
 			"MaxDistance":    float32(maxDistance),
-			"Zoom":           camera.Zoom,
+			"Zoom":           camera.GetTotalZoom(),
 			"OriginalColor": []float32{
 				float32(orbitColor.R) / 255.0,
 				float32(orbitColor.G) / 255.0,
@@ -258,9 +258,9 @@ func (r *Renderer) drawOrbitCircleWithReveal(screen *ebiten.Image, model *Models
 		// Prepare shader uniforms using the reveal shader helper
 		uniforms := r.prepareRevealOnLightUniforms(
 			lightPos, lightDirVec,
-			float32(fov * math.Pi / 180.0), // Convert to radians
+			float32(fov*math.Pi/180.0), // Convert to radians
 			float32(maxDistance),
-			camera.Zoom,
+			camera.GetTotalZoom(),
 			orbitColor,
 		)
 

@@ -37,7 +37,7 @@ func (r *Renderer) drawNebulaBackground(screen *ebiten.Image, model *Models.Spac
 		"PlayerPos":  []float32{playerPos[0], playerPos[1]}, // World coordinates
 		"CameraPos":  []float32{cameraPos[0], cameraPos[1]}, // World coordinates
 		"ScreenSize": []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
-		"Zoom":       camera.Zoom,
+		"Zoom":       camera.GetTotalZoom(),
 	}
 
 	// Draw the nebula background shader
@@ -112,7 +112,7 @@ func (r *Renderer) drawBorderIndicators(screen *ebiten.Image, model *Models.Spac
 			lightPos, lightDirVec,
 			float32(fov*math.Pi/180.0), // Convert to radians
 			float32(maxDistance),
-			cam.Zoom,
+			cam.GetTotalZoom(),
 			col,
 		)
 

@@ -198,6 +198,11 @@ func (c *Camera2D) AdjustZoom(delta float32) {
 	c.SetZoom(newZoom)
 }
 
+func (c *Camera2D) GetTotalZoom() float32 {
+	// Returns the total zoom including proximity and drag effects
+	return (c.Zoom + c.DragZoom) * c.ProximityZoom
+}
+
 func (c *Camera2D) SetTargetZoom(zoom float32) {
 	// Clamp zoom to a reasonable range
 	c.TargetZoom = zoom

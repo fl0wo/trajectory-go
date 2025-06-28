@@ -20,6 +20,11 @@ func (r *Renderer) drawPlayer(screen *ebiten.Image, model *Models.SpaceGame) {
 	playerScreenPos := camera.WorldToScreen(player.Position, constants.ScreenWidth, constants.ScreenHeight)
 	playerRadius := camera.RadiusToScreen(player.Radius, constants.ScreenWidth, constants.ScreenHeight)
 
+	// Draw alien trail effect if shader is available
+	if r.alienTrailShader != nil {
+		r.drawPlayerWithAlienTrail(screen, model)
+	}
+
 	// Render player with image if ImagePath is provided, otherwise use green circle
 	if player.ImagePath != "" {
 		playerImg := resources.LoadImage(player.ImagePath)
@@ -98,7 +103,7 @@ func (r *Renderer) drawPlayerTrail(screen *ebiten.Image, model *Models.SpaceGame
 				"LightDirection": []float32{lightDirVec[0], lightDirVec[1]},
 				"FOVAngle":       float32(fov * math.Pi / 180.0), // Convert to radians
 				"MaxDistance":    float32(maxDistance),
-				"Zoom":           camera.Zoom,
+				"Zoom":           camera.GetTotalZoom(),
 				"OriginalColor": []float32{
 					float32(trailColor.R) / 255.0,
 					float32(trailColor.G) / 255.0,
@@ -229,7 +234,7 @@ func (r *Renderer) DrawTrajectoryArrow(screen *ebiten.Image, model *Models.Space
 				"LightDirection": []float32{lightDirVec[0], lightDirVec[1]},
 				"FOVAngle":       float32(fov * math.Pi / 180.0), // Convert to radians
 				"MaxDistance":    float32(maxDistance),
-				"Zoom":           camera.Zoom,
+				"Zoom":           camera.GetTotalZoom(),
 				"OriginalColor": []float32{
 					float32(colors.TrajectoryArrow.R) / 255.0,
 					float32(colors.TrajectoryArrow.G) / 255.0,
@@ -252,6 +257,56 @@ func (r *Renderer) DrawTrajectoryArrow(screen *ebiten.Image, model *Models.Space
 			r.drawArrowHead(screen, playerScreen, endScreen, colors.TrajectoryArrow)
 		}
 	}
+}
+func (r *Renderer) drawPlayerWithAlienTrail(screen *ebiten.Image, model *Models.SpaceGame) {
+	player := model.Player
+	cam := model.Camera
+
+	// world‐space in [0..1]
+	playerWorldPos := player.Position
+	playerWorldRad := player.Radius
+
+	// seconds since start
+	currentTime := float32(time.Since(r.startTime).Seconds())
+
+	print("colors.PlayerBody: ", colors.PlayerBody.R, "\n")
+
+	// build the uniform map
+	uniforms := map[string]interface{}{
+		// core camera/player transforms
+		"PlayerPos":   []float32{playerWorldPos[0], playerWorldPos[1]},
+		"PlayerColor": []float32{float32(colors.PlayerBody.R), float32(colors.PlayerBody.G), float32(colors.PlayerBody.B), float32(colors.PlayerBody.A)},
+		"CameraPos":   []float32{cam.Position[0], cam.Position[1]},
+		"Zoom":        cam.GetTotalZoom(),
+		"Radius":      playerWorldRad,
+
+		// velocity & time
+		"Velocity": []float32{player.Velocity[0], player.Velocity[1]},
+		"Time":     currentTime,
+
+		// screen geometry
+		"ScreenSize": []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
+
+		// capsule-trail parameters
+		"DropCount":   8,            // how many capsules at once
+		"Lifetime":    float32(2),   // each lives 1.2s
+		"TrailLength": float32(2),   // 2.5× the player radius
+		"DropSizeMin": float32(0.4), // thickness = 10% of player radius
+		"DropSizeMax": float32(0.6), // length = 30% of player radius
+		"JitterAmt":   float32(0.8), // up to 20% sideways
+		"SpawnRate":   float32(3.0), // 2 capsules per second
+	}
+
+	// hook up your Ebiten shader
+	op := &ebiten.DrawRectShaderOptions{}
+	op.Uniforms = uniforms
+	op.Images[0] = r.whiteTexture
+	screen.DrawRectShader(
+		constants.ScreenWidth,
+		constants.ScreenHeight,
+		r.alienTrailShader,
+		op,
+	)
 }
 
 // drawArrowHead draws an arrowhead at the end of a line

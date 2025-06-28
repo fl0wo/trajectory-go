@@ -33,6 +33,9 @@ var invertOnLightShader []byte
 //go:embed reveal_on_light.go
 var revealOnLightShader []byte
 
+//go:embed alien_trail.go
+var alienTrailShader []byte
+
 var (
 	mplusFaceSource *text.GoTextFaceSource
 )
@@ -64,6 +67,7 @@ type Renderer struct {
 	nebulaShader          *ebiten.Shader
 	invertOnLightShader   *ebiten.Shader
 	revealOnLightShader   *ebiten.Shader
+	alienTrailShader      *ebiten.Shader
 	whiteTexture          *ebiten.Image
 	startTime             time.Time // Game start time for shader animations
 }
@@ -106,6 +110,14 @@ func NewRenderer() *Renderer {
 		revealOnLightShaderObj = shader
 	}
 
+	// Initialize alien trail shader
+	var alienTrailShaderObj *ebiten.Shader
+	if shader, err := ebiten.NewShader(alienTrailShader); err == nil {
+		alienTrailShaderObj = shader
+	} else {
+		log.Println("Failed to load alien trail shader:", err)
+	}
+
 	// Create a white texture matching screen size for shaders that need a source image
 	whiteTexture := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
 	whiteTexture.Fill(color.White)
@@ -118,6 +130,7 @@ func NewRenderer() *Renderer {
 		nebulaShader:          nebulaShader,
 		invertOnLightShader:   invertOnLightShaderObj,
 		revealOnLightShader:   revealOnLightShaderObj,
+		alienTrailShader:      alienTrailShaderObj,
 		whiteTexture:          whiteTexture,
 		startTime:             time.Now(), // Initialize start time for shader animations
 	}
@@ -182,7 +195,7 @@ func (r *Renderer) renderShadows(screen *ebiten.Image, model *Models.SpaceGame) 
 	lightDirection := camera.WorldToScreen(camera.Position, constants.ScreenWidth, constants.ScreenHeight)
 	fov := r.getAdaptiveFov(lightDirection, lightPos)
 
-	r.shadowSystem.RenderShadows(screen, lightPos, lightDirection, fov, camera.Zoom, celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, false)
+	r.shadowSystem.RenderShadows(screen, lightPos, lightDirection, fov, camera.GetTotalZoom(), celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, false)
 }
 
 // drawTrajectoryArrow draws the trajectory arrow when dragging
