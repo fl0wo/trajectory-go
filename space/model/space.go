@@ -31,6 +31,10 @@ type SpaceGame struct {
 	ShadowsEnabled      bool       // Toggle for shadow rendering system
 }
 
+type Border struct {
+	BottomLeft, BottomRight, TopLeft, TopRight f32.Vec2
+}
+
 // NewSpaceGame creates a new SpaceGame starting with level 1.
 func NewSpaceGame() (*SpaceGame, error) {
 	return NewSpaceGameWithLevel(1)
@@ -106,57 +110,136 @@ func (sg *SpaceGame) LoadLevel(levelNum int) error {
 	return nil
 }
 
-// CalculateLevelCenter calculates the center position of all entities in the level (player + celestial bodies + asteroids)
+//  1. calculateBorders computes the current game border corners.
+//     If you have >3 celestial bodies, build their AABB and pad it by 50%.
+//     Otherwise fall back to a fixed box: x∈[-0.5,1.5], y∈[-0.5,1.5].
+func (sg *SpaceGame) calculateBorders() Border {
+	// default rect
+	minX, maxX := -0.5, 1.5
+	minY, maxY := -0.5, 1.5
+
+	if len(sg.CelestialBodies) > 3 {
+		// build AABB over bodies
+		p0 := sg.CelestialBodies[0].GetPosition()
+		minX, maxX = float64(p0[0]), float64(p0[0])
+		minY, maxY = float64(p0[1]), float64(p0[1])
+		for _, b := range sg.CelestialBodies {
+			p := b.GetPosition()
+			if f := float64(p[0]); f < minX {
+				minX = f
+			} else if f > maxX {
+				maxX = f
+			}
+			if f := float64(p[1]); f < minY {
+				minY = f
+			} else if f > maxY {
+				maxY = f
+			}
+		}
+		// pad by 50%
+		halfW := (maxX - minX) * 0.5
+		halfH := (maxY - minY) * 0.5
+		minX -= halfW
+		maxX += halfW
+		minY -= halfH
+		maxY += halfH
+	}
+
+	return Border{
+		BottomLeft:  f32.Vec2{float32(minX), float32(minY)},
+		BottomRight: f32.Vec2{float32(maxX), float32(minY)},
+		TopLeft:     f32.Vec2{float32(minX), float32(maxY)},
+		TopRight:    f32.Vec2{float32(maxX), float32(maxY)},
+	}
+}
+
+// 2) distanceToBorder returns signed distance of pos to the nearest border edge.
+//   - Inside the rect → negative, = −min(distance to any edge).
+//   - Outside the rect → positive, = how far past the closest edge you are.
+func distanceToBorder(pos f32.Vec2, b Border) float32 {
+	minX := b.BottomLeft[0]
+	maxX := b.BottomRight[0]
+	minY := b.BottomLeft[1]
+	maxY := b.TopLeft[1]
+
+	// compute how far outside on each axis
+	var dxOut, dyOut float32
+	if pos[0] < minX {
+		dxOut = minX - pos[0]
+	} else if pos[0] > maxX {
+		dxOut = pos[0] - maxX
+	}
+	if pos[1] < minY {
+		dyOut = minY - pos[1]
+	} else if pos[1] > maxY {
+		dyOut = pos[1] - maxY
+	}
+
+	// outside: take the larger of the two
+	if dxOut > 0 || dyOut > 0 {
+		return float32(math.Max(float64(dxOut), float64(dyOut)))
+	}
+
+	// inside: distance to nearest edge (negative)
+	distToLeft := pos[0] - minX
+	distToRight := maxX - pos[0]
+	distToBottom := pos[1] - minY
+	distToTop := maxY - pos[1]
+	nearestEdge := float32(math.Min(
+		math.Min(float64(distToLeft), float64(distToRight)),
+		math.Min(float64(distToBottom), float64(distToTop)),
+	))
+
+	return -nearestEdge
+}
+
+// 3) CalculateLevelCenter ties it all together:
+//   - if no entities, stick to player
+//   - if distanceToBorder > 0, player “lost” → return player
+//   - else fall back to weighted centroid.
 func (sg *SpaceGame) CalculateLevelCenter() f32.Vec2 {
+	// no entities → just point at player
 	if len(sg.CelestialBodies) == 0 && len(sg.RingAsteroids) == 0 {
 		return sg.Player.Position
 	}
 
-	// Initialize bounds with player position
-	minX := sg.Player.Position[0]
-	maxX := sg.Player.Position[0]
-	minY := sg.Player.Position[1]
-	maxY := sg.Player.Position[1]
-
-	// Expand bounds to include all celestial bodies
-	for _, body := range sg.CelestialBodies {
-		pos := body.GetPosition()
-		if pos[0] < minX {
-			minX = pos[0]
-		}
-		if pos[0] > maxX {
-			maxX = pos[0]
-		}
-		if pos[1] < minY {
-			minY = pos[1]
-		}
-		if pos[1] > maxY {
-			maxY = pos[1]
-		}
+	// build border & measure
+	border := sg.calculateBorders()
+	d := distanceToBorder(sg.Player.Position, border)
+	if d > 0 {
+		// outside → lost
+		return sg.Player.Position
 	}
 
-	// Expand bounds to include all asteroids
-	for _, asteroid := range sg.RingAsteroids {
-		pos := asteroid.GetPosition()
-		if pos[0] < minX {
-			minX = pos[0]
-		}
-		if pos[0] > maxX {
-			maxX = pos[0]
-		}
-		if pos[1] < minY {
-			minY = pos[1]
-		}
-		if pos[1] > maxY {
-			maxY = pos[1]
-		}
+	// weighted centroid as before
+	var sumX, sumY, totalW float32
+	const (
+		playerW   = 0.25
+		bodyW     = 1.0
+		asteroidW = 0.1
+	)
+
+	sumX += sg.Player.Position[0] * playerW
+	sumY += sg.Player.Position[1] * playerW
+	totalW += playerW
+
+	for _, b := range sg.CelestialBodies {
+		p := b.GetPosition()
+		sumX += p[0] * bodyW
+		sumY += p[1] * bodyW
+		totalW += bodyW
+	}
+	for _, a := range sg.RingAsteroids {
+		p := a.GetPosition()
+		sumX += p[0] * asteroidW
+		sumY += p[1] * asteroidW
+		totalW += asteroidW
 	}
 
-	// Return center of bounding box
-	return f32.Vec2{
-		(minX + maxX) / 2.0,
-		(minY + maxY) / 2.0,
+	if totalW == 0 {
+		return sg.Player.Position
 	}
+	return f32.Vec2{sumX / totalW, sumY / totalW}
 }
 
 // CalculateTimeDilation calculates the time scale based on player proximity to celestial bodies,
