@@ -18,28 +18,51 @@ import (
 func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.SpaceGame) {
 	camera := model.Camera
 
+	// First pass: draw all orbits
+	for _, body := range model.CelestialBodies {
+		bodyPos := body.GetPosition()
+		screenPos := camera.WorldToScreen(bodyPos, constants.ScreenWidth, constants.ScreenHeight)
+
+		var orbitColor color.RGBA
+
+		// Assign orbit color based on celestial body type
+		switch body.GetType() {
+		case Models.CelestialBodyTypePlanet:
+			orbitColor = colors.PlanetOrbit
+		case Models.CelestialBodyTypeBlackHole:
+			orbitColor = colors.BlackHoleOrbit
+		case Models.CelestialBodyTypeWhiteHole:
+			orbitColor = colors.WhiteHoleOrbit
+		case Models.CelestialBodyTypeAsteroid:
+			orbitColor = colors.AsteroidOrbit
+		}
+
+		orbitRadius := camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
+		if body.GetType() == Models.CelestialBodyTypeBlackHole {
+			r.drawOrbitCircleWithReveal(screen, model, screenPos, orbitRadius, orbitColor)
+		} else {
+			r.drawOrbitCircleWithLight(screen, model, screenPos, orbitRadius, orbitColor)
+		}
+	}
+
+	// Second pass: draw all planets on top of orbits
 	for _, body := range model.CelestialBodies {
 		bodyPos := body.GetPosition()
 		screenPos := camera.WorldToScreen(bodyPos, constants.ScreenWidth, constants.ScreenHeight)
 		radius := camera.RadiusToScreen(body.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
 
 		var bodyColor color.RGBA
-		var orbitColor color.RGBA
 
-		// Assign colors based on celestial body type
+		// Assign body color based on celestial body type
 		switch body.GetType() {
 		case Models.CelestialBodyTypePlanet:
 			bodyColor = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White planet
-			orbitColor = colors.PlanetOrbit
 		case Models.CelestialBodyTypeBlackHole:
 			bodyColor = colors.BlackHoleBody
-			orbitColor = colors.BlackHoleOrbit
 		case Models.CelestialBodyTypeWhiteHole:
 			bodyColor = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White hole
-			orbitColor = colors.WhiteHoleOrbit
 		case Models.CelestialBodyTypeAsteroid:
 			bodyColor = colors.AsteroidBodyAlt
-			orbitColor = colors.AsteroidOrbit
 		}
 
 		// Use appropriate face shader for each celestial body type
@@ -53,13 +76,6 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 		default:
 			// Fallback to simple circle for other body types (like asteroids)
 			vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], radius, bodyColor, true)
-		}
-
-		orbitRadius := camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
-		if body.GetType() == Models.CelestialBodyTypeBlackHole {
-			r.drawOrbitCircleWithReveal(screen, model, screenPos, orbitRadius, orbitColor)
-		} else {
-			r.drawOrbitCircleWithLight(screen, model, screenPos, orbitRadius, orbitColor)
 		}
 	}
 }
