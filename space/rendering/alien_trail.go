@@ -15,6 +15,12 @@ const EyeVertical = 0.34  // how far up from center the eyes sit (y-axis)
 const EyeRadius = 0.20    // radius of each white eye
 const PupilRadius = 0.12  // radius of each black pupil
 
+// — Mouth parameters (in circle‐local units) —
+const MouthVertical = 0.5   // how far up (along dir) the mouth sits
+const MouthRadius = 0.04    // thickness of the smile arc
+const MouthArcRadius = 0.25 // radius of the smile circle
+const MouthArcCos = 0.707   // cos(45°) → keeps ~90° arc opening up
+
 // — Uniforms from Go —
 var PlayerPos vec2   // [0..1] world‐space player center
 var PlayerColor vec4 // player color (RGBA, 0–255)
@@ -169,6 +175,17 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 
 	outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), pAL)
 	outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), pAR)
+
+	// 9) Cute mouth arc
+	arcCenter := dir * MouthVertical
+	q := p - arcCenter
+	d := length(q)
+	sdfArc := abs(d-MouthArcRadius) - MouthRadius
+	mThick := step(0.0, -sdfArc)
+	nq := q / d
+	mAngle := step(MouthArcCos, dot(nq, dir))
+	mMask := mThick * mAngle
+	outCol = mix(outCol, vec4(0, 0, 0, 1), mMask)
 
 	return outCol
 }
