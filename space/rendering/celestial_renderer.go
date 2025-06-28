@@ -41,7 +41,7 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 		}
 
 		if body.GetType() == Models.CelestialBodyTypePlanet {
-			r.DrawPlanetWithFace(screen, model, bodyPos, body.GetRadius(), bodyColor)
+			r.DrawPlanetWithFace(screen, model, bodyPos, body.GetRadius(), body.GetOrbitRadius(), bodyColor)
 		} else {
 			// Draw celestial body as a filled circle
 			vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], radius, bodyColor, true)
@@ -56,7 +56,7 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 	}
 }
 
-func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceGame, planetPos f32.Vec2, worldRadius float32, planetColor color.RGBA) {
+func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceGame, planetPos f32.Vec2, worldRadius float32, worldOrbitRadius float32, planetColor color.RGBA) {
 	if r.planetShader == nil {
 		screenPos := model.Camera.WorldToScreen(planetPos, constants.ScreenWidth, constants.ScreenHeight)
 		screenRadius := worldRadius * model.Camera.GetTotalZoom() * float32(constants.ScreenHeight)
@@ -72,7 +72,7 @@ func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceG
 	uniforms := map[string]any{
 		"PlayerPos":         []float32{model.Player.Position[0], model.Player.Position[1]},
 		"PlanetPos":         []float32{planetPos[0], planetPos[1]},
-		"PlanetOrbitRadius": worldRadius,
+		"PlanetOrbitRadius": worldOrbitRadius,
 		"PlanetColor":       []float32{float32(planetColor.R), float32(planetColor.G), float32(planetColor.B), float32(planetColor.A)},
 		"CameraPos":         []float32{model.Camera.Position[0], model.Camera.Position[1]},
 		"Zoom":              zoom,

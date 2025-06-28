@@ -17,14 +17,15 @@ const MouthArcRadius = 0.045
 const MouthArcCos = 0.2 // controls arc span
 
 // Uniforms from Go
-var PlayerPos vec2   // [0..1] world-space player center
-var PlanetPos vec2   // [0..1] world-space planet center
-var PlanetColor vec4 // Planet color (RGBA 0–255)
-var CameraPos vec2   // [0..1] world-space camera center
-var Zoom float       // Zoom factor
-var Radius float     // Planet radius [0..1]
-var Time float       // Seconds (unused here)
-var ScreenSize vec2  // [width, height] in pixels
+var PlayerPos vec2          // [0..1] world-space player center
+var PlanetPos vec2          // [0..1] world-space planet center
+var PlanetColor vec4        // Planet color (RGBA 0–255)
+var PlanetOrbitRadius float // [0..1] world-space planet orbit radius
+var CameraPos vec2          // [0..1] world-space camera center
+var Zoom float              // Zoom factor
+var Radius float            // Planet radius [0..1]
+var Time float              // Seconds (unused here)
+var ScreenSize vec2         // [width, height] in pixels
 
 // SDF for circle at center c with radius r
 func sdfCircle(p, c vec2, r float) float {
@@ -88,14 +89,32 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 		outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), aR)
 	}
 
-	// 6) Mouth as an arched capsule
+	// 6) Mouth as an arched capsule - size scales with player distance when inside orbit
 	if inPlanet > 0.5 {
+		// Calculate player distance from planet
+		playerDist := length(PlayerPos - PlanetPos)
+
+		// Calculate mouth scale based on player distance within orbit
+		// If player is outside orbit, use default size (scale = 1.0)
+		// If player is inside orbit, scale linearly from 1.0 (at orbit edge) to 2.0 (at planet center)
+		mouthScale := 1.0
+		if playerDist < PlanetOrbitRadius {
+			// Linear interpolation: closer to planet = bigger mouth
+			// At orbit edge: scale = 1.0, at planet center: scale = 2.0
+			distRatio := 1.0 - (playerDist / PlanetOrbitRadius)
+			mouthScale = 1.0 + distRatio*4.0 // Scale from 1.0 to 5.0
+		}
+
+		// Apply mouth scaling to all mouth parameters
+		scaledMouthRadius := MouthRadius
+		scaledMouthArcRadius := MouthArcRadius * mouthScale
+
 		arcCenter := dir * MouthVertical
 		q := p - arcCenter
 		d := length(q)
 
 		// --- arc strip SDF + AA ---
-		sdfArc := abs(d-MouthArcRadius) - MouthRadius
+		sdfArc := abs(d-scaledMouthArcRadius) - scaledMouthRadius
 		wM := fwidth(sdfArc)
 		mThick := smoothstep(-wM, wM, -sdfArc)
 
@@ -110,15 +129,15 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 
 		// left endpoint
 		vL := -dir*MouthArcCos + leftDir*sinArc
-		epL := arcCenter + vL*MouthArcRadius
-		dE1 := sdfCircle(p, epL, MouthRadius)
+		epL := arcCenter + vL*scaledMouthArcRadius
+		dE1 := sdfCircle(p, epL, scaledMouthRadius)
 		wE1 := fwidth(dE1)
 		aE1 := smoothstep(-wE1, wE1, -dE1)
 
 		// right endpoint
 		vR := -dir*MouthArcCos + rightDir*sinArc
-		epR := arcCenter + vR*MouthArcRadius
-		dE2 := sdfCircle(p, epR, MouthRadius)
+		epR := arcCenter + vR*scaledMouthArcRadius
+		dE2 := sdfCircle(p, epR, scaledMouthRadius)
 		wE2 := fwidth(dE2)
 		aE2 := smoothstep(-wE2, wE2, -dE2)
 
