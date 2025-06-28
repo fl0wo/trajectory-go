@@ -5,14 +5,19 @@
 
 package main
 
-// — Compile-time toggle —
-// Set to false to completely disable drawing capsules
-const EnableCapsules = true
+// — Compile‐time toggles —
+const EnableCapsules = true        // master on/off switch for capsules
 const AllCapsuleBelowPlayer = true // if true, *all* capsules draw beneath the player
+
+// — Eye parameters (in circle‐local units) —
+const EyeSeparation = 0.4 // how far apart the eyes are (x-axis)
+const EyeVertical = 0.34  // how far up from center the eyes sit (y-axis)
+const EyeRadius = 0.20    // radius of each white eye
+const PupilRadius = 0.12  // radius of each black pupil
 
 // — Uniforms from Go —
 var PlayerPos vec2   // [0..1] world‐space player center
-var PlayerColor vec4 // player color (RGBA, 0-255)
+var PlayerColor vec4 // player color (RGBA, 0–255)
 var CameraPos vec2   // [0..1] world‐space camera center
 var Zoom float       // zoom factor
 var Radius float     // player radius [0..1]
@@ -21,17 +26,16 @@ var Time float       // seconds
 var ScreenSize vec2  // [width,height] in pixels
 
 // trail parameters
-var DropCount int     // max number of capsules
-var TrailLength float // max distance from player (in radii)
-var DropSizeMin float // capsule thickness (in radii)
-var DropSizeMax float // capsule length (in radii)
-var JitterAmt float   // max side‐to‐side offset (in radii)
-var SpawnRate float   // capsules spawned per second
-var Lifetime float    // how long each capsule lives (seconds)
+var DropCount int
+var TrailLength float
+var DropSizeMin float
+var DropSizeMax float
+var JitterAmt float
+var SpawnRate float
+var Lifetime float
 
 const MaxDrops = 16
 
-// SDF for capsule segment A→B radius r
 func sdfCapsule(p, A, B vec2, r float) float {
 	pa := p - A
 	ba := B - A
@@ -39,41 +43,39 @@ func sdfCapsule(p, A, B vec2, r float) float {
 	return length(pa-ba*h) - r
 }
 
-// SDF for circle at center c with radius r
 func sdfCircle(p, c vec2, r float) float {
 	return length(p-c) - r
 }
 
-// Convert pixel → circle-local coords
 func toLocal(dstPos vec4) vec2 {
-	uv := dstPos.xy / ScreenSize // [0..1]
-	c := uv - vec2(0.5, 0.5)     // [-.5..+.5]
+	uv := dstPos.xy / ScreenSize
+	c := uv - vec2(0.5, 0.5)
 	asp := ScreenSize.x / ScreenSize.y
-	c.x *= asp                          // keep circles round
-	c /= Zoom                           // apply zoom
-	world := CameraPos + c              // back to [0..1]
-	return (world - PlayerPos) / Radius // circle-local
+	c.x *= asp
+	c /= Zoom
+	world := CameraPos + c
+	return (world - PlayerPos) / Radius
 }
 
-// Hash function for pseudo-random numbers
 func hash(n float) float {
 	return fract(sin(n) * 43758.5453)
 }
+
 func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
-	// 1) Convert to circle-local coordinates
+	// 1) Convert to circle-local coords
 	p := toLocal(dstPos)
 
-	// 2) Initialize output color (transparent background)
+	// 2) Transparent background
 	var outCol vec4 = vec4(0.0, 0.0, 0.0, 0.0)
 
-	// 3) Darkness factors
-	darknessFactors := [4]float{1.0, 0.98, 0.95, 0.90}
+	// 3) Darkness shades for trail
+	darkness := [4]float{1.0, 0.98, 0.95, 0.90}
 
 	// 4) Accumulators
 	var belowCol, aboveCol vec3 = vec3(0.0), vec3(0.0)
 	var belowA, aboveA float = 0.0, 0.0
 
-	// 5) Process capsules (only if enabled)
+	// 5) Capsules (if enabled)
 	if EnableCapsules && length(Velocity) > 0.01 {
 		asp := ScreenSize.x / ScreenSize.y
 		v := Velocity * vec2(asp, 1.0)
@@ -84,10 +86,8 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 			if i >= DropCount {
 				break
 			}
-
 			seed := float(i) + floor(Time*SpawnRate)
 			t := fract(Time*SpawnRate + hash(float(i)*12.9898))
-
 			if t < Lifetime/SpawnRate {
 				life := 1.0 - t/(Lifetime/SpawnRate)
 				jitter := (hash(seed*12.9898) - 0.5) * JitterAmt
@@ -97,48 +97,78 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 				var sdf, α float
 				if life > 0.5 {
 					size := mix(DropSizeMin, DropSizeMax, (life-0.5)*2.0)
-					A := center
-					B := center - dir*size
+					A, B := center, center-dir*size
 					sdf = sdfCapsule(p, A, B, DropSizeMin)
 					α = step(0.0, -sdf)
 				} else {
-					radius := mix(0.05, DropSizeMin, life*2.0)
-					sdf = sdfCircle(p, center, radius)
+					r := mix(0.05, DropSizeMin, life*2.0)
+					sdf = sdfCircle(p, center, r)
 					α = step(0.0, -sdf)
 				}
 
 				if α > 0.0 {
-					shadeIndex := int(hash(seed*7.5625) * 4.0)
-					darkness := darknessFactors[shadeIndex]
-					capsuleColor := (PlayerColor.rgb / 255.0) * darkness
-
-					// Decide above vs below:
+					idx := int(hash(seed*7.5625) * 4.0)
+					col := (PlayerColor.rgb / 255.0) * darkness[idx]
 					if !AllCapsuleBelowPlayer && hash(seed*3.14159) < 0.5 {
-						aboveCol = capsuleColor
+						aboveCol = col
 						aboveA = max(aboveA, α)
 					} else {
-						belowCol = capsuleColor
+						belowCol = col
 						belowA = max(belowA, α)
 					}
 				}
 			}
 		}
-
-		// Blend all below-player capsules
-		belowTrail := vec4(belowCol, min(belowA, PlayerColor.a/255.0))
-		outCol = mix(outCol, belowTrail, belowTrail.a)
+		// blend below capsules
+		trailB := vec4(belowCol, min(belowA, PlayerColor.a/255.0))
+		outCol = mix(outCol, trailB, trailB.a)
 	}
 
-	// 6) Draw the player (always on top of below‐capsules)
+	// 6) Draw the player circle
 	if length(p) <= 1.0 {
 		outCol = vec4(PlayerColor.rgb/255.0, PlayerColor.a/255.0)
 	}
 
-	// 7) Optionally blend above-player capsules
+	// 7) Blend above capsules (if any)
 	if EnableCapsules && !AllCapsuleBelowPlayer && length(Velocity) > 0.01 {
-		aboveTrail := vec4(aboveCol, min(aboveA, PlayerColor.a/255.0))
-		outCol = mix(outCol, aboveTrail, aboveTrail.a)
+		trailA := vec4(aboveCol, min(aboveA, PlayerColor.a/255.0))
+		outCol = mix(outCol, trailA, trailA.a)
 	}
+
+	// 8) Draw the eyes on top, looking toward CameraPos
+	delta := CameraPos - PlayerPos
+	var dir vec2
+	if length(delta) > 0.0001 {
+		asp := ScreenSize.x / ScreenSize.y
+		dir = normalize(vec2(delta.x*asp, delta.y))
+	} else {
+		dir = vec2(0.0, 1.0)
+	}
+
+	// local axes for eye placement
+	rightDir := vec2(dir.y, -dir.x)
+	leftDir := -rightDir
+
+	leftPos := leftDir*EyeSeparation + dir*EyeVertical
+	rightPos := rightDir*EyeSeparation + dir*EyeVertical
+
+	// white eyeballs
+	aL := step(0.0, -sdfCircle(p, leftPos, EyeRadius))
+	aR := step(0.0, -sdfCircle(p, rightPos, EyeRadius))
+	outCol = mix(outCol, vec4(1.0, 1.0, 1.0, 1.0), aL)
+	outCol = mix(outCol, vec4(1.0, 1.0, 1.0, 1.0), aR)
+
+	// 9) Draw pupils (inner edge of each white eye)
+	//    push inward by (EyeRadius - PupilRadius) along dir
+	offset := dir * (EyeRadius - PupilRadius)
+	pL := leftPos + offset
+	pR := rightPos + offset
+
+	pAL := step(0.0, -sdfCircle(p, pL, PupilRadius))
+	pAR := step(0.0, -sdfCircle(p, pR, PupilRadius))
+
+	outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), pAL)
+	outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), pAR)
 
 	return outCol
 }
