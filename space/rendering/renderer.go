@@ -39,6 +39,12 @@ var alienTrailShader []byte
 //go:embed planet.go
 var planetShader []byte
 
+//go:embed blackhole.go
+var blackHoleShader []byte
+
+//go:embed whitehole.go
+var whiteHoleShader []byte
+
 var (
 	mplusFaceSource *text.GoTextFaceSource
 )
@@ -72,6 +78,8 @@ type Renderer struct {
 	revealOnLightShader   *ebiten.Shader
 	alienTrailShader      *ebiten.Shader
 	planetShader          *ebiten.Shader
+	blackHoleShader       *ebiten.Shader
+	whiteHoleShader       *ebiten.Shader
 	whiteTexture          *ebiten.Image
 	startTime             time.Time // Game start time for shader animations
 }
@@ -130,6 +138,22 @@ func NewRenderer() *Renderer {
 		log.Println("Failed to load planet shader:", err)
 	}
 
+	// Initialize black hole shader
+	var blackHoleShaderObj *ebiten.Shader
+	if shader, err := ebiten.NewShader(blackHoleShader); err == nil {
+		blackHoleShaderObj = shader
+	} else {
+		log.Println("Failed to load black hole shader:", err)
+	}
+
+	// Initialize white hole shader
+	var whiteHoleShaderObj *ebiten.Shader
+	if shader, err := ebiten.NewShader(whiteHoleShader); err == nil {
+		whiteHoleShaderObj = shader
+	} else {
+		log.Println("Failed to load white hole shader:", err)
+	}
+
 	// Create a white texture matching screen size for shaders that need a source image
 	whiteTexture := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
 	whiteTexture.Fill(color.White)
@@ -144,6 +168,8 @@ func NewRenderer() *Renderer {
 		revealOnLightShader:   revealOnLightShaderObj,
 		alienTrailShader:      alienTrailShaderObj,
 		planetShader:          planetShaderObj,
+		blackHoleShader:       blackHoleShaderObj,
+		whiteHoleShader:       whiteHoleShaderObj,
 		whiteTexture:          whiteTexture,
 		startTime:             time.Now(), // Initialize start time for shader animations
 	}

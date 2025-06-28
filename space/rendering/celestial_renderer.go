@@ -14,6 +14,7 @@ import (
 	"time"
 )
 
+// drawCelestialBodies renders all celestial bodies with animated faces that track the player
 func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.SpaceGame) {
 	camera := model.Camera
 
@@ -25,26 +26,32 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 		var bodyColor color.RGBA
 		var orbitColor color.RGBA
 
+		// Assign colors based on celestial body type
 		switch body.GetType() {
 		case Models.CelestialBodyTypePlanet:
-			bodyColor = color.RGBA{255, 255, 255, 255} // White planet
+			bodyColor = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White planet
 			orbitColor = colors.PlanetOrbit
 		case Models.CelestialBodyTypeBlackHole:
 			bodyColor = colors.BlackHoleBody
 			orbitColor = colors.BlackHoleOrbit
 		case Models.CelestialBodyTypeWhiteHole:
-			bodyColor = color.RGBA{255, 255, 255, 255} // White hole
+			bodyColor = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White hole
 			orbitColor = colors.WhiteHoleOrbit
 		case Models.CelestialBodyTypeAsteroid:
 			bodyColor = colors.AsteroidBodyAlt
 			orbitColor = colors.AsteroidOrbit
 		}
 
-		if body.GetType() == Models.CelestialBodyTypePlanet {
-			// draw a white circle to have antialiasing
+		// Use appropriate face shader for each celestial body type
+		switch body.GetType() {
+		case Models.CelestialBodyTypePlanet:
 			r.DrawPlanetWithFace(screen, model, bodyPos, body.GetRadius(), body.GetOrbitRadius(), bodyColor)
-		} else {
-			// Draw celestial body as a filled circle
+		case Models.CelestialBodyTypeBlackHole:
+			r.DrawBlackHoleWithFace(screen, model, bodyPos, body.GetRadius(), body.GetOrbitRadius(), bodyColor)
+		case Models.CelestialBodyTypeWhiteHole:
+			r.DrawWhiteHoleWithFace(screen, model, bodyPos, body.GetRadius(), body.GetOrbitRadius(), bodyColor)
+		default:
+			// Fallback to simple circle for other body types (like asteroids)
 			vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], radius, bodyColor, true)
 		}
 
@@ -87,6 +94,74 @@ func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceG
 	opts := &ebiten.DrawRectShaderOptions{Uniforms: uniforms}
 	opts.Images[0] = r.whiteTexture // Use pre-allocated white texture as source
 	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.planetShader, opts)
+}
+
+// DrawBlackHoleWithFace renders a black hole with an evil facial expression that tracks the player
+// The mouth grows larger and more menacing as the player gets closer to the orbit
+func (r *Renderer) DrawBlackHoleWithFace(screen *ebiten.Image, model *Models.SpaceGame, blackHolePos f32.Vec2, worldRadius float32, worldOrbitRadius float32, blackHoleColor color.RGBA) {
+	// First draw anti-aliased circle for base shape
+	screenPos := model.Camera.WorldToScreen(blackHolePos, constants.ScreenWidth, constants.ScreenHeight)
+	screenRadius := worldRadius * model.Camera.GetTotalZoom() * float32(constants.ScreenHeight)
+	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], screenRadius, blackHoleColor, true)
+
+	if r.blackHoleShader == nil {
+		return
+	}
+
+	sw := float32(constants.ScreenWidth)
+	sh := float32(constants.ScreenHeight)
+	zoom := model.Camera.GetTotalZoom()
+	t := float32(time.Since(r.startTime).Seconds())
+
+	uniforms := map[string]any{
+		"PlayerPos":            []float32{model.Player.Position[0], model.Player.Position[1]},
+		"BlackHolePos":         []float32{blackHolePos[0], blackHolePos[1]},
+		"BlackHoleOrbitRadius": worldOrbitRadius,
+		"CameraPos":            []float32{model.Camera.Position[0], model.Camera.Position[1]},
+		"Zoom":                 zoom,
+		"Radius":               worldRadius,
+		"Time":                 t,
+		"ScreenSize":           []float32{sw, sh},
+	}
+
+	// Draw directly to screen using the shader - no intermediate texture needed
+	opts := &ebiten.DrawRectShaderOptions{Uniforms: uniforms}
+	opts.Images[0] = r.whiteTexture // Use pre-allocated white texture as source
+	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.blackHoleShader, opts)
+}
+
+// DrawWhiteHoleWithFace renders a white hole with a neutral facial expression that tracks the player
+// The mouth subtly grows wider as the player approaches the orbit, maintaining a calm demeanor
+func (r *Renderer) DrawWhiteHoleWithFace(screen *ebiten.Image, model *Models.SpaceGame, whiteHolePos f32.Vec2, worldRadius float32, worldOrbitRadius float32, whiteHoleColor color.RGBA) {
+	// First draw anti-aliased circle for base shape
+	screenPos := model.Camera.WorldToScreen(whiteHolePos, constants.ScreenWidth, constants.ScreenHeight)
+	screenRadius := worldRadius * model.Camera.GetTotalZoom() * float32(constants.ScreenHeight)
+	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], screenRadius, whiteHoleColor, true)
+
+	if r.whiteHoleShader == nil {
+		return
+	}
+
+	sw := float32(constants.ScreenWidth)
+	sh := float32(constants.ScreenHeight)
+	zoom := model.Camera.GetTotalZoom()
+	t := float32(time.Since(r.startTime).Seconds())
+
+	uniforms := map[string]any{
+		"PlayerPos":            []float32{model.Player.Position[0], model.Player.Position[1]},
+		"WhiteHolePos":         []float32{whiteHolePos[0], whiteHolePos[1]},
+		"WhiteHoleOrbitRadius": worldOrbitRadius,
+		"CameraPos":            []float32{model.Camera.Position[0], model.Camera.Position[1]},
+		"Zoom":                 zoom,
+		"Radius":               worldRadius,
+		"Time":                 t,
+		"ScreenSize":           []float32{sw, sh},
+	}
+
+	// Draw directly to screen using the shader - no intermediate texture needed
+	opts := &ebiten.DrawRectShaderOptions{Uniforms: uniforms}
+	opts.Images[0] = r.whiteTexture // Use pre-allocated white texture as source
+	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.whiteHoleShader, opts)
 }
 
 // drawAsteroids renders all asteroids
