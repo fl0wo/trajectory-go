@@ -23,6 +23,7 @@ func (r *Renderer) drawPlayer(screen *ebiten.Image, model *Models.SpaceGame) {
 	// Draw alien trail effect if shader is available
 	if r.alienTrailShader != nil {
 		r.drawPlayerWithAlienTrail(screen, model)
+		return
 	}
 
 	// Render player with image if ImagePath is provided, otherwise use green circle
@@ -269,8 +270,6 @@ func (r *Renderer) drawPlayerWithAlienTrail(screen *ebiten.Image, model *Models.
 	// seconds since start
 	currentTime := float32(time.Since(r.startTime).Seconds())
 
-	print("colors.PlayerBody: ", colors.PlayerBody.R, "\n")
-
 	// build the uniform map
 	uniforms := map[string]interface{}{
 		// core camera/player transforms
@@ -288,13 +287,14 @@ func (r *Renderer) drawPlayerWithAlienTrail(screen *ebiten.Image, model *Models.
 		"ScreenSize": []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
 
 		// capsule-trail parameters
-		"DropCount":   8,            // how many capsules at once
-		"Lifetime":    float32(2),   // each lives 1.2s
-		"TrailLength": float32(2),   // 2.5× the player radius
-		"DropSizeMin": float32(0.4), // thickness = 10% of player radius
-		"DropSizeMax": float32(0.6), // length = 30% of player radius
-		"JitterAmt":   float32(0.8), // up to 20% sideways
-		"SpawnRate":   float32(3.0), // 2 capsules per second
+		"DropCount":   10,           // how many capsules at once
+		"Lifetime":    float32(2.0), // Increased to 3 seconds
+		"DieTime":     float32(5.0), // Radius-shrinking phase: 2 seconds
+		"TrailLength": float32(2),
+		"DropSizeMin": float32(0.35), // thickness = 10% of player radius
+		"DropSizeMax": float32(0.45), // length = 30% of player radius
+		"JitterAmt":   float32(0.4),
+		"SpawnRate":   float32(2), // Reduced to 1 capsule every 2 seconds
 	}
 
 	// hook up your Ebiten shader
