@@ -5,14 +5,19 @@
 
 package main
 
-// Evil eye parameters
+// Base eye parameters
 const EyeSeparation = 0.32
 const EyeVertical = -0.35
 const EyeRadius = 0.070
 const PupilRadius = 0.055
-const EyeCutOffset = 0.02 // inset so we cut slightly less than half
 
-// Evil mouth parameters
+// How much bigger when “evil” (inside orbit)
+const EyeRadiusScaleFactor = 0.5   // +50%
+const PupilRadiusScaleFactor = 0.2 // +20%
+// Inset so we cut slightly less than half
+const EyeCutOffset = 0.016
+
+// Evil mouth parameters (unchanged)
 const MouthVertical = -0.52
 const MouthRadius = 0.028
 const MouthArcRadius = 0.048
@@ -39,119 +44,122 @@ func toLocal(dstPos vec4) vec2 {
 	c := uv - vec2(0.5)
 	asp := ScreenSize.x / ScreenSize.y
 	c.x *= asp
-
-	zoomSafe := max(0.01, min(Zoom, 100.0))
-	c /= zoomSafe
-
+	zoom := max(0.01, min(Zoom, 100.0))
+	c /= zoom
 	world := CameraPos + c
-	radiusSafe := max(0.0001, min(Radius, 1.0))
-	return (world - BlackHolePos) / radiusSafe
+	rSafe := max(0.0001, min(Radius, 1.0))
+	return (world - BlackHolePos) / rSafe
 }
 
 func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
-	// 1) Into local coords & flip face
+	// 1) Into local coords & flip 180°
 	p := toLocal(dstPos)
 	p = -p
 
-	// 2) AA‐alpha for the black hole circle
-	distBH := length(p)
-	sdfBH := distBH - 1.0
+	// 2) AA‐alpha for the black‐hole circle
+	dBH := length(p)
+	sdfBH := dBH - 1.0
 	wBH := fwidth(sdfBH)
 	aBH := smoothstep(wBH, -wBH, sdfBH)
 	if aBH < 0.001 {
-		return vec4(0.0)
+		return vec4(0.0) // fully transparent outside
 	}
 
-	// 3) Compute look‐direction axes
+	// 3) Vector to player + distance
 	delta := PlayerPos - BlackHolePos
+	distWorld := length(delta)
+
+	// 4) Compute look‐direction axes
 	dir := vec2(0.0, 1.0)
-	if length(delta) > 0.0001 {
+	if distWorld > 0.0001 {
 		asp := ScreenSize.x / ScreenSize.y
 		dir = normalize(vec2(delta.x*asp, delta.y))
 	}
 	rightDir := vec2(dir.y, -dir.x)
 	leftDir := -rightDir
 
-	// 4) Are we inside the orbit?
-	distWorld := length(delta)
+	// 5) Instant‐evil flag
 	inOrbit := step(distWorld, BlackHoleOrbitRadius)
 
-	// 5) Face‐rotation matrix (cosφ, sinφ)
+	// 6) Dynamic radii
+	eyeRad := EyeRadius * (1.0 + inOrbit*EyeRadiusScaleFactor)
+	pupRad := PupilRadius * (1.0 + inOrbit*PupilRadiusScaleFactor)
+
+	// 7) Face‐rotation matrix coeffs
 	c := dir.y
 	s := -dir.x
 
-	// 6) Local face‐space cut normals at ±45°
+	// 8) Local cut‐normals (baked with 180° inversion)
 	const c45 = 0.70710678
-	localL := vec2(c45, c45)  // +45° for left
-	localR := vec2(-c45, c45) // +135° (−45°) for right
+	localL := vec2(-c45, -c45) // left eye
+	localR := vec2(c45, -c45)  // right eye
 
-	// 7) Rotate into world‐space, then rotate 180° more by negating
+	// 9) Rotate into world‐space
 	cutL := vec2(c*localL.x-s*localL.y, s*localL.x+c*localL.y)
 	cutR := vec2(c*localR.x-s*localR.y, s*localR.x+c*localR.y)
-	cutL = -cutL
-	cutR = -cutR
 
+	// 10) Draw features
 	outCol := vec4(0.0)
 
-	// 8) Left eye (sclera + pupil), bottom‐half kept when angry
+	// LEFT EYE
 	{
-		leftPos := leftDir*EyeSeparation + dir*EyeVertical
-		qL := p - leftPos
+		eyePos := leftDir*EyeSeparation + dir*EyeVertical
+		q := p - eyePos
 
 		// sclera
-		dL := sdfCircle(p, leftPos, EyeRadius)
-		wL := fwidth(dL)
-		aL0 := smoothstep(-wL, wL, -dL) * aBH
-		maskL := step(-EyeCutOffset, dot(cutL, qL))
-		aL := aL0 * (inOrbit*maskL + (1.0 - inOrbit))
-		outCol = mix(outCol, vec4(1, 0, 0, 1), aL)
+		dE := sdfCircle(p, eyePos, eyeRad)
+		wE := fwidth(dE)
+		aE0 := smoothstep(-wE, wE, -dE) * aBH
+
+		// apply cut instantly
+		mask := step(-EyeCutOffset, dot(cutL, q))
+		aE := aE0 * (inOrbit*mask + (1.0 - inOrbit))
+		outCol = mix(outCol, vec4(1, 0, 0, 1), aE)
 
 		// pupil
-		pupilL := leftPos + dir*(EyeRadius-PupilRadius)*0.6
-		dPL := sdfCircle(p, pupilL, PupilRadius)
-		wPL := fwidth(dPL)
-		aPL0 := smoothstep(-wPL, wPL, -dPL) * aBH
-		aPL := aPL0 * (inOrbit*maskL + (1.0 - inOrbit))
-		outCol = mix(outCol, vec4(0, 0, 0, 1), aPL)
+		pupilPos := eyePos + dir*(eyeRad-pupRad)*0.6
+		dP := sdfCircle(p, pupilPos, pupRad)
+		wP := fwidth(dP)
+		aP0 := smoothstep(-wP, wP, -dP) * aBH
+		aP := aP0 * (inOrbit*mask + (1.0 - inOrbit))
+		outCol = mix(outCol, vec4(0, 0, 0, 1), aP)
 	}
 
-	// 9) Right eye
+	// RIGHT EYE
 	{
-		rightPos := rightDir*EyeSeparation + dir*EyeVertical
-		qR := p - rightPos
+		eyePos := rightDir*EyeSeparation + dir*EyeVertical
+		q := p - eyePos
 
-		// sclera
-		dR := sdfCircle(p, rightPos, EyeRadius)
-		wR := fwidth(dR)
-		aR0 := smoothstep(-wR, wR, -dR) * aBH
-		maskR := step(-EyeCutOffset, dot(cutR, qR))
-		aR := aR0 * (inOrbit*maskR + (1.0 - inOrbit))
-		outCol = mix(outCol, vec4(1, 0, 0, 1), aR)
+		dE := sdfCircle(p, eyePos, eyeRad)
+		wE := fwidth(dE)
+		aE0 := smoothstep(-wE, wE, -dE) * aBH
+		mask := step(-EyeCutOffset, dot(cutR, q))
+		aE := aE0 * (inOrbit*mask + (1.0 - inOrbit))
+		outCol = mix(outCol, vec4(1, 0, 0, 1), aE)
 
-		// pupil
-		pupilR := rightPos + dir*(EyeRadius-PupilRadius)*0.6
-		dPR := sdfCircle(p, pupilR, PupilRadius)
-		wPR := fwidth(dPR)
-		aPR0 := smoothstep(-wPR, wPR, -dPR) * aBH
-		aPR := aPR0 * (inOrbit*maskR + (1.0 - inOrbit))
-		outCol = mix(outCol, vec4(0, 0, 0, 1), aPR)
+		pupilPos := eyePos + dir*(eyeRad-pupRad)*0.6
+		dP := sdfCircle(p, pupilPos, pupRad)
+		wP := fwidth(dP)
+		aP0 := smoothstep(-wP, wP, -dP) * aBH
+		aP := aP0 * (inOrbit*mask + (1.0 - inOrbit))
+		outCol = mix(outCol, vec4(0, 0, 0, 1), aP)
 	}
 
-	// 10) Dynamic frown mouth (unchanged)
+	// MOUTH (dynamic frown, unchanged)
 	{
-		frac := clamp(1.0-distWorld/BlackHoleOrbitRadius, 0.0, 1.0)
+		frac := clamp((BlackHoleOrbitRadius-distWorld)/BlackHoleOrbitRadius, 0.0, 1.0)
 		mouthScale := 1.0 + frac*5.0
 		scaledR := MouthArcRadius * mouthScale
 
 		arcCenter := dir * MouthVertical
-		q := p - arcCenter
-		d := length(q)
+		qM := p - arcCenter
+		dM := length(qM)
 
-		sdfArc := abs(d-scaledR) - MouthRadius
+		sdfArc := abs(dM-scaledR) - MouthRadius
 		wM := fwidth(sdfArc)
 		mThick := smoothstep(-wM, wM, -sdfArc)
 
-		nq := q / max(d, 0.0001)
+		nq := qM / max(dM, 0.0001)
 		mAngle := step(MouthArcCos, dot(nq, dir))
 		mArc := mThick * mAngle * aBH
 
