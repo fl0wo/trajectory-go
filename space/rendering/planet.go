@@ -6,15 +6,15 @@
 package main
 
 // Eye parameters (in circle-local units)
-const EyeSeparation = 0.6
-const EyeVertical = 0.4
-const EyeRadius = 0.25
+const EyeSeparation = 0.28
+const EyeVertical = -0.4
+const EyeRadius = 0.064
 
 // Mouth parameters
-const MouthVertical = -0.3
-const MouthRadius = 0.08
-const MouthArcRadius = 0.35
-const MouthArcCos = 0.5 // cos(60°) ≈ 0.5
+const MouthVertical = -0.48
+const MouthRadius = 0.026
+const MouthArcRadius = 0.045
+const MouthArcCos = 0.2 // controls arc span
 
 // Uniforms from Go
 var PlayerPos vec2   // [0..1] world-space player center
@@ -50,11 +50,14 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 	// 1) Circle-local coords
 	p := toLocal(dstPos)
 
+	// 1a) Rotate entire face 180°
+	p = -p
+
 	// 2) Planet mask
 	distPlanet := length(p)
 	inPlanet := step(distPlanet, 1.0)
 
-	// 3) Start with transparent, then fill planet base
+	// 3) Start transparent, then fill planet base
 	outCol := vec4(0.0)
 	outCol = mix(outCol, vec4(PlanetColor.rgb/255.0, 1.0), inPlanet)
 
@@ -68,7 +71,7 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 	rightDir := vec2(dir.y, -dir.x)
 	leftDir := -rightDir
 
-	// 5) Eyes (only inside planet, with fwidth anti-alias)
+	// 5) Eyes (inside planet, pixel-aware AA)
 	if inPlanet > 0.5 {
 		// Left eye
 		leftPos := leftDir*EyeSeparation + dir*EyeVertical
@@ -85,22 +88,42 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 		outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), aR)
 	}
 
-	// 6) Mouth arc (only inside planet, with fwidth anti-alias)
+	// 6) Mouth as an arched capsule
 	if inPlanet > 0.5 {
 		arcCenter := dir * MouthVertical
 		q := p - arcCenter
 		d := length(q)
-		sdfArc := abs(d-MouthArcRadius) - MouthRadius
 
-		// thickness + anti-alias
+		// --- arc strip SDF + AA ---
+		sdfArc := abs(d-MouthArcRadius) - MouthRadius
 		wM := fwidth(sdfArc)
 		mThick := smoothstep(-wM, wM, -sdfArc)
 
-		// arc only where angle < 120°
+		// only keep the arc within the chosen angular span
 		nq := q / max(d, 0.0001)
 		mAngle := step(MouthArcCos, dot(nq, -dir))
+		mArc := mThick * mAngle
 
-		mMask := mThick * mAngle
+		// --- compute end-cap centers ---
+		// sinθ = sqrt(1 - cos²θ)
+		sinArc := sqrt(max(0.0, 1.0-MouthArcCos*MouthArcCos))
+
+		// left endpoint
+		vL := -dir*MouthArcCos + leftDir*sinArc
+		epL := arcCenter + vL*MouthArcRadius
+		dE1 := sdfCircle(p, epL, MouthRadius)
+		wE1 := fwidth(dE1)
+		aE1 := smoothstep(-wE1, wE1, -dE1)
+
+		// right endpoint
+		vR := -dir*MouthArcCos + rightDir*sinArc
+		epR := arcCenter + vR*MouthArcRadius
+		dE2 := sdfCircle(p, epR, MouthRadius)
+		wE2 := fwidth(dE2)
+		aE2 := smoothstep(-wE2, wE2, -dE2)
+
+		// --- combine arc + endcaps ---
+		mMask := max(mArc, max(aE1, aE2))
 		outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), mMask)
 	}
 

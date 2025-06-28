@@ -40,7 +40,6 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 			orbitColor = colors.AsteroidOrbit
 		}
 
-
 		if body.GetType() == Models.CelestialBodyTypePlanet {
 			r.DrawPlanetWithFace(screen, model, bodyPos, body.GetRadius(), bodyColor)
 		} else {
@@ -71,14 +70,15 @@ func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceG
 	t := float32(time.Since(r.startTime).Seconds())
 
 	uniforms := map[string]any{
-		"PlayerPos":   []float32{model.Player.Position[0], model.Player.Position[1]},
-		"PlanetPos":   []float32{planetPos[0], planetPos[1]},
-		"PlanetColor": []float32{float32(planetColor.R), float32(planetColor.G), float32(planetColor.B), float32(planetColor.A)},
-		"CameraPos":   []float32{model.Camera.Position[0], model.Camera.Position[1]},
-		"Zoom":        zoom,
-		"Radius":      worldRadius,
-		"Time":        t,
-		"ScreenSize":  []float32{sw, sh},
+		"PlayerPos":         []float32{model.Player.Position[0], model.Player.Position[1]},
+		"PlanetPos":         []float32{planetPos[0], planetPos[1]},
+		"PlanetOrbitRadius": worldRadius,
+		"PlanetColor":       []float32{float32(planetColor.R), float32(planetColor.G), float32(planetColor.B), float32(planetColor.A)},
+		"CameraPos":         []float32{model.Camera.Position[0], model.Camera.Position[1]},
+		"Zoom":              zoom,
+		"Radius":            worldRadius,
+		"Time":              t,
+		"ScreenSize":        []float32{sw, sh},
 	}
 
 	// Draw directly to screen using the shader - no intermediate texture needed
