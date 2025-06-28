@@ -41,6 +41,7 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 		}
 
 		if body.GetType() == Models.CelestialBodyTypePlanet {
+			// draw a white circle to have antialiasing
 			r.DrawPlanetWithFace(screen, model, bodyPos, body.GetRadius(), body.GetOrbitRadius(), bodyColor)
 		} else {
 			// Draw celestial body as a filled circle
@@ -57,10 +58,11 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 }
 
 func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceGame, planetPos f32.Vec2, worldRadius float32, worldOrbitRadius float32, planetColor color.RGBA) {
+	screenPos := model.Camera.WorldToScreen(planetPos, constants.ScreenWidth, constants.ScreenHeight)
+	screenRadius := worldRadius * model.Camera.GetTotalZoom() * float32(constants.ScreenHeight)
+	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], screenRadius, planetColor, true)
+
 	if r.planetShader == nil {
-		screenPos := model.Camera.WorldToScreen(planetPos, constants.ScreenWidth, constants.ScreenHeight)
-		screenRadius := worldRadius * model.Camera.GetTotalZoom() * float32(constants.ScreenHeight)
-		vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], screenRadius, planetColor, true)
 		return
 	}
 

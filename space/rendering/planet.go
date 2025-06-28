@@ -14,25 +14,24 @@ const EyeRadius = 0.064
 const MouthVertical = -0.48
 const MouthRadius = 0.026
 const MouthArcRadius = 0.045
-const MouthArcCos = 0.2 // controls arc span
+const MouthArcCos = 0.2
 
 // Uniforms from Go
 var PlayerPos vec2          // [0..1] world-space player center
 var PlanetPos vec2          // [0..1] world-space planet center
-var PlanetColor vec4        // Planet color (RGBA 0–255)
-var PlanetOrbitRadius float // [0..1] world-space planet orbit radius
-var CameraPos vec2          // [0..1] world-space camera center
-var Zoom float              // Zoom factor
-var Radius float            // Planet radius [0..1]
-var Time float              // Seconds (unused here)
-var ScreenSize vec2         // [width, height] in pixels
+var PlanetOrbitRadius float // [0..1] orbit radius (for dynamic mouth)
+var CameraPos vec2          // [0..1]
+var Zoom float
+var Radius float // planet radius in world units [0..1]
+var Time float
+var ScreenSize vec2 // [width, height] in pixels
 
-// SDF for circle at center c with radius r
+// SDF for a circle at c with radius r
 func sdfCircle(p, c vec2, r float) float {
 	return length(p-c) - r
 }
 
-// Map pixel to unit-circle local coords around the planet
+// Exactly the same mapping your vector circle uses:
 func toLocal(dstPos vec4) vec2 {
 	uv := dstPos.xy / ScreenSize
 	c := uv - vec2(0.5)
@@ -42,27 +41,32 @@ func toLocal(dstPos vec4) vec2 {
 	zoomSafe := max(0.01, min(Zoom, 100.0))
 	c /= zoomSafe
 
+	// world-space
 	world := CameraPos + c
 	radiusSafe := max(0.0001, min(Radius, 1.0))
 	return (world - PlanetPos) / radiusSafe
 }
 
 func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
-	// 1) Circle-local coords
+	// 1) Into local circle coords & flip 180°
 	p := toLocal(dstPos)
-
-	// 1a) Rotate entire face 180°
 	p = -p
 
-	// 2) Planet mask
+	// 2) Compute aPlanet = 1 inside your white circle, 0 outside, anti-aliased
 	distPlanet := length(p)
-	inPlanet := step(distPlanet, 1.0)
+	sdfPlanet := distPlanet - 1.0
+	wPlanet := fwidth(sdfPlanet)
+	aPlanet := smoothstep(wPlanet, -wPlanet, sdfPlanet)
 
-	// 3) Start transparent, then fill planet base
+	// 3) If we're fully outside the circle + its AA band, draw nothing
+	if aPlanet < 0.001 {
+		return vec4(0.0)
+	}
+
+	// 4) Build our feature-mask‐gated shader
 	outCol := vec4(0.0)
-	outCol = mix(outCol, vec4(PlanetColor.rgb/255.0, 1.0), inPlanet)
 
-	// 4) Compute look-direction toward the player
+	// 5) Look‐direction axes
 	delta := PlayerPos - PlanetPos
 	dir := vec2(0.0, 1.0)
 	if length(delta) > 0.0001 {
@@ -72,78 +76,66 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 	rightDir := vec2(dir.y, -dir.x)
 	leftDir := -rightDir
 
-	// 5) Eyes (inside planet, pixel-aware AA)
-	if inPlanet > 0.5 {
-		// Left eye
+	// 6) Draw eyes (pixel‐aware AA *inside* the circle)
+	{
+		// left
 		leftPos := leftDir*EyeSeparation + dir*EyeVertical
 		dL := sdfCircle(p, leftPos, EyeRadius)
 		wL := fwidth(dL)
-		aL := smoothstep(-wL, wL, -dL)
-		outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), aL)
+		aL := smoothstep(-wL, wL, -dL) * aPlanet
+		outCol = mix(outCol, vec4(0, 0, 0, 1), aL)
 
-		// Right eye
+		// right
 		rightPos := rightDir*EyeSeparation + dir*EyeVertical
 		dR := sdfCircle(p, rightPos, EyeRadius)
 		wR := fwidth(dR)
-		aR := smoothstep(-wR, wR, -dR)
-		outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), aR)
+		aR := smoothstep(-wR, wR, -dR) * aPlanet
+		outCol = mix(outCol, vec4(0, 0, 0, 1), aR)
 	}
 
-	// 6) Mouth as an arched capsule - size scales with player distance when inside orbit
-	if inPlanet > 0.5 {
-		// Calculate player distance from planet
-		playerDist := length(PlayerPos - PlanetPos)
+	// 7) Dynamic mouth‐scaling
+	playerDist := length(delta)
+	mouthScale := 1.0
+	if playerDist < PlanetOrbitRadius {
+		// 1.0 at orbit edge → 5.0 at center
+		frac := 1.0 - (playerDist / PlanetOrbitRadius)
+		mouthScale = 1.0 + frac*4.0
+	}
+	scaledArcR := MouthArcRadius * mouthScale
 
-		// Calculate mouth scale based on player distance within orbit
-		// If player is outside orbit, use default size (scale = 1.0)
-		// If player is inside orbit, scale linearly from 1.0 (at orbit edge) to 2.0 (at planet center)
-		mouthScale := 1.0
-		if playerDist < PlanetOrbitRadius {
-			// Linear interpolation: closer to planet = bigger mouth
-			// At orbit edge: scale = 1.0, at planet center: scale = 2.0
-			distRatio := 1.0 - (playerDist / PlanetOrbitRadius)
-			mouthScale = 1.0 + distRatio*4.0 // Scale from 1.0 to 5.0
-		}
-
-		// Apply mouth scaling to all mouth parameters
-		scaledMouthRadius := MouthRadius
-		scaledMouthArcRadius := MouthArcRadius * mouthScale
-
+	// 8) Draw the capsule‐mouth (AA) *inside* the circle
+	{
 		arcCenter := dir * MouthVertical
 		q := p - arcCenter
 		d := length(q)
 
-		// --- arc strip SDF + AA ---
-		sdfArc := abs(d-scaledMouthArcRadius) - scaledMouthRadius
+		// arc strip
+		sdfArc := abs(d-scaledArcR) - MouthRadius
 		wM := fwidth(sdfArc)
 		mThick := smoothstep(-wM, wM, -sdfArc)
 
-		// only keep the arc within the chosen angular span
+		// angular mask
 		nq := q / max(d, 0.0001)
 		mAngle := step(MouthArcCos, dot(nq, -dir))
-		mArc := mThick * mAngle
+		mArc := mThick * mAngle * aPlanet
 
-		// --- compute end-cap centers ---
-		// sinθ = sqrt(1 - cos²θ)
+		// end-caps
 		sinArc := sqrt(max(0.0, 1.0-MouthArcCos*MouthArcCos))
 
-		// left endpoint
 		vL := -dir*MouthArcCos + leftDir*sinArc
-		epL := arcCenter + vL*scaledMouthArcRadius
-		dE1 := sdfCircle(p, epL, scaledMouthRadius)
+		epL := arcCenter + vL*scaledArcR
+		dE1 := sdfCircle(p, epL, MouthRadius)
 		wE1 := fwidth(dE1)
-		aE1 := smoothstep(-wE1, wE1, -dE1)
+		aE1 := smoothstep(-wE1, wE1, -dE1) * aPlanet
 
-		// right endpoint
 		vR := -dir*MouthArcCos + rightDir*sinArc
-		epR := arcCenter + vR*scaledMouthArcRadius
-		dE2 := sdfCircle(p, epR, scaledMouthRadius)
+		epR := arcCenter + vR*scaledArcR
+		dE2 := sdfCircle(p, epR, MouthRadius)
 		wE2 := fwidth(dE2)
-		aE2 := smoothstep(-wE2, wE2, -dE2)
+		aE2 := smoothstep(-wE2, wE2, -dE2) * aPlanet
 
-		// --- combine arc + endcaps ---
 		mMask := max(mArc, max(aE1, aE2))
-		outCol = mix(outCol, vec4(0.0, 0.0, 0.0, 1.0), mMask)
+		outCol = mix(outCol, vec4(0, 0, 0, 1), mMask)
 	}
 
 	return outCol
