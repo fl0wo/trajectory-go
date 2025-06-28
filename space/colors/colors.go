@@ -39,7 +39,7 @@ var (
 // Player Colors
 var (
 	// PlayerBody Player body color (green circle fallback)
-	PlayerBody = color.RGBA{R: 255, G: 0, B: 0, A: 255} // Green
+	PlayerBody = util.RGBAColor(123, 237, 159, 255) // Green
 
 	// PlayerTrail Player trail color (fading white)
 	PlayerTrail = color.RGBA{R: 254, G: 254, B: 254, A: 255} // Nearly white
