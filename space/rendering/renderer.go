@@ -27,6 +27,9 @@ var trajectoryArrowShader []byte
 //go:embed nebula_background.go
 var nebulaBackgroundShader []byte
 
+//go:embed invert_on_light.go
+var invertOnLightShader []byte
+
 var (
 	mplusFaceSource *text.GoTextFaceSource
 )
@@ -44,9 +47,9 @@ const (
 )
 
 const (
-	baseArm       = float32(10) // half-length of each arm by default
-	stretchFactor = float32(1)  // how much longer the interior arms get
-	lineWidth     = float32(3)
+	baseArm       = float32(8) // half-length of each arm by default
+	stretchFactor = float32(1) // how much longer the interior arms get
+	lineWidth     = float32(2.25)
 )
 
 // Renderer handles all rendering operations for the game
@@ -56,6 +59,7 @@ type Renderer struct {
 	playerTrailShader     *ebiten.Shader
 	trajectoryArrowShader *ebiten.Shader
 	nebulaShader          *ebiten.Shader
+	invertOnLightShader   *ebiten.Shader
 	whiteTexture          *ebiten.Image
 	startTime             time.Time // Game start time for shader animations
 }
@@ -86,6 +90,12 @@ func NewRenderer() *Renderer {
 		nebulaShader = shader
 	}
 
+	// Initialize invert on light shader
+	var invertOnLightShaderObj *ebiten.Shader
+	if shader, err := ebiten.NewShader(invertOnLightShader); err == nil {
+		invertOnLightShaderObj = shader
+	}
+
 	// Create a white texture matching screen size for shaders that need a source image
 	whiteTexture := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
 	whiteTexture.Fill(color.White)
@@ -96,6 +106,7 @@ func NewRenderer() *Renderer {
 		playerTrailShader:     playerTrailShaderObj,
 		trajectoryArrowShader: trajectoryArrowShaderObj,
 		nebulaShader:          nebulaShader,
+		invertOnLightShader:   invertOnLightShaderObj,
 		whiteTexture:          whiteTexture,
 		startTime:             time.Now(), // Initialize start time for shader animations
 	}

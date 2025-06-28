@@ -92,15 +92,42 @@ func (r *Renderer) drawBorderIndicators(screen *ebiten.Image, model *Models.Spac
 	stretchArm := baseArm * stretchFactor
 	col := colors.BorderIndicator
 
-	// 3) Draw each corner, telling the helper which arms to stretch:
-	//    bottom-left → stretch right (+X) and up (+Y)
-	r.drawCornerPlus(screen, bl, baseArm, stretchArm /*stretchRight=*/, true /*stretchUp=*/, true, col)
-	//    bottom-right → stretch left (−X) and up (+Y)
-	r.drawCornerPlus(screen, br, baseArm, stretchArm /*stretchRight=*/, false /*stretchUp=*/, true, col)
-	//    top-left → stretch right (+X) and down (−Y)
-	r.drawCornerPlus(screen, tl, baseArm, stretchArm /*stretchRight=*/, true /*stretchUp=*/, false, col)
-	//    top-right → stretch left (−X) and down (−Y)
-	r.drawCornerPlus(screen, tr, baseArm, stretchArm /*stretchRight=*/, false /*stretchUp=*/, false, col)
+	// 3) Check if we should apply light inversion effect
+	if model.ShadowsEnabled && r.invertOnLightShader != nil {
+		// Get light information for shader
+		lightPos := cam.WorldToScreen(model.Player.Position, constants.ScreenWidth, constants.ScreenHeight)
+		lightDirection := cam.WorldToScreen(cam.Position, constants.ScreenWidth, constants.ScreenHeight)
+
+		// Calculate light direction vector
+		lightDirVec := f32.Vec2{
+			lightDirection[0] - lightPos[0],
+			lightDirection[1] - lightPos[1],
+		}
+
+		maxDistance := math.Hypot(float64(constants.ScreenWidth), float64(constants.ScreenHeight))
+		fov := r.getAdaptiveFov(lightDirection, lightPos)
+
+		// Prepare uniforms for the invert shader
+		uniforms := r.prepareInvertOnLightUniforms(
+			lightPos, lightDirVec,
+			float32(fov*math.Pi/180.0), // Convert to radians
+			float32(maxDistance),
+			cam.Zoom,
+			col,
+		)
+
+		// Draw each corner with shader effect
+		r.drawCornerPlusWithShader(screen, bl, baseArm, stretchArm, true, true, col, uniforms)
+		r.drawCornerPlusWithShader(screen, br, baseArm, stretchArm, false, true, col, uniforms)
+		r.drawCornerPlusWithShader(screen, tl, baseArm, stretchArm, true, false, col, uniforms)
+		r.drawCornerPlusWithShader(screen, tr, baseArm, stretchArm, false, false, col, uniforms)
+	} else {
+		// Fallback to regular drawing without shader
+		r.drawCornerPlus(screen, bl, baseArm, stretchArm, true, true, col)
+		r.drawCornerPlus(screen, br, baseArm, stretchArm, false, true, col)
+		r.drawCornerPlus(screen, tl, baseArm, stretchArm, true, false, col)
+		r.drawCornerPlus(screen, tr, baseArm, stretchArm, false, false, col)
+	}
 }
 
 // drawCornerPlus draws a "+" at center, with its two interior-facing arms
@@ -144,13 +171,6 @@ func (r *Renderer) drawCornerPlus(
 	)
 }
 
-// helper to compute Euclidean distance between two screen points
-func distance(a, b f32.Vec2) float32 {
-	dx := a[0] - b[0]
-	dy := a[1] - b[1]
-	return float32(math.Hypot(float64(dx), float64(dy)))
-}
-
 // DrawPlusMarker now takes two arm lengths (half-width & half-height)
 func (r *Renderer) DrawPlusMarker(
 	screen *ebiten.Image,
@@ -171,6 +191,45 @@ func (r *Renderer) DrawPlusMarker(
 		center[0], center[1]-armY,
 		center[0], center[1]+armY,
 		lineWidth, clr,
+	)
+}
+
+// drawCornerPlusWithShader draws a "+" at center using the invert shader, with its two interior-facing arms stretched
+func (r *Renderer) drawCornerPlusWithShader(
+	screen *ebiten.Image,
+	center f32.Vec2,
+	baseArm, stretchArm float32,
+	stretchRight, stretchUp bool,
+	clr color.RGBA,
+	uniforms map[string]any,
+) {
+	// decide horizontal lengths
+	var leftLen, rightLen = baseArm, baseArm
+	if stretchRight {
+		rightLen = stretchArm
+	} else {
+		leftLen = stretchArm
+	}
+
+	// decide vertical lengths
+	var downLen, upLen = baseArm, baseArm
+	if stretchUp {
+		upLen = stretchArm
+	} else {
+		downLen = stretchArm
+	}
+
+	// draw horizontal stroke with shader
+	r.drawLineWithShader(screen,
+		f32.Vec2{center[0] - leftLen, center[1]},
+		f32.Vec2{center[0] + rightLen, center[1]},
+		lineWidth, clr, r.invertOnLightShader, uniforms,
+	)
+	// draw vertical stroke with shader
+	r.drawLineWithShader(screen,
+		f32.Vec2{center[0], center[1] - downLen},
+		f32.Vec2{center[0], center[1] + upLen},
+		lineWidth, clr, r.invertOnLightShader, uniforms,
 	)
 }
 

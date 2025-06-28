@@ -97,3 +97,20 @@ func (r *Renderer) drawArrowHeadWithShader(screen *ebiten.Image, start, end f32.
 	r.drawLineWithShader(screen, end, f32.Vec2{leftX, leftY}, 3, color, shader, uniforms)
 	r.drawLineWithShader(screen, end, f32.Vec2{rightX, rightY}, 3, color, shader, uniforms)
 }
+
+// prepareInvertOnLightUniforms creates the standard uniforms for the invert on light shader
+func (r *Renderer) prepareInvertOnLightUniforms(lightPos, lightDirection f32.Vec2, fov, maxDistance, zoom float32, originalColor color.RGBA) map[string]any {
+	return map[string]any{
+		"LightPos":       []float32{lightPos[0], lightPos[1]},
+		"LightDirection": []float32{lightDirection[0], lightDirection[1]},
+		"FOVAngle":       fov,
+		"MaxDistance":    maxDistance,
+		"Zoom":           zoom,
+		"OriginalColor": []float32{
+			float32(originalColor.R) / 255.0,
+			float32(originalColor.G) / 255.0,
+			float32(originalColor.B) / 255.0,
+			float32(originalColor.A) / 255.0,
+		},
+	}
+}
