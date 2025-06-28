@@ -15,10 +15,12 @@ type Camera2D struct {
 	ZoomSpeed   float32 // How fast the zoom interpolates (0-1)
 
 	// View properties
-	Zoom          float32  // Current camera zoom level (1.0 = normal)
-	TargetZoom    float32  // Target zoom level for smooth interpolation
-	ProximityZoom float32  // Additional zoom multiplier from proximity effects
-	Offset        f32.Vec2 // Offset from target position
+	Zoom           float32  // Current camera zoom level (1.0 = normal)
+	TargetZoom     float32  // Target zoom level for smooth interpolation
+	ProximityZoom  float32  // Additional zoom multiplier from proximity effects
+	DragZoom       float32  // Current drag zoom offset (negative values zoom out)
+	TargetDragZoom float32  // Target drag zoom for smooth interpolation
+	Offset         f32.Vec2 // Offset from target position
 }
 
 // NewCamera2D creates a new camera with default settings
@@ -27,14 +29,16 @@ func NewCamera2D() *Camera2D {
 	center := f32.Vec2{constants.AspectRatio / 2.0, 0.5}
 
 	return &Camera2D{
-		Position:      center, // Start at aspect-ratio-aware center
-		Target:        center,
-		SmoothSpeed:   2.0, // Adjust this for faster/slower following
-		ZoomSpeed:     5.0, // Adjust this for faster/slower zoom
-		Zoom:          1.0,
-		TargetZoom:    1.0,
-		ProximityZoom: 1.0, // Default proximity zoom multiplier
-		Offset:        f32.Vec2{0, 0},
+		Position:       center, // Start at aspect-ratio-aware center
+		Target:         center,
+		SmoothSpeed:    2.0, // Adjust this for faster/slower following
+		ZoomSpeed:      5.0, // Adjust this for faster/slower zoom
+		Zoom:           1.0,
+		TargetZoom:     1.0,
+		ProximityZoom:  1.0, // Default proximity zoom multiplier
+		DragZoom:       0.0, // Default no drag zoom
+		TargetDragZoom: 0.0, // Default no target drag zoom
+		Offset:         f32.Vec2{0, 0},
 	}
 }
 
@@ -64,6 +68,9 @@ func (c *Camera2D) Update(deltaTime float32) {
 
 	// Linear interpolation for zoom
 	c.Zoom = c.Zoom + (c.TargetZoom-c.Zoom)*zoomT
+
+	// Smooth interpolation towards target drag zoom (using same speed as regular zoom)
+	c.DragZoom = c.DragZoom + (c.TargetDragZoom-c.DragZoom)*zoomT
 }
 
 // SetTarget sets the camera's target position
@@ -81,8 +88,8 @@ func (c *Camera2D) WorldToScreen(worldPos f32.Vec2, screenWidth, screenHeight fl
 	// Calculate aspect ratio
 	aspectRatio := screenWidth / screenHeight
 
-	// Calculate effective zoom (user zoom * proximity zoom)
-	effectiveZoom := c.Zoom * c.ProximityZoom
+	// Calculate effective zoom (user zoom * proximity zoom + drag zoom)
+	effectiveZoom := (c.Zoom + c.DragZoom) * c.ProximityZoom
 
 	// Apply camera offset and zoom
 	relativePos := f32.Vec2{
@@ -105,8 +112,8 @@ func (c *Camera2D) ScreenToWorld(screenPos f32.Vec2, screenWidth, screenHeight f
 	// Calculate aspect ratio
 	aspectRatio := screenWidth / screenHeight
 
-	// Calculate effective zoom (user zoom * proximity zoom)
-	effectiveZoom := c.Zoom * c.ProximityZoom
+	// Calculate effective zoom (user zoom * proximity zoom + drag zoom)
+	effectiveZoom := (c.Zoom + c.DragZoom) * c.ProximityZoom
 
 	// Convert screen to normalized coordinates
 	normalizedPos := f32.Vec2{
@@ -127,8 +134,8 @@ func (c *Camera2D) ScreenToWorld(screenPos f32.Vec2, screenWidth, screenHeight f
 // It scales the radius by the camera zoom, then maps that
 // normalized size into screen pixels.
 func (c *Camera2D) RadiusToScreen(radius float32, screenWidth, screenHeight float32) float32 {
-	// Calculate effective zoom (user zoom * proximity zoom)
-	effectiveZoom := c.Zoom * c.ProximityZoom
+	// Calculate effective zoom (user zoom * proximity zoom + drag zoom)
+	effectiveZoom := (c.Zoom + c.DragZoom) * c.ProximityZoom
 
 	// 1) apply zoom in world space
 	scaled := radius * effectiveZoom
@@ -160,15 +167,40 @@ func (c *Camera2D) SetProximityZoom(proximityZoom float32) {
 	c.ProximityZoom = proximityZoom
 }
 
-// GetEffectiveZoom returns the combined zoom (user zoom * proximity zoom)
+// SetDragZoom sets the target drag zoom offset (negative values zoom out)
+func (c *Camera2D) SetDragZoom(dragZoom float32) {
+	// Clamp drag zoom to prevent excessive zoom out
+	const maxDragZoomOut = float32(-1.0) // Limit zoom out to prevent going too far
+	if dragZoom < maxDragZoomOut {
+		dragZoom = maxDragZoomOut
+	}
+	c.TargetDragZoom = dragZoom
+}
+
+// SetDragZoomImmediate sets the drag zoom immediately without interpolation
+func (c *Camera2D) SetDragZoomImmediate(dragZoom float32) {
+	const maxDragZoomOut = float32(-1.0)
+	if dragZoom < maxDragZoomOut {
+		dragZoom = maxDragZoomOut
+	}
+	c.DragZoom = dragZoom
+	c.TargetDragZoom = dragZoom
+}
+
+// GetEffectiveZoom returns the combined zoom (user zoom * proximity zoom + drag zoom)
 func (c *Camera2D) GetEffectiveZoom() float32 {
-	return c.Zoom * c.ProximityZoom
+	return (c.Zoom + c.DragZoom) * c.ProximityZoom
 }
 
 // AdjustZoom adjusts the target camera zoom by the given delta
 func (c *Camera2D) AdjustZoom(delta float32) {
 	newZoom := c.TargetZoom + delta
 	c.SetZoom(newZoom)
+}
+
+func (c *Camera2D) SetTargetZoom(zoom float32) {
+	// Clamp zoom to a reasonable range
+	c.TargetZoom = zoom
 }
 
 // ZoomIn increases the zoom level

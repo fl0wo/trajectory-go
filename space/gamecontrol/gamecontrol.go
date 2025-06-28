@@ -59,6 +59,27 @@ func (gc *GameController) ProcessInput(model *Models.SpaceGame, inputHandler *in
 
 	// Handle drag and throw mechanics
 	dragInfo := inputHandler.GetDragInfo()
+
+	// Apply zoom-out effect when dragging (only if player is not moving)
+	if dragInfo.IsDragging && !model.Player.IsMoving() {
+		// Calculate zoom-out based on drag distance
+		const maxDragDistance = float32(150.0) // Max drag distance for full zoom effect
+		const maxZoomOut = float32(-0.6)       // Maximum zoom-out amount
+
+		// Normalize drag distance to [0, 1] range
+		normalizedDistance := dragInfo.DragDistance / maxDragDistance
+		if normalizedDistance > 1.0 {
+			normalizedDistance = 1.0
+		}
+
+		// Apply eased zoom-out (smooth curve)
+		zoomOutFactor := normalizedDistance * normalizedDistance * maxZoomOut / 10.0
+		model.Camera.SetDragZoom(zoomOutFactor)
+	} else {
+		// Reset drag zoom when not dragging
+		model.Camera.SetDragZoom(0.0)
+	}
+
 	if dragInfo.IsReleased {
 		gc.physicsSystem.ProcessThrow(model, dragInfo.StartPos, dragInfo.CurrentPos)
 	}
