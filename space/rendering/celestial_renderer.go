@@ -68,7 +68,14 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 		}
 
 		// Draw celestial body's orbit radius as a dashed circle with light effect
-		r.drawOrbitCircleWithLight(screen, model, screenPos, camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight), orbitColor)
+		orbitRadius := camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
+		
+		// Use reveal shader for black holes, regular light effect for others
+		if body.GetType() == Models.CelestialBodyTypeBlackHole {
+			r.drawOrbitCircleWithReveal(screen, model, screenPos, orbitRadius, orbitColor)
+		} else {
+			r.drawOrbitCircleWithLight(screen, model, screenPos, orbitRadius, orbitColor)
+		}
 	}
 }
 
@@ -208,4 +215,65 @@ func (r *Renderer) drawOrbitCircle(screen *ebiten.Image, center f32.Vec2, radius
 	gapLen := segLen * (1.0 - dashPortion)
 
 	util.StrokeDashedCircle(screen, center[0], center[1], radius, 4, color, dashLen, gapLen, true)
+}
+
+// drawOrbitCircleWithReveal draws a dashed orbit circle that's only visible in the light area (for black holes)
+func (r *Renderer) drawOrbitCircleWithReveal(screen *ebiten.Image, model *Models.SpaceGame, center f32.Vec2, radius float32, orbitColor color.RGBA) {
+	if radius <= 0 {
+		return
+	}
+
+	// Dashed circle parameters
+	const numDashes = 24
+	const dashPortion = 4.0 / (4.0 + 16.0) // = 0.2
+
+	// Calculate dash and gap lengths
+	circ := 2 * math.Pi * float64(radius)
+	segLen := float32(circ) / float32(numDashes)
+	dashLen := segLen * dashPortion
+	gapLen := segLen * (1.0 - dashPortion)
+
+	// If shadows are enabled and we have the reveal shader, apply reveal effect
+	if model.ShadowsEnabled && r.revealOnLightShader != nil {
+		camera := model.Camera
+
+		// Get light information (same as shadow system)
+		lightPos := camera.WorldToScreen(model.Player.Position, constants.ScreenWidth, constants.ScreenHeight)
+		lightDirection := camera.WorldToScreen(camera.Position, constants.ScreenWidth, constants.ScreenHeight)
+
+		// Calculate light direction vector (from light pos to camera/target)
+		lightDirVec := f32.Vec2{
+			lightDirection[0] - lightPos[0],
+			lightDirection[1] - lightPos[1],
+		}
+
+		// Calculate max distance for the light cone (same as shadow system)
+		maxDistance := math.Hypot(float64(constants.ScreenWidth), float64(constants.ScreenHeight))
+
+		// Calculate elapsed time since game start for rotation animation
+		currentTime := float32(time.Since(r.startTime).Seconds())
+
+		fov := r.getAdaptiveFov(lightDirection, lightPos)
+
+		// Prepare shader uniforms using the reveal shader helper
+		uniforms := r.prepareRevealOnLightUniforms(
+			lightPos, lightDirVec,
+			float32(fov * math.Pi / 180.0), // Convert to radians
+			float32(maxDistance),
+			camera.Zoom,
+			orbitColor,
+		)
+
+		// Additional uniforms for the dashed circle animation
+		uniforms["Time"] = currentTime
+		uniforms["RotationDirection"] = float32(1.0) // Counterclockwise rotation
+		uniforms["CircleCenter"] = []float32{center[0], center[1]}
+		uniforms["CircleRadius"] = radius
+
+		// Use shader-enabled dashed circle with reveal effect
+		util.StrokeDashedCircleTrianglesWithShader(screen, center[0], center[1], radius, 4, orbitColor, dashLen, gapLen, true, r.revealOnLightShader, uniforms, currentTime/10.0)
+	} else {
+		// Fallback: don't draw anything (black holes should be invisible without light)
+		// This creates the effect that black hole orbits are only visible when illuminated
+	}
 }

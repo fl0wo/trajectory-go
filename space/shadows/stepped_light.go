@@ -8,6 +8,7 @@ package main
 var LightPos vec2
 var MaxDistance float
 var Zoom float // 1 = standard, >1 = in, <1 = out
+var Fov float  // FOV in radians, 0 = no cone, >0 = cone
 
 func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 	// world-space pixel pos
@@ -39,11 +40,11 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 
 	// 3) explicit spacing for each band (must sum ≤ 1.0)
 	var spaces = [STEPS]float{
-		10.0 / TOTAL_UNITS, // band 1 width
-		0.5 / TOTAL_UNITS,  // band 2 width
-		0.5 / TOTAL_UNITS,  // band 3 width
-		1.0 / TOTAL_UNITS,  // band 4 width
-		0.25 / TOTAL_UNITS, // band 5 width
+		10.0 / TOTAL_UNITS,                // band 1 width
+		0.25 / TOTAL_UNITS / (Fov / 360),  // band 2 width
+		0.25 / TOTAL_UNITS / (Fov / 360),  // band 3 width
+		1.0 / TOTAL_UNITS,                 // band 4 width
+		0.125 / TOTAL_UNITS / (Fov / 360), // band 5 width
 	}
 
 	// walk outward summing spaces[]

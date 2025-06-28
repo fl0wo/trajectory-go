@@ -129,6 +129,8 @@ func (sg *SpaceGame) NumNonAsteroids() int {
 func (sg *SpaceGame) CalculateBorders() Border {
 	numBodies := sg.NumNonAsteroids()
 
+	const extraBorderPadding float32 = 0.25 // 10% padding on each side
+
 	switch numBodies {
 	case 0:
 		// Default fallback rect
@@ -146,7 +148,7 @@ func (sg *SpaceGame) CalculateBorders() Border {
 		orbitRadius := body.GetOrbitRadius()
 
 		// Create square centered on the body, size = orbit diameter + 50%
-		squareHalfSize := orbitRadius * 1.5 // 50% bigger than orbit radius
+		squareHalfSize := orbitRadius * (1.0 + extraBorderPadding) // 50% bigger than orbit radius
 
 		minX := float64(pos[0]) - float64(squareHalfSize)
 		maxX := float64(pos[0]) + float64(squareHalfSize)
@@ -176,7 +178,7 @@ func (sg *SpaceGame) CalculateBorders() Border {
 		minY := math.Min(float64(pos1[1]-orbit1), float64(pos2[1]-orbit2))
 		maxY := math.Max(float64(pos1[1]+orbit1), float64(pos2[1]+orbit2))
 
-		pad := 0.1 // 10% padding on each side
+		pad := float64(extraBorderPadding) // 10% padding on each side
 		minX -= pad * (maxX - minX)
 		maxX += pad * (maxX - minX)
 		minY -= pad * (maxY - minY)
@@ -205,8 +207,8 @@ func (sg *SpaceGame) CalculateBorders() Border {
 		}
 
 		// Pad by 10% of the width and height
-		halfW := (maxX - minX) * 0.1
-		halfH := (maxY - minY) * 0.1
+		halfW := (maxX - minX) * extraBorderPadding
+		halfH := (maxY - minY) * extraBorderPadding
 		minX -= halfW
 		maxX += halfW
 		minY -= halfH

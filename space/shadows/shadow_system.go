@@ -281,6 +281,7 @@ func (ss *ShadowSystem) RenderShadows(
 			"LightPos":    []float32{float32(lightX), float32(lightY)},
 			"MaxDistance": float32(maxDistance),
 			"Zoom":        cameraZoom,
+			"Fov":         fovAngle,
 		}
 		lightOpt.Images[0] = ss.triangleImage
 		lightOpt.Blend = ebiten.BlendSourceOver

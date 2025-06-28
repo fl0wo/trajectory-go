@@ -30,6 +30,9 @@ var nebulaBackgroundShader []byte
 //go:embed invert_on_light.go
 var invertOnLightShader []byte
 
+//go:embed reveal_on_light.go
+var revealOnLightShader []byte
+
 var (
 	mplusFaceSource *text.GoTextFaceSource
 )
@@ -60,6 +63,7 @@ type Renderer struct {
 	trajectoryArrowShader *ebiten.Shader
 	nebulaShader          *ebiten.Shader
 	invertOnLightShader   *ebiten.Shader
+	revealOnLightShader   *ebiten.Shader
 	whiteTexture          *ebiten.Image
 	startTime             time.Time // Game start time for shader animations
 }
@@ -96,6 +100,12 @@ func NewRenderer() *Renderer {
 		invertOnLightShaderObj = shader
 	}
 
+	// Initialize reveal on light shader
+	var revealOnLightShaderObj *ebiten.Shader
+	if shader, err := ebiten.NewShader(revealOnLightShader); err == nil {
+		revealOnLightShaderObj = shader
+	}
+
 	// Create a white texture matching screen size for shaders that need a source image
 	whiteTexture := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
 	whiteTexture.Fill(color.White)
@@ -107,6 +117,7 @@ func NewRenderer() *Renderer {
 		trajectoryArrowShader: trajectoryArrowShaderObj,
 		nebulaShader:          nebulaShader,
 		invertOnLightShader:   invertOnLightShaderObj,
+		revealOnLightShader:   revealOnLightShaderObj,
 		whiteTexture:          whiteTexture,
 		startTime:             time.Now(), // Initialize start time for shader animations
 	}
