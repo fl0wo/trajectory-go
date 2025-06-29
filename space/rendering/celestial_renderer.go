@@ -14,12 +14,17 @@ import (
 	"time"
 )
 
-// drawCelestialBodies renders all celestial bodies with animated faces that track the player
+// drawCelestialBodies renders all celestial bodies with animated faces that track the player (EXCLUDING black holes)
 func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.SpaceGame) {
 	camera := model.Camera
 
-	// First pass: draw all orbits
+	// First pass: draw all orbits (EXCLUDING black holes)
 	for _, body := range model.CelestialBodies {
+		// Skip black holes
+		if body.GetType() == Models.CelestialBodyTypeBlackHole {
+			continue
+		}
+
 		bodyPos := body.GetPosition()
 		screenPos := camera.WorldToScreen(bodyPos, constants.ScreenWidth, constants.ScreenHeight)
 
@@ -29,8 +34,6 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 		switch body.GetType() {
 		case Models.CelestialBodyTypePlanet:
 			orbitColor = colors.PlanetOrbit
-		case Models.CelestialBodyTypeBlackHole:
-			orbitColor = colors.BlackHoleOrbit
 		case Models.CelestialBodyTypeWhiteHole:
 			orbitColor = colors.WhiteHoleOrbit
 		case Models.CelestialBodyTypeAsteroid:
@@ -38,15 +41,16 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 		}
 
 		orbitRadius := camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
-		if body.GetType() == Models.CelestialBodyTypeBlackHole {
-			r.drawOrbitCircleWithReveal(screen, model, screenPos, orbitRadius, orbitColor)
-		} else {
-			r.drawOrbitCircleWithLight(screen, model, screenPos, orbitRadius, orbitColor)
-		}
+		r.drawOrbitCircleWithLight(screen, model, screenPos, orbitRadius, orbitColor)
 	}
 
-	// Second pass: draw all planets on top of orbits
+	// Second pass: draw all celestial bodies on top of orbits (EXCLUDING black holes)
 	for _, body := range model.CelestialBodies {
+		// Skip black holes
+		if body.GetType() == Models.CelestialBodyTypeBlackHole {
+			continue
+		}
+
 		bodyPos := body.GetPosition()
 		screenPos := camera.WorldToScreen(bodyPos, constants.ScreenWidth, constants.ScreenHeight)
 		radius := camera.RadiusToScreen(body.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
@@ -57,8 +61,6 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 		switch body.GetType() {
 		case Models.CelestialBodyTypePlanet:
 			bodyColor = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White planet
-		case Models.CelestialBodyTypeBlackHole:
-			bodyColor = colors.BlackHoleBody
 		case Models.CelestialBodyTypeWhiteHole:
 			bodyColor = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White hole
 		case Models.CelestialBodyTypeAsteroid:
@@ -71,14 +73,45 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 			if planet, ok := body.(*Models.Planet); ok {
 				r.DrawPlanetWithFace(screen, model, planet)
 			}
-		case Models.CelestialBodyTypeBlackHole:
-			r.DrawBlackHoleWithFace(screen, model, bodyPos, body.GetRadius(), body.GetOrbitRadius(), bodyColor)
 		case Models.CelestialBodyTypeWhiteHole:
 			r.DrawWhiteHoleWithFace(screen, model, bodyPos, body.GetRadius(), body.GetOrbitRadius(), bodyColor)
 		default:
 			// Fallback to simple circle for other body types (like asteroids)
 			vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], radius, bodyColor, true)
 		}
+	}
+}
+
+// drawBlackHoles renders ONLY black holes with their orbits and faces
+func (r *Renderer) DrawBlackHoles(screen *ebiten.Image, model *Models.SpaceGame) {
+	camera := model.Camera
+
+	// First pass: draw black hole orbits
+	for _, body := range model.CelestialBodies {
+		// Only render black holes
+		if body.GetType() != Models.CelestialBodyTypeBlackHole {
+			continue
+		}
+
+		bodyPos := body.GetPosition()
+		screenPos := camera.WorldToScreen(bodyPos, constants.ScreenWidth, constants.ScreenHeight)
+		orbitColor := colors.BlackHoleOrbit
+		orbitRadius := camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
+
+		r.drawOrbitCircleWithReveal(screen, model, screenPos, orbitRadius, orbitColor)
+	}
+
+	// Second pass: draw black hole bodies with faces
+	for _, body := range model.CelestialBodies {
+		// Only render black holes
+		if body.GetType() != Models.CelestialBodyTypeBlackHole {
+			continue
+		}
+
+		bodyPos := body.GetPosition()
+		bodyColor := colors.BlackHoleBody
+
+		r.DrawBlackHoleWithFace(screen, model, bodyPos, body.GetRadius(), body.GetOrbitRadius(), bodyColor)
 	}
 }
 

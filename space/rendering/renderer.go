@@ -208,10 +208,10 @@ func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
 		// Clear the persistent intermediate buffer
 		r.intermediateBuffer.Clear()
 
-		// Render everything to intermediate buffer first
+		// Render everything to intermediate buffer first (EXCLUDING black holes)
 		r.drawNebulaBackground(r.intermediateBuffer, model)
 		r.renderShadows(r.intermediateBuffer, model)
-		r.drawCelestialBodies(r.intermediateBuffer, model)
+		r.drawCelestialBodies(r.intermediateBuffer, model) // Now excludes black holes
 		r.drawAsteroids(r.intermediateBuffer, model)
 		r.drawPlayerTrail(r.intermediateBuffer, model)
 		r.drawPlayer(r.intermediateBuffer, model)
@@ -222,6 +222,9 @@ func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
 		// Apply post-processing effect to final screen
 		blackHoles := r.getBlackHoles(model)
 		r.applySpiralOverlay(screen, r.intermediateBuffer, model, blackHoles)
+
+		// Draw black holes AFTER the spiral distortion effect
+		r.DrawBlackHoles(screen, model)
 	} else {
 		// No shader available, render directly
 		r.drawNebulaBackground(screen, model)
@@ -233,6 +236,8 @@ func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
 		r.drawTrajectoryArrow(screen, model)
 		r.drawBorderIndicators(screen, model)
 		r.drawFPS(screen)
+		// When no shader, still draw black holes normally
+		r.DrawBlackHoles(screen, model)
 	}
 }
 
