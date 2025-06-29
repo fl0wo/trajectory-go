@@ -23,6 +23,10 @@ const MouthRadius = 0.028
 const MouthArcRadius = 0.048
 const MouthArcCos = 0.15
 
+// Spiral distortion parameters
+const SpiralStrength = 2.0  // Controls the intensity of the spiral twist
+const SpiralTightness = 1.0 // Controls how tightly the spiral wraps
+
 // Uniforms
 var PlayerPos vec2
 var BlackHolePos vec2
@@ -51,10 +55,45 @@ func toLocal(dstPos vec4) vec2 {
 	return (world - BlackHolePos) / rSafe
 }
 
+// applySpiralDistortion: applies a spiral distortion effect centered at the origin
+func applySpiralDistortion(p vec2, orbitRadius float) vec2 {
+	// Convert to polar coordinates
+	r := length(p)
+	theta := 0.0
+	if abs(p.x) > 0.0001 {
+		theta = atan(p.y / p.x)
+		// Correct quadrant
+		if p.x < 0.0 {
+			theta += 3.1415926535 // Add π for quadrants 2 and 3
+		}
+	} else {
+		// Handle x ≈ 0
+		if p.y > 0.0 {
+			theta = 1.5707963268 // π/2
+		} else if p.y < 0.0 {
+			theta = -1.5707963268 // -π/2
+		}
+	}
+
+	// Normalize radius relative to BlackHoleOrbitRadius
+	normalizedR := clamp(r/orbitRadius, 0.0, 1.0)
+
+	// Apply rotation based on radius and time for dynamic effect
+	rotation := SpiralStrength * (1.0 - normalizedR) * SpiralTightness
+	theta += rotation * sin(Time*0.5) // Optional: time-based animation
+
+	// Convert back to Cartesian coordinates
+	return vec2(cos(theta), sin(theta)) * r
+}
+
 func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 	// 1) Into local coords & flip 180°
 	p := toLocal(dstPos)
 	p = -p
+
+	// 1.5) Apply spiral distortion
+	orbitRadius := max(0.0001, BlackHoleOrbitRadius/max(0.0001, min(Radius, 1.0)))
+	p = applySpiralDistortion(p, orbitRadius)
 
 	// 2) AA‐alpha for the black‐hole circle
 	dBH := length(p)
