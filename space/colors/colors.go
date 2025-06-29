@@ -22,7 +22,7 @@ var (
 
 	// BlackHoleBody Black hole colors
 	BlackHoleBody  = color.RGBA{R: 255, G: 0, B: 0, A: 255} // Transparent red
-	BlackHoleOrbit = color.RGBA{R: 0, G: 0, B: 0, A: 255}   // Black
+	BlackHoleOrbit = util.RGBAColor(0, 0, 0, 0)             // Black
 
 	// WhiteHoleBody White hole colors
 	WhiteHoleBody  = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White
