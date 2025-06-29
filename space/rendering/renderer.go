@@ -3,7 +3,6 @@ package rendering
 import (
 	"bytes"
 	_ "embed"
-	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
@@ -270,22 +269,31 @@ func (r *Renderer) applySpiralOverlay(
 			numBH = 3
 		}
 
-		uniforms := map[string]any{
-			"NumBlackHoles": numBH,
-			"Time":          t,
-		}
+		// Prepare arrays for shader uniforms
+		bhPositions := make([]float32, 6)  // x1,y1, x2,y2, x3,y3
+		orbitRadii := make([]float32, 3)   // radius1, radius2, radius3
+		strengths := make([]float32, 3)    // strength1, strength2, strength3
 
-		// Process up to 3 black holes
+		// Fill arrays with black hole data
 		for i := 0; i < numBH; i++ {
 			bh := blackHoles[i]
 			c := model.Camera.WorldToScreen(bh.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
 			orbitRadius := model.Camera.RadiusToScreen(bh.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
 
-			// Add uniforms for this black hole (1-indexed for shader)
-			bhIndex := i + 1
-			uniforms[fmt.Sprintf("BHPos%d", bhIndex)] = []float32{c[0], c[1]}
-			uniforms[fmt.Sprintf("OrbitRadius%d", bhIndex)] = orbitRadius
-			uniforms[fmt.Sprintf("Strength%d", bhIndex)] = float32(0.68) // strength for each black hole
+			// Store position as x,y pairs in flattened array
+			bhPositions[i*2] = c[0]     // x
+			bhPositions[i*2+1] = c[1]   // y
+			
+			orbitRadii[i] = orbitRadius
+			strengths[i] = float32(0.68) // strength for each black hole
+		}
+
+		uniforms := map[string]any{
+			"NumBlackHoles": numBH,
+			"Time":          t,
+			"BHPositions":   bhPositions,
+			"OrbitRadii":    orbitRadii,
+			"Strengths":     strengths,
 		}
 
 		opts := &ebiten.DrawRectShaderOptions{

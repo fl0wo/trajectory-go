@@ -11,20 +11,10 @@ package main
 var Time float        // (unused here, but you can animate Strength if you like)
 var NumBlackHoles int // number of active black holes (0-3)
 
-// Black hole 1
-var BHPos1 vec2        // black-hole center in pixels
-var OrbitRadius1 float // effect OrbitRadius in pixels
-var Strength1 float    // [0…1] how strongly to pull at the core (1.0 = full collapse)
-
-// Black hole 2
-var BHPos2 vec2        // black-hole center in pixels
-var OrbitRadius2 float // effect OrbitRadius in pixels
-var Strength2 float    // [0…1] how strongly to pull at the core (1.0 = full collapse)
-
-// Black hole 3
-var BHPos3 vec2        // black-hole center in pixels
-var OrbitRadius3 float // effect OrbitRadius in pixels
-var Strength3 float    // [0…1] how strongly to pull at the core (1.0 = full collapse)
+// Arrays for up to 3 black holes (6 floats for positions, 3 for radii, 3 for strengths)
+var BHPositions [6]float    // x1,y1, x2,y2, x3,y3 
+var OrbitRadii [3]float     // radius1, radius2, radius3
+var Strengths [3]float      // strength1, strength2, strength3
 
 func applyBlackHoleDistortion(srcPos vec2, bhPos vec2, orbitRadius float, strength float) vec2 {
 	// vector from center → this pixel
@@ -53,15 +43,19 @@ func Fragment(dstPos vec4, srcPos vec2, _ vec4) vec4 {
 	// Start with the original position
 	samplePos := srcPos
 
-	// Apply up to 3 black hole distortions sequentially
-	if NumBlackHoles >= 1 {
-		samplePos = applyBlackHoleDistortion(samplePos, BHPos1, OrbitRadius1, Strength1)
-	}
-	if NumBlackHoles >= 2 {
-		samplePos = applyBlackHoleDistortion(samplePos, BHPos2, OrbitRadius2, Strength2)
-	}
-	if NumBlackHoles >= 3 {
-		samplePos = applyBlackHoleDistortion(samplePos, BHPos3, OrbitRadius3, Strength3)
+	// Apply black hole distortions using constant loop with early break
+	// This is more flexible than separate if statements for each black hole
+	for i := 0; i < 3; i++ {
+		if i >= NumBlackHoles {
+			break
+		}
+		
+		// Extract position from flattened array (x,y pairs)
+		bhPos := vec2(BHPositions[i*2], BHPositions[i*2+1])
+		orbitRadius := OrbitRadii[i]
+		strength := Strengths[i]
+		
+		samplePos = applyBlackHoleDistortion(samplePos, bhPos, orbitRadius, strength)
 	}
 
 	// Sample from the final distorted position
