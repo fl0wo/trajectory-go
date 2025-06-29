@@ -281,7 +281,7 @@ var PredefinedLevels = map[int]*Level{
 	),
 
 	9: NewLevel("Level 9 - Grand Finale",
-		f32.Vec2{0.1, 0.5},
+		f32.Vec2{0.2, 0.5},
 		[]CelestialBody{
 			&Planet{
 				Name:        "Guard 1",
