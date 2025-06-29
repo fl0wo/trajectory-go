@@ -1,6 +1,9 @@
 package Models
 
-import "golang.org/x/image/math/f32"
+import (
+	"golang.org/x/image/math/f32"
+	"image/color"
+)
 
 type Planet struct {
 	Name     string
@@ -13,6 +16,12 @@ type Planet struct {
 
 	// Image asset path for rendering
 	ImagePath string
+
+	// Base color for lava effect
+	BaseColor color.RGBA
+
+	// Random seed for lava animation
+	Seed float32
 }
 
 func (p *Planet) GetPosition() f32.Vec2 {

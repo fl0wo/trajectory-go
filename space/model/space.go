@@ -4,6 +4,7 @@ import (
 	"github.com/you/trajectory/constants"
 	"github.com/you/trajectory/space/resources"
 	"golang.org/x/image/math/f32"
+	"image/color"
 	"math"
 	"math/rand"
 )
@@ -560,6 +561,8 @@ func randomCelestialBodies(numBodies int, margin float32) []CelestialBody {
 				Mass:        mass, // scale mass for planets
 				Radius:      radius,
 				OrbitRadius: radius * 3.0, // orbit radius is 3x the planet radius
+				BaseColor:   color.RGBA{R: uint8(180 + rand.Intn(75)), G: uint8(60 + rand.Intn(40)), B: uint8(10 + rand.Intn(30)), A: 255},
+				Seed:        rand.Float32() * 100.0,
 			}
 		} else {
 			// Blackholes are typically more massive and have larger orbit radius
@@ -604,6 +607,8 @@ func randomPlanets(numPlanets int, margin float32) []Planet {
 
 			Radius:      radius,
 			OrbitRadius: radius * 3.0, // orbit radius is 3x the planet radius
+			BaseColor:   color.RGBA{R: uint8(180 + rand.Intn(75)), G: uint8(60 + rand.Intn(40)), B: uint8(10 + rand.Intn(30)), A: 255},
+			Seed:        rand.Float32() * 100.0,
 		}
 	}
 	return planets

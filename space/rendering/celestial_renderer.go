@@ -68,7 +68,9 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 		// Use appropriate face shader for each celestial body type
 		switch body.GetType() {
 		case Models.CelestialBodyTypePlanet:
-			r.DrawPlanetWithFace(screen, model, bodyPos, body.GetRadius(), body.GetOrbitRadius(), bodyColor)
+			if planet, ok := body.(*Models.Planet); ok {
+				r.DrawPlanetWithFace(screen, model, planet)
+			}
 		case Models.CelestialBodyTypeBlackHole:
 			r.DrawBlackHoleWithFace(screen, model, bodyPos, body.GetRadius(), body.GetOrbitRadius(), bodyColor)
 		case Models.CelestialBodyTypeWhiteHole:
@@ -80,10 +82,10 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 	}
 }
 
-func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceGame, planetPos f32.Vec2, worldRadius float32, worldOrbitRadius float32, planetColor color.RGBA) {
-	screenPos := model.Camera.WorldToScreen(planetPos, constants.ScreenWidth, constants.ScreenHeight)
-	screenRadius := worldRadius * model.Camera.GetTotalZoom() * float32(constants.ScreenHeight)
-	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], screenRadius, planetColor, true)
+func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceGame, planet *Models.Planet) {
+	screenPos := model.Camera.WorldToScreen(planet.Position, constants.ScreenWidth, constants.ScreenHeight)
+	screenRadius := planet.Radius * model.Camera.GetTotalZoom() * float32(constants.ScreenHeight)
+	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], screenRadius, planet.BaseColor, true)
 
 	if r.planetShader == nil {
 		return
@@ -96,14 +98,16 @@ func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceG
 
 	uniforms := map[string]any{
 		"PlayerPos":         []float32{model.Player.Position[0], model.Player.Position[1]},
-		"PlanetPos":         []float32{planetPos[0], planetPos[1]},
-		"PlanetOrbitRadius": worldOrbitRadius,
-		"PlanetColor":       []float32{float32(planetColor.R), float32(planetColor.G), float32(planetColor.B), float32(planetColor.A)},
+		"PlanetPos":         []float32{planet.Position[0], planet.Position[1]},
+		"PlanetOrbitRadius": planet.OrbitRadius,
+		"PlanetColor":       []float32{float32(planet.BaseColor.R), float32(planet.BaseColor.G), float32(planet.BaseColor.B), float32(planet.BaseColor.A)},
 		"CameraPos":         []float32{model.Camera.Position[0], model.Camera.Position[1]},
 		"Zoom":              zoom,
-		"Radius":            worldRadius,
+		"Radius":            planet.Radius,
 		"Time":              t,
 		"ScreenSize":        []float32{sw, sh},
+		"BaseColor":         []float32{float32(planet.BaseColor.R)/255.0, float32(planet.BaseColor.G)/255.0, float32(planet.BaseColor.B)/255.0},
+		"Seed":              planet.Seed,
 	}
 
 	// Draw directly to screen using the shader - no intermediate texture needed
