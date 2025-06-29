@@ -12,9 +12,38 @@ var MaxDistance float  // Maximum light distance
 var Zoom float         // Camera zoom factor
 var OriginalColor vec4 // The original color of the dash
 
+// Current orbit circle being rendered
+var CircleCenter vec2
+var CircleRadius float
+
+// All other orbit circles for overlap detection (up to 10 celestial bodies)
+var NumOtherOrbits int          // number of other orbits to check (0-10)
+var OtherOrbitCenters [20]float // x1,y1, x2,y2, ... (up to 10 orbits)
+var OtherOrbitRadii [10]float   // radius1, radius2, ... (up to 10 orbits)
+
 func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 	// Get pixel position relative to screen origin (same as shadow system)
 	pos := dstPos.xy - imageDstOrigin()
+
+	// Check if pixel is inside any other orbit
+	for i := 0; i < 10; i++ {
+		if i >= NumOtherOrbits {
+			break // No more orbits to check
+		}
+		// Get the center of the i-th other orbit
+		centerX := OtherOrbitCenters[i*2]
+		centerY := OtherOrbitCenters[i*2+1]
+		otherCenter := vec2(centerX, centerY)
+		otherRadius := OtherOrbitRadii[i]
+
+		// Calculate distance from current pixel to the center of the other orbit
+		distanceToOther := length(pos - otherCenter)
+
+		// If the pixel is inside another orbit's radius, discard it
+		if distanceToOther <= otherRadius {
+			discard()
+		}
+	}
 
 	// Vector from light position to current pixel
 	lightToPixel := pos - LightPos

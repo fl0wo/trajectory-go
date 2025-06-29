@@ -82,7 +82,7 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 	}
 }
 
-// drawBlackHoles renders ONLY black holes with their orbits and faces
+// DrawBlackHoles renders ONLY black holes with their orbits and faces
 func (r *Renderer) DrawBlackHoles(screen *ebiten.Image, model *Models.SpaceGame) {
 	camera := model.Camera
 
@@ -166,6 +166,36 @@ func (r *Renderer) DrawBlackHoleWithFace(screen *ebiten.Image, model *Models.Spa
 	zoom := model.Camera.GetTotalZoom()
 	t := float32(time.Since(r.startTime).Seconds())
 
+	// Collect all other celestial body orbit information for overlap detection
+	camera := model.Camera
+	otherOrbitCenters := make([]float32, 20) // up to 10 orbits * 2 coords
+	otherOrbitRadii := make([]float32, 10)   // up to 10 orbits
+	numOtherOrbits := 0
+
+	// Gather all celestial body orbits except the current black hole
+	for _, body := range model.CelestialBodies {
+		if numOtherOrbits >= 10 {
+			break // Limit to 10 orbits for performance
+		}
+
+		bodyPos := body.GetPosition()
+		bodyScreenPos := camera.WorldToScreen(bodyPos, constants.ScreenWidth, constants.ScreenHeight)
+		bodyOrbitRadius := camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
+
+		// Skip the current black hole we're rendering (avoid self-comparison)
+		if math.Abs(float64(bodyScreenPos[0]-screenPos[0])) < 5.0 &&
+			math.Abs(float64(bodyScreenPos[1]-screenPos[1])) < 5.0 &&
+			math.Abs(float64(bodyOrbitRadius-camera.RadiusToScreen(worldOrbitRadius, constants.ScreenWidth, constants.ScreenHeight))) < 5.0 {
+			continue
+		}
+
+		// Add this orbit to the list
+		otherOrbitCenters[numOtherOrbits*2] = bodyScreenPos[0]   // x
+		otherOrbitCenters[numOtherOrbits*2+1] = bodyScreenPos[1] // y
+		otherOrbitRadii[numOtherOrbits] = bodyOrbitRadius
+		numOtherOrbits++
+	}
+
 	uniforms := map[string]any{
 		"PlayerPos":            []float32{model.Player.Position[0], model.Player.Position[1]},
 		"BlackHolePos":         []float32{blackHolePos[0], blackHolePos[1]},
@@ -175,6 +205,10 @@ func (r *Renderer) DrawBlackHoleWithFace(screen *ebiten.Image, model *Models.Spa
 		"Radius":               worldRadius,
 		"Time":                 t,
 		"ScreenSize":           []float32{sw, sh},
+		// Orbit overlap detection uniforms
+		"NumOtherOrbits":    numOtherOrbits,
+		"OtherOrbitCenters": otherOrbitCenters,
+		"OtherOrbitRadii":   otherOrbitRadii,
 	}
 
 	// Draw directly to screen using the shader - no intermediate texture needed
@@ -309,6 +343,43 @@ func (r *Renderer) drawOrbitCircleWithLight(screen *ebiten.Image, model *Models.
 
 		fov := r.getAdaptiveFov(lightDirection, lightPos)
 
+		// Collect all other celestial body orbit information for overlap detection
+		otherOrbitCenters := make([]float32, 20) // up to 10 orbits * 2 coords
+		otherOrbitRadii := make([]float32, 10)   // up to 10 orbits
+		numOtherOrbits := 0
+
+		// Gather all celestial body orbits except the current one
+		for _, body := range model.CelestialBodies {
+			if numOtherOrbits >= 10 {
+				break // Limit to 10 orbits for performance
+			}
+
+			bodyPos := body.GetPosition()
+			bodyScreenPos := camera.WorldToScreen(bodyPos, constants.ScreenWidth, constants.ScreenHeight)
+			bodyOrbitRadius := camera.RadiusToScreen(body.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
+
+			// Debug: Print data for troubleshooting
+			// fmt.Printf("DEBUG: Body at (%f,%f) with radius %f vs current (%f,%f) with radius %f\n",
+			//     bodyScreenPos[0], bodyScreenPos[1], bodyOrbitRadius, center[0], center[1], radius)
+
+			// Skip the current orbit circle we're rendering (avoid self-comparison)
+			// Use more generous tolerance to avoid excluding valid orbits
+			if math.Abs(float64(bodyScreenPos[0]-center[0])) < 5.0 &&
+				math.Abs(float64(bodyScreenPos[1]-center[1])) < 5.0 &&
+				math.Abs(float64(bodyOrbitRadius-radius)) < 5.0 {
+				// fmt.Printf("DEBUG: Skipping self-orbit\n")
+				continue
+			}
+
+			// Add this orbit to the list
+			otherOrbitCenters[numOtherOrbits*2] = bodyScreenPos[0]   // x
+			otherOrbitCenters[numOtherOrbits*2+1] = bodyScreenPos[1] // y
+			otherOrbitRadii[numOtherOrbits] = bodyOrbitRadius
+			numOtherOrbits++
+			// fmt.Printf("DEBUG: Added other orbit %d at (%f,%f) with radius %f\n",
+			//     numOtherOrbits-1, bodyScreenPos[0], bodyScreenPos[1], bodyOrbitRadius)
+		}
+
 		// Prepare shader uniforms
 		uniforms := map[string]any{
 			"LightPos":       []float32{lightPos[0], lightPos[1]},
@@ -326,6 +397,10 @@ func (r *Renderer) drawOrbitCircleWithLight(screen *ebiten.Image, model *Models.
 			"RotationDirection": float32(1.0), // Counterclockwise rotation
 			"CircleCenter":      []float32{center[0], center[1]},
 			"CircleRadius":      radius,
+			// Overlap detection uniforms
+			"NumOtherOrbits":    numOtherOrbits,
+			"OtherOrbitCenters": otherOrbitCenters,
+			"OtherOrbitRadii":   otherOrbitRadii,
 		}
 
 		// Use shader-enabled dashed circle
