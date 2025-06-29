@@ -84,7 +84,7 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 
 func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceGame, planet *Models.Planet) {
 	screenPos := model.Camera.WorldToScreen(planet.Position, constants.ScreenWidth, constants.ScreenHeight)
-	screenRadius := planet.Radius * model.Camera.GetTotalZoom() * float32(constants.ScreenHeight)
+	screenRadius := planet.GetRadius() * model.Camera.GetTotalZoom() * float32(constants.ScreenHeight)
 	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], screenRadius, planet.BaseColor, true)
 
 	if r.planetShader == nil {
@@ -103,10 +103,10 @@ func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceG
 		"PlanetColor":       []float32{float32(planet.BaseColor.R), float32(planet.BaseColor.G), float32(planet.BaseColor.B), float32(planet.BaseColor.A)},
 		"CameraPos":         []float32{model.Camera.Position[0], model.Camera.Position[1]},
 		"Zoom":              zoom,
-		"Radius":            planet.Radius,
+		"Radius":            planet.GetRadius(),
 		"Time":              t,
 		"ScreenSize":        []float32{sw, sh},
-		"BaseColor":         []float32{float32(planet.BaseColor.R)/255.0, float32(planet.BaseColor.G)/255.0, float32(planet.BaseColor.B)/255.0},
+		"BaseColor":         []float32{float32(planet.BaseColor.R) / 255.0, float32(planet.BaseColor.G) / 255.0, float32(planet.BaseColor.B) / 255.0},
 		"Seed":              planet.Seed,
 	}
 

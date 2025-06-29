@@ -144,22 +144,20 @@ func (p *Player) ApplyGravitationalForce(body CelestialBody) {
 
 // CheckCollisionWithCelestialBody tests collision with any celestial body using squared radius test
 func (p *Player) CheckCollisionWithCelestialBody(body CelestialBody) bool {
+
+	bodyRadius := body.GetRadius()
+
+	// if it's a black-hole needs the center to be inside the player radius
+	if body.GetType() == CelestialBodyTypeBlackHole {
+		bodyRadius /= 2.0 // Black holes are rendered with half radius
+	}
+
 	bodyPos := body.GetPosition()
 	dx := bodyPos[0] - p.Position[0]
 	dy := bodyPos[1] - p.Position[1]
 	distSq := dx*dx + dy*dy
 
-	r := body.GetRadius() + p.Radius
-	return distSq <= r*r
-}
-
-// CheckCollisionWithPlanet is now just a squared‐radius test:
-func (p *Player) CheckCollisionWithPlanet(planet Planet) bool {
-	dx := planet.Position[0] - p.Position[0]
-	dy := planet.Position[1] - p.Position[1]
-	distSq := dx*dx + dy*dy
-
-	r := planet.Radius + p.Radius
+	r := bodyRadius + p.Radius
 	return distSq <= r*r
 }
 

@@ -2,26 +2,41 @@
 //go:build ignore
 // +build ignore
 
-// **pixel mode**: dstPos and srcPos are in raw pixels
-// address clamp-to-edge so unsafe sampler will clamp
-// filter linear for smooth interpolation
-// unit pixels
-// kage:unit pixels
-// kage:filter linear
-// kage:address clamp-to-edge
+//kage:unit pixels
+//kage:filter linear
+//kage:address clamp-to-edge
 
 package main
 
-var Time float     // seconds since start
-var BHPos vec2     // black-hole center, in pixels
-var Radius float   // effect radius, in pixels
-var Strength float // max twist (radians) at r=0
+var Time float        // (unused here, but you can animate Strength if you like)
+var BHPos vec2        // black-hole center in pixels
+var OrbitRadius float // effect OrbitRadius in pixels
+var Strength float    // [0…1] how strongly to pull at the core (1.0 = full collapse)
 
 func Fragment(dstPos vec4, srcPos vec2, _ vec4) vec4 {
-	// Get the original pixel color
-	originalColor := imageSrc0At(srcPos)
-	
-	// Apply a red tint to the entire screen for testing
-	// Increase red channel by 0.3, keep other channels as is
-	return vec4(originalColor.r + 0.3, originalColor.g, originalColor.b, originalColor.a)
+	// original pixel
+	col := imageSrc0At(srcPos)
+
+	// vector from center → this pixel
+	delta := srcPos - BHPos
+	d := length(delta)
+
+	if d < OrbitRadius {
+		// falloff: 1.0 at center → 0.0 at OrbitRadius
+		falloff := smoothstep(OrbitRadius, 0.0, d)
+
+		// compute how far to pull:
+		// `Strength` is a fraction [0…1], so at the center
+		// we pull full `Strength`, and at the edge none.
+		pullFactor := falloff * Strength
+
+		// new sample position: move srcPos toward BHPos by that fraction
+		// i.e. samplePos = mix(srcPos, BHPos, pullFactor)
+		samplePos := BHPos + delta*(1.0-pullFactor)
+
+		return imageSrc0UnsafeAt(samplePos)
+	}
+
+	// outside the circle → unchanged
+	return col
 }

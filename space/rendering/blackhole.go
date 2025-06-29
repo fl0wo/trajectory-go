@@ -91,6 +91,9 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 	p := toLocal(dstPos)
 	p = -p
 
+	// check the .GetRadius() method of CelestialBodies with type blackhole
+	// Radius *= 2.0
+
 	// 1.5) Apply spiral distortion
 	orbitRadius := max(0.0001, BlackHoleOrbitRadius/max(0.0001, min(Radius, 1.0)))
 	p = applySpiralDistortion(p, orbitRadius)

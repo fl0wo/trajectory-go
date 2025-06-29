@@ -253,37 +253,40 @@ func (r *Renderer) applySpiralOverlay(
 	model *Models.SpaceGame,
 	blackHoles []*Models.BlackHole,
 ) {
-	// Default values for testing - these don't matter since we're just applying red tint
-	centerX := float32(constants.ScreenWidth / 2)
-	centerY := float32(constants.ScreenHeight / 2)
-	radius := float32(100)
 
 	// If there are black holes, use the first one
 	if len(blackHoles) > 0 {
+
 		bh := blackHoles[0]
 		c := model.Camera.WorldToScreen(bh.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
-		centerX = c[0]
-		centerY = c[1]
-		radius = model.Camera.RadiusToScreen(bh.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
+		centerX := c[0]
+		centerY := c[1]
+		orbitRadius := model.Camera.RadiusToScreen(bh.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
+		bhRadius := model.Camera.RadiusToScreen(bh.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
+
+		// elapsed time
+		t := float32(time.Since(r.startTime).Seconds())
+
+		uniforms := map[string]any{
+			"BHPos":       []float32{centerX, centerY},
+			"OrbitRadius": orbitRadius,
+			"BHRadius":    bhRadius * 1.02, // extra border to avoid clipping
+			"Time":        t,
+			"Strength":    float32(0.68), // 2π radians at center
+		}
+
+		opts := &ebiten.DrawRectShaderOptions{
+			Uniforms: uniforms,
+		}
+		opts.Images[0] = source
+
+		// draw full-screen quad with our pixel-mode shader
+		screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.spiralDistortionShader, opts)
+	} else {
+		// No black holes, just draw the source directly
+		screen.DrawImage(source, nil)
 	}
 
-	// elapsed time
-	t := float32(time.Since(r.startTime).Seconds())
-
-	uniforms := map[string]any{
-		"BHPos":    []float32{centerX, centerY},
-		"Radius":   radius,
-		"Time":     t,
-		"Strength": float32(6.28), // 2π radians at center
-	}
-
-	opts := &ebiten.DrawRectShaderOptions{
-		Uniforms: uniforms,
-	}
-	opts.Images[0] = source
-
-	// draw full-screen quad with our pixel-mode shader
-	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.spiralDistortionShader, opts)
 }
 
 // renderShadows handles shadow rendering
