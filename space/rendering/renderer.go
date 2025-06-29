@@ -3,6 +3,7 @@ package rendering
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
@@ -258,26 +259,33 @@ func (r *Renderer) applySpiralOverlay(
 	model *Models.SpaceGame,
 	blackHoles []*Models.BlackHole,
 ) {
-
-	// If there are black holes, use the first one
+	// If there are black holes, apply distortion for up to 3 of them
 	if len(blackHoles) > 0 {
-
-		bh := blackHoles[0]
-		c := model.Camera.WorldToScreen(bh.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
-		centerX := c[0]
-		centerY := c[1]
-		orbitRadius := model.Camera.RadiusToScreen(bh.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
-		bhRadius := model.Camera.RadiusToScreen(bh.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
-
 		// elapsed time
 		t := float32(time.Since(r.startTime).Seconds())
 
+		// Determine how many black holes to process (max 3)
+		numBH := len(blackHoles)
+		if numBH > 3 {
+			numBH = 3
+		}
+
 		uniforms := map[string]any{
-			"BHPos":       []float32{centerX, centerY},
-			"OrbitRadius": orbitRadius,
-			"BHRadius":    bhRadius * 1.02, // extra border to avoid clipping
-			"Time":        t,
-			"Strength":    float32(0.68), // 2π radians at center
+			"NumBlackHoles": numBH,
+			"Time":          t,
+		}
+
+		// Process up to 3 black holes
+		for i := 0; i < numBH; i++ {
+			bh := blackHoles[i]
+			c := model.Camera.WorldToScreen(bh.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
+			orbitRadius := model.Camera.RadiusToScreen(bh.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
+
+			// Add uniforms for this black hole (1-indexed for shader)
+			bhIndex := i + 1
+			uniforms[fmt.Sprintf("BHPos%d", bhIndex)] = []float32{c[0], c[1]}
+			uniforms[fmt.Sprintf("OrbitRadius%d", bhIndex)] = orbitRadius
+			uniforms[fmt.Sprintf("Strength%d", bhIndex)] = float32(0.68) // strength for each black hole
 		}
 
 		opts := &ebiten.DrawRectShaderOptions{
@@ -291,7 +299,6 @@ func (r *Renderer) applySpiralOverlay(
 		// No black holes, just draw the source directly
 		screen.DrawImage(source, nil)
 	}
-
 }
 
 // renderShadows handles shadow rendering
