@@ -93,7 +93,8 @@ type Renderer struct {
 	whiteHoleShader        *ebiten.Shader
 	spiralDistortionShader *ebiten.Shader
 	whiteTexture           *ebiten.Image
-	startTime              time.Time // Game start time for shader animations
+	intermediateBuffer     *ebiten.Image // Persistent buffer for post-processing
+	startTime              time.Time     // Game start time for shader animations
 }
 
 // NewRenderer creates a new renderer instance
@@ -178,6 +179,9 @@ func NewRenderer() *Renderer {
 	whiteTexture := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
 	whiteTexture.Fill(color.White)
 
+	// Create persistent intermediate buffer for post-processing
+	intermediateBuffer := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
+
 	return &Renderer{
 		shadowSystem:           shadows.NewShadowSystem(constants.ScreenWidth, constants.ScreenHeight),
 		orbitShader:            orbitShader,
@@ -192,34 +196,34 @@ func NewRenderer() *Renderer {
 		whiteHoleShader:        whiteHoleShaderObj,
 		spiralDistortionShader: spiralDistortionShaderObj,
 		whiteTexture:           whiteTexture,
+		intermediateBuffer:     intermediateBuffer,
 		startTime:              time.Now(), // Initialize start time for shader animations
 	}
 }
 
 // Draw renders the complete game scene with spiral distortion
 func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
-	// Check if there are any black holes for distortion effect
-	blackHoles := r.getBlackHoles(model)
+	// For testing, always apply the shader (remove this condition later)
+	if r.spiralDistortionShader != nil {
+		// Clear the persistent intermediate buffer
+		r.intermediateBuffer.Clear()
 
-	if len(blackHoles) > 0 && r.spiralDistortionShader != nil {
-		// Render to intermediate buffer for post-processing
-		intermediateBuffer := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
+		// Render everything to intermediate buffer first
+		r.drawNebulaBackground(r.intermediateBuffer, model)
+		r.renderShadows(r.intermediateBuffer, model)
+		r.drawCelestialBodies(r.intermediateBuffer, model)
+		r.drawAsteroids(r.intermediateBuffer, model)
+		r.drawPlayerTrail(r.intermediateBuffer, model)
+		r.drawPlayer(r.intermediateBuffer, model)
+		r.drawTrajectoryArrow(r.intermediateBuffer, model)
+		r.drawBorderIndicators(r.intermediateBuffer, model)
+		r.drawFPS(r.intermediateBuffer)
 
-		// Draw all scene elements to intermediate buffer
-		r.drawNebulaBackground(intermediateBuffer, model)
-		r.renderShadows(intermediateBuffer, model)
-		r.drawCelestialBodies(intermediateBuffer, model)
-		r.drawAsteroids(intermediateBuffer, model)
-		r.drawPlayerTrail(intermediateBuffer, model)
-		r.drawPlayer(intermediateBuffer, model)
-		r.drawTrajectoryArrow(intermediateBuffer, model)
-		r.drawBorderIndicators(intermediateBuffer, model)
-		r.drawFPS(intermediateBuffer)
-
-		// Apply spiral distortion as post-processing effect
-		r.applySpiralOverlay(screen, intermediateBuffer, model, blackHoles)
+		// Apply post-processing effect to final screen
+		blackHoles := r.getBlackHoles(model)
+		r.applySpiralOverlay(screen, r.intermediateBuffer, model, blackHoles)
 	} else {
-		// No black holes or shader not available, render directly
+		// No shader available, render directly
 		r.drawNebulaBackground(screen, model)
 		r.renderShadows(screen, model)
 		r.drawCelestialBodies(screen, model)
@@ -242,45 +246,43 @@ func (r *Renderer) getBlackHoles(model *Models.SpaceGame) []*Models.BlackHole {
 	}
 	return blackHoles
 }
+
 func (r *Renderer) applySpiralOverlay(
 	screen *ebiten.Image,
-	source *ebiten.Image, // ← your fully-rendered world
+	source *ebiten.Image,
 	model *Models.SpaceGame,
 	blackHoles []*Models.BlackHole,
 ) {
-	if r.spiralDistortionShader == nil {
-		return
-	}
+	// Default values for testing - these don't matter since we're just applying red tint
+	centerX := float32(constants.ScreenWidth / 2)
+	centerY := float32(constants.ScreenHeight / 2)
+	radius := float32(100)
 
-	// pick your first BH
-	var bx, by, orbitR float32
+	// If there are black holes, use the first one
 	if len(blackHoles) > 0 {
 		bh := blackHoles[0]
-		bx, by = bh.Position[0], bh.Position[1]
-		orbitR = bh.OrbitRadius
+		c := model.Camera.WorldToScreen(bh.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
+		centerX = c[0]
+		centerY = c[1]
+		radius = model.Camera.RadiusToScreen(bh.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
 	}
 
-	sw, sh := float32(constants.ScreenWidth), float32(constants.ScreenHeight)
-	zoom := model.Camera.GetTotalZoom()
+	// elapsed time
 	t := float32(time.Since(r.startTime).Seconds())
 
 	uniforms := map[string]any{
-		"ScreenSize":        []float32{sw, sh},
-		"CameraPos":         []float32{model.Camera.Position[0], model.Camera.Position[1]},
-		"Zoom":              zoom,
-		"Time":              t,
-		"BlackHolePosition": []float32{bx, by},
-		"OrbitRadius":       orbitR,
-		"Strength":          float32(6.28), // 2π radians at center
+		"BHPos":    []float32{centerX, centerY},
+		"Radius":   radius,
+		"Time":     t,
+		"Strength": float32(6.28), // 2π radians at center
 	}
 
 	opts := &ebiten.DrawRectShaderOptions{
-		// SourceOver blending will draw only where alpha>0
-		//CompositeMode: ebiten.CompositeModeCustom,
-		//Blend:         ebiten.BlendSourceOver,
 		Uniforms: uniforms,
 	}
 	opts.Images[0] = source
+
+	// draw full-screen quad with our pixel-mode shader
 	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.spiralDistortionShader, opts)
 }
 
