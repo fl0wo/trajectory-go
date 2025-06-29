@@ -45,6 +45,9 @@ var blackHoleShader []byte
 //go:embed whitehole.go
 var whiteHoleShader []byte
 
+//go:embed spiral_distortion.go
+var spiralDistortionShader []byte
+
 var (
 	mplusFaceSource *text.GoTextFaceSource
 )
@@ -61,6 +64,14 @@ const (
 	fovLight = 90.0
 )
 
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 const (
 	baseArm       = float32(8) // half-length of each arm by default
 	stretchFactor = float32(1) // how much longer the interior arms get
@@ -69,19 +80,20 @@ const (
 
 // Renderer handles all rendering operations for the game
 type Renderer struct {
-	shadowSystem          *shadows.ShadowSystem
-	orbitShader           *ebiten.Shader
-	playerTrailShader     *ebiten.Shader
-	trajectoryArrowShader *ebiten.Shader
-	nebulaShader          *ebiten.Shader
-	invertOnLightShader   *ebiten.Shader
-	revealOnLightShader   *ebiten.Shader
-	alienTrailShader      *ebiten.Shader
-	planetShader          *ebiten.Shader
-	blackHoleShader       *ebiten.Shader
-	whiteHoleShader       *ebiten.Shader
-	whiteTexture          *ebiten.Image
-	startTime             time.Time // Game start time for shader animations
+	shadowSystem           *shadows.ShadowSystem
+	orbitShader            *ebiten.Shader
+	playerTrailShader      *ebiten.Shader
+	trajectoryArrowShader  *ebiten.Shader
+	nebulaShader           *ebiten.Shader
+	invertOnLightShader    *ebiten.Shader
+	revealOnLightShader    *ebiten.Shader
+	alienTrailShader       *ebiten.Shader
+	planetShader           *ebiten.Shader
+	blackHoleShader        *ebiten.Shader
+	whiteHoleShader        *ebiten.Shader
+	spiralDistortionShader *ebiten.Shader
+	whiteTexture           *ebiten.Image
+	startTime              time.Time // Game start time for shader animations
 }
 
 // NewRenderer creates a new renderer instance
@@ -154,55 +166,122 @@ func NewRenderer() *Renderer {
 		log.Println("Failed to load white hole shader:", err)
 	}
 
+	// Initialize spiral distortion shader
+	var spiralDistortionShaderObj *ebiten.Shader
+	if shader, err := ebiten.NewShader(spiralDistortionShader); err == nil {
+		spiralDistortionShaderObj = shader
+	} else {
+		log.Println("Failed to load spiral distortion shader:", err)
+	}
+
 	// Create a white texture matching screen size for shaders that need a source image
 	whiteTexture := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
 	whiteTexture.Fill(color.White)
 
 	return &Renderer{
-		shadowSystem:          shadows.NewShadowSystem(constants.ScreenWidth, constants.ScreenHeight),
-		orbitShader:           orbitShader,
-		playerTrailShader:     playerTrailShaderObj,
-		trajectoryArrowShader: trajectoryArrowShaderObj,
-		nebulaShader:          nebulaShader,
-		invertOnLightShader:   invertOnLightShaderObj,
-		revealOnLightShader:   revealOnLightShaderObj,
-		alienTrailShader:      alienTrailShaderObj,
-		planetShader:          planetShaderObj,
-		blackHoleShader:       blackHoleShaderObj,
-		whiteHoleShader:       whiteHoleShaderObj,
-		whiteTexture:          whiteTexture,
-		startTime:             time.Now(), // Initialize start time for shader animations
+		shadowSystem:           shadows.NewShadowSystem(constants.ScreenWidth, constants.ScreenHeight),
+		orbitShader:            orbitShader,
+		playerTrailShader:      playerTrailShaderObj,
+		trajectoryArrowShader:  trajectoryArrowShaderObj,
+		nebulaShader:           nebulaShader,
+		invertOnLightShader:    invertOnLightShaderObj,
+		revealOnLightShader:    revealOnLightShaderObj,
+		alienTrailShader:       alienTrailShaderObj,
+		planetShader:           planetShaderObj,
+		blackHoleShader:        blackHoleShaderObj,
+		whiteHoleShader:        whiteHoleShaderObj,
+		spiralDistortionShader: spiralDistortionShaderObj,
+		whiteTexture:           whiteTexture,
+		startTime:              time.Now(), // Initialize start time for shader animations
 	}
 }
 
-// Draw renders the complete game scene
+// Draw renders the complete game scene with spiral distortion
 func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
-	// Draw dynamic nebula background
-	r.drawNebulaBackground(screen, model)
+	// Check if there are any black holes for distortion effect
+	blackHoles := r.getBlackHoles(model)
 
-	// Render shadows if enabled
-	r.renderShadows(screen, model)
+	if len(blackHoles) > 0 && r.spiralDistortionShader != nil {
+		// Render to intermediate buffer for post-processing
+		intermediateBuffer := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
 
-	// Draw celestial bodies
-	r.drawCelestialBodies(screen, model)
+		// Draw all scene elements to intermediate buffer
+		r.drawNebulaBackground(intermediateBuffer, model)
+		r.renderShadows(intermediateBuffer, model)
+		r.drawCelestialBodies(intermediateBuffer, model)
+		r.drawAsteroids(intermediateBuffer, model)
+		r.drawPlayerTrail(intermediateBuffer, model)
+		r.drawPlayer(intermediateBuffer, model)
+		r.drawTrajectoryArrow(intermediateBuffer, model)
+		r.drawBorderIndicators(intermediateBuffer, model)
+		r.drawFPS(intermediateBuffer)
 
-	// Draw asteroids
-	r.drawAsteroids(screen, model)
+		// Apply spiral distortion as post-processing effect
+		r.applySpiralOverlay(screen, intermediateBuffer, model, blackHoles)
+	} else {
+		// No black holes or shader not available, render directly
+		r.drawNebulaBackground(screen, model)
+		r.renderShadows(screen, model)
+		r.drawCelestialBodies(screen, model)
+		r.drawAsteroids(screen, model)
+		r.drawPlayerTrail(screen, model)
+		r.drawPlayer(screen, model)
+		r.drawTrajectoryArrow(screen, model)
+		r.drawBorderIndicators(screen, model)
+		r.drawFPS(screen)
+	}
+}
 
-	// Draw player trail
-	r.drawPlayerTrail(screen, model)
+// getBlackHoles extracts black holes from the celestial bodies
+func (r *Renderer) getBlackHoles(model *Models.SpaceGame) []*Models.BlackHole {
+	var blackHoles []*Models.BlackHole
+	for _, body := range model.CelestialBodies {
+		if blackHole, ok := body.(*Models.BlackHole); ok {
+			blackHoles = append(blackHoles, blackHole)
+		}
+	}
+	return blackHoles
+}
+func (r *Renderer) applySpiralOverlay(
+	screen *ebiten.Image,
+	source *ebiten.Image, // ← your fully-rendered world
+	model *Models.SpaceGame,
+	blackHoles []*Models.BlackHole,
+) {
+	if r.spiralDistortionShader == nil {
+		return
+	}
 
-	// Draw player
-	r.drawPlayer(screen, model)
+	// pick your first BH
+	var bx, by, orbitR float32
+	if len(blackHoles) > 0 {
+		bh := blackHoles[0]
+		bx, by = bh.Position[0], bh.Position[1]
+		orbitR = bh.OrbitRadius
+	}
 
-	// Draw trajectory arrow if dragging
-	r.drawTrajectoryArrow(screen, model)
+	sw, sh := float32(constants.ScreenWidth), float32(constants.ScreenHeight)
+	zoom := model.Camera.GetTotalZoom()
+	t := float32(time.Since(r.startTime).Seconds())
 
-	// Draw border indicators
-	r.drawBorderIndicators(screen, model)
+	uniforms := map[string]any{
+		"ScreenSize":        []float32{sw, sh},
+		"CameraPos":         []float32{model.Camera.Position[0], model.Camera.Position[1]},
+		"Zoom":              zoom,
+		"Time":              t,
+		"BlackHolePosition": []float32{bx, by},
+		"OrbitRadius":       orbitR,
+		"Strength":          float32(6.28), // 2π radians at center
+	}
 
-	// Draw FPS counter
-	r.drawFPS(screen)
+	opts := &ebiten.DrawRectShaderOptions{
+		// SourceOver blending will draw only where alpha>0
+		//CompositeMode: ebiten.CompositeModeCustom,
+		//Blend:         ebiten.BlendSourceOver,
+		Uniforms: uniforms,
+	}
+	opts.Images[0] = source
+	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.spiralDistortionShader, opts)
 }
 
 // renderShadows handles shadow rendering
