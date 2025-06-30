@@ -51,8 +51,8 @@ func toLocal(dstPos vec4) vec2 {
 	shakeOffset := vec2(0.0)
 	if ShakeTimer > 0.0 {
 		// Exponential decay for shake intensity
-		const initialShakeIntensity = 0.002               // Must match Go code's initial ShakeIntensity
-		const totalShakeDuration = 2.0                    // Must match Go code's initial ShakeTimer
+		const initialShakeIntensity = 0.0003              // Must match Go code's initial ShakeIntensity
+		const totalShakeDuration = 1.0                    // Must match Go code's initial ShakeTimer
 		const decayRate = 2.0                             // Controls speed of exponential decay
 		normalizedTime := ShakeTimer / totalShakeDuration // [0,1]
 		adjustedIntensity := initialShakeIntensity * exp(-decayRate*(1.0-normalizedTime))
