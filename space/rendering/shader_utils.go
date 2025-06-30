@@ -12,8 +12,8 @@ import (
 func (r *Renderer) getAdaptiveFov(lightDirection f32.Vec2, lightPos f32.Vec2) float64 {
 	lightDistanceFromCamera := math.Hypot(float64(lightDirection[0]-lightPos[0]), float64(lightDirection[1]-lightPos[1]))
 	// Clamp FOV to reasonable range
-	const minFov = 10.0
-	const maxFov = 90.0
+	const minFov = 80.0
+	const maxFov = 120.0
 	fov := fovLight / (lightDistanceFromCamera / 250.0)
 	if fov < minFov {
 		return minFov

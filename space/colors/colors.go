@@ -18,7 +18,7 @@ var (
 var (
 	// PlanetBody Planet colors
 	PlanetBody  = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White
-	PlanetOrbit = color.RGBA{R: 255, G: 255, B: 255, A: 255} // Black
+	PlanetOrbit = util.RGBAColor(119, 140, 163, 255.0)
 
 	// BlackHoleBody Black hole colors
 	BlackHoleBody  = color.RGBA{R: 255, G: 0, B: 0, A: 255} // Transparent red
@@ -26,12 +26,12 @@ var (
 
 	// WhiteHoleBody White hole colors
 	WhiteHoleBody  = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White
-	WhiteHoleOrbit = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White
+	WhiteHoleOrbit = util.RGBAColor(119, 140, 163, 255.0)
 
 	// AsteroidBody Asteroid colors
 	AsteroidBody    = util.RGBAColor(255, 255, 255, 100)
-	AsteroidBodyAlt = color.RGBA{R: 255, G: 50, B: 255, A: 50}   // Transparent magenta
-	AsteroidOrbit   = color.RGBA{R: 255, G: 255, B: 255, A: 255} // White
+	AsteroidBodyAlt = color.RGBA{R: 255, G: 50, B: 255, A: 50} // Transparent magenta
+	AsteroidOrbit   = util.RGBAColor(87.0, 96.0, 111.0, 255.0)
 
 	BorderIndicator = util.RGBAColor(255, 255, 255, 255) // Border indicator color (purple-ish)
 )

@@ -34,12 +34,18 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 		centerX := OtherOrbitCenters[i*2]
 		centerY := OtherOrbitCenters[i*2+1]
 		otherCenter := vec2(centerX, centerY)
-		otherRadius := OtherOrbitRadii[i]
+		otherRadius := OtherOrbitRadii[i] * 1 // Reduce radius by 2%
+
+		// Check if the current orbit is completely inside this other orbit
+		distanceBetweenCenters := length(CircleCenter - otherCenter)
+		if distanceBetweenCenters+CircleRadius <= otherRadius {
+			continue // Current orbit is fully inside, skip discard check
+		}
 
 		// Calculate distance from current pixel to the center of the other orbit
 		distanceToOther := length(pos - otherCenter)
 
-		// If the pixel is inside another orbit's radius, discard it
+		// If the pixel is inside another orbit's adjusted radius, discard it
 		if distanceToOther <= otherRadius {
 			discard()
 		}

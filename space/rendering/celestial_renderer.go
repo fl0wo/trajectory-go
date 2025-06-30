@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+const numDashes = 16
+
 // drawCelestialBodies renders all celestial bodies with animated faces that track the player (EXCLUDING black holes)
 func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.SpaceGame) {
 	camera := model.Camera
@@ -281,8 +283,6 @@ func (r *Renderer) drawOrbitCircleWithLight(screen *ebiten.Image, model *Models.
 		return
 	}
 
-	// Dashed circle parameters
-	const numDashes = 24
 	const dashPortion = 4.0 / (4.0 + 16.0) // = 0.2
 
 	// Calculate dash and gap lengths
@@ -392,7 +392,6 @@ func (r *Renderer) drawOrbitCircle(screen *ebiten.Image, center f32.Vec2, radius
 	}
 
 	// Dashed circle parameters
-	const numDashes = 24
 	const dashPortion = 4.0 / (4.0 + 16.0) // = 0.2
 
 	// Calculate dash and gap lengths
@@ -411,7 +410,6 @@ func (r *Renderer) drawOrbitCircleWithReveal(screen *ebiten.Image, model *Models
 	}
 
 	// Dashed circle parameters
-	const numDashes = 24
 	const dashPortion = 4.0 / (4.0 + 16.0) // = 0.2
 
 	// Calculate dash and gap lengths
