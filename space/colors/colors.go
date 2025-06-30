@@ -35,7 +35,8 @@ var (
 
 	BorderIndicator = util.RGBAColor(255, 255, 255, 255) // Border indicator color (purple-ish)
 
-	TransparentColor = color.RGBA{R: 0, G: 0, B: 0, A: 0} // Fully transparent color
+	TransparentColor        = color.RGBA{R: 0, G: 0, B: 0, A: 0}     // Fully transparent color
+	LastCollisionCrossColor = color.RGBA{R: 255, G: 0, B: 0, A: 255} // Red cross for last collision
 )
 
 // Player Colors

@@ -7,6 +7,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/you/trajectory/constants"
+	"github.com/you/trajectory/space/colors"
 	Models "github.com/you/trajectory/space/model"
 	"github.com/you/trajectory/space/shadows"
 	"golang.org/x/image/math/f32"
@@ -273,9 +274,9 @@ func (r *Renderer) applySpiralOverlay(
 		}
 
 		// Prepare arrays for shader uniforms
-		bhPositions := make([]float32, 6)  // x1,y1, x2,y2, x3,y3
-		orbitRadii := make([]float32, 3)   // radius1, radius2, radius3
-		strengths := make([]float32, 3)    // strength1, strength2, strength3
+		bhPositions := make([]float32, 6) // x1,y1, x2,y2, x3,y3
+		orbitRadii := make([]float32, 3)  // radius1, radius2, radius3
+		strengths := make([]float32, 3)   // strength1, strength2, strength3
 
 		// Fill arrays with black hole data
 		for i := 0; i < numBH; i++ {
@@ -284,9 +285,9 @@ func (r *Renderer) applySpiralOverlay(
 			orbitRadius := model.Camera.RadiusToScreen(bh.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
 
 			// Store position as x,y pairs in flattened array
-			bhPositions[i*2] = c[0]     // x
-			bhPositions[i*2+1] = c[1]   // y
-			
+			bhPositions[i*2] = c[0]   // x
+			bhPositions[i*2+1] = c[1] // y
+
 			orbitRadii[i] = orbitRadius
 			strengths[i] = float32(0.68) // strength for each black hole
 		}
@@ -350,31 +351,31 @@ func (r *Renderer) drawTrajectoryArrow(screen *ebiten.Image, model *Models.Space
 	// For now, this is a placeholder for the trajectory arrow rendering logic
 }
 
-// drawLastCollisionMarker draws a red cross at the last collision position
+// drawLastCollisionMarker draws a red "x" at the last collision position
 func (r *Renderer) drawLastCollisionMarker(screen *ebiten.Image, model *Models.SpaceGame) {
 	if !model.HasLastCollision {
 		return
 	}
-	
+
 	camera := model.Camera
 	screenPos := camera.WorldToScreen(model.LastCollisionPos, constants.ScreenWidth, constants.ScreenHeight)
-	
-	// Red cross parameters
-	crossSize := float32(15.0) // Size of the cross in pixels
-	crossColor := color.RGBA{R: 255, G: 0, B: 0, A: 255} // Red color
-	lineWidth := float32(3.0)
-	
-	// Draw two lines to form a cross
-	// Horizontal line
-	r.drawLine(screen, 
-		screenPos[0]-crossSize, screenPos[1], 
-		screenPos[0]+crossSize, screenPos[1], 
+
+	// Red "x" parameters
+	crossSize := float32(10.0) // Half-size of the "x" in pixels (diagonal span)
+	crossColor := colors.LastCollisionCrossColor
+	lineWidth := float32(6.0)
+
+	// Draw two diagonal lines to form an "x"
+	// Top-left to bottom-right
+	r.drawLine(screen,
+		screenPos[0]-crossSize, screenPos[1]-crossSize,
+		screenPos[0]+crossSize, screenPos[1]+crossSize,
 		lineWidth, crossColor)
-	
-	// Vertical line
-	r.drawLine(screen, 
-		screenPos[0], screenPos[1]-crossSize, 
-		screenPos[0], screenPos[1]+crossSize, 
+
+	// Top-right to bottom-left
+	r.drawLine(screen,
+		screenPos[0]+crossSize, screenPos[1]-crossSize,
+		screenPos[0]-crossSize, screenPos[1]+crossSize,
 		lineWidth, crossColor)
 }
 
@@ -384,19 +385,19 @@ func (r *Renderer) drawLine(screen *ebiten.Image, x1, y1, x2, y2, width float32,
 	dx := x2 - x1
 	dy := y2 - y1
 	length := float32(math.Sqrt(float64(dx*dx + dy*dy)))
-	
+
 	if length == 0 {
 		return
 	}
-	
+
 	// Normalize vector
 	dx /= length
 	dy /= length
-	
+
 	// Perpendicular vector for width
 	px := -dy * width / 2
 	py := dx * width / 2
-	
+
 	// Draw line as a quad
 	vertices := []ebiten.Vertex{
 		{DstX: x1 + px, DstY: y1 + py, SrcX: 0, SrcY: 0, ColorR: float32(color.R) / 255, ColorG: float32(color.G) / 255, ColorB: float32(color.B) / 255, ColorA: float32(color.A) / 255},
@@ -404,8 +405,8 @@ func (r *Renderer) drawLine(screen *ebiten.Image, x1, y1, x2, y2, width float32,
 		{DstX: x2 - px, DstY: y2 - py, SrcX: 0, SrcY: 0, ColorR: float32(color.R) / 255, ColorG: float32(color.G) / 255, ColorB: float32(color.B) / 255, ColorA: float32(color.A) / 255},
 		{DstX: x2 + px, DstY: y2 + py, SrcX: 0, SrcY: 0, ColorR: float32(color.R) / 255, ColorG: float32(color.G) / 255, ColorB: float32(color.B) / 255, ColorA: float32(color.A) / 255},
 	}
-	
+
 	indices := []uint16{0, 1, 2, 0, 2, 3}
-	
+
 	screen.DrawTriangles(vertices, indices, r.whiteTexture, nil)
 }
