@@ -17,24 +17,34 @@ const (
 	CameraModePlayer                   // Follow player only when moving
 )
 
+const (
+	MaxCollisionHistory = 3    // Maximum number of collision records to keep
+	ShakeDuration       = 1.0  // Duration of shake effect in seconds
+	MarkerDuration      = 30.0 // Duration of collision marker visibility in seconds
+)
+
+type CollisionRecord struct {
+	Position       f32.Vec2 // Position where collision occurred
+	BodyIdx        int      // Index of the celestial body that was hit
+	ShakeTimer     float32  // Timer for shake effect (0 = no shake)
+	ShakeIntensity float32  // Current shake intensity
+	MarkerTimer    float32  // Timer for collision marker visibility (independent of shake)
+}
+
 type SpaceGame struct {
-	CelestialBodies      []CelestialBody
-	RingAsteroids        []*RingAsteroid // Separate list for asteroids that need updates
-	Player               *Player
-	Camera               *Camera2D
-	CurrentLevel         *Level
-	CurrentLevelNum      int
-	CameraMode           CameraMode // Camera follow mode setting
-	TimeScale            float32    // Current time dilation scale (1.0 = normal, 0.1 = 10x slower)
-	TargetTimeScale      float32    // Target time scale for smooth interpolation
-	ProximityZoom        float32    // Current proximity zoom multiplier (1.0 = normal, 1.25 = zoomed in)
-	TargetProximityZoom  float32    // Target proximity zoom for smooth interpolation
-	ShadowsEnabled       bool       // Toggle for shadow rendering system
-	LastCollisionPos     f32.Vec2   // Position of last collision for red cross marker
-	LastCollisionBodyIdx int        // Index of last collided celestial body (-1 if none)
-	ShakeTimer           float32    // Timer for shake effect (0 = no shake)
-	ShakeIntensity       float32    // Current shake intensity
-	HasLastCollision     bool       // Whether there was a previous collision to show
+	CelestialBodies     []CelestialBody
+	RingAsteroids       []*RingAsteroid // Separate list for asteroids that need updates
+	Player              *Player
+	Camera              *Camera2D
+	CurrentLevel        *Level
+	CurrentLevelNum     int
+	CameraMode          CameraMode        // Camera follow mode setting
+	TimeScale           float32           // Current time dilation scale (1.0 = normal, 0.1 = 10x slower)
+	TargetTimeScale     float32           // Target time scale for smooth interpolation
+	ProximityZoom       float32           // Current proximity zoom multiplier (1.0 = normal, 1.25 = zoomed in)
+	TargetProximityZoom float32           // Target proximity zoom for smooth interpolation
+	ShadowsEnabled      bool              // Toggle for shadow rendering system
+	CollisionHistory    []CollisionRecord // Array of recent collision records
 }
 
 type Border struct {
@@ -64,23 +74,19 @@ func NewSpaceGameWithLevel(levelNum int) (*SpaceGame, error) {
 
 	// Create temporary SpaceGame to calculate level center
 	tempGame := &SpaceGame{
-		CelestialBodies:      level.CelestialBodies,
-		RingAsteroids:        level.RingAsteroids,
-		Player:               player,
-		Camera:               camera,
-		CurrentLevel:         level,
-		CurrentLevelNum:      levelNum,
-		CameraMode:           CameraModeCenter, // Default to center mode
-		TimeScale:            1.0,              // Normal time initially
-		TargetTimeScale:      1.0,              // Target matches current initially
-		ProximityZoom:        1.0,              // Normal zoom initially
-		TargetProximityZoom:  1.0,              // Target matches current initially
-		ShadowsEnabled:       true,             // Enable shadows by default
-		LastCollisionPos:     f32.Vec2{0, 0},   // No collision initially
-		LastCollisionBodyIdx: -1,               // No collision initially
-		ShakeTimer:           0.0,              // No shake initially
-		ShakeIntensity:       0.0,              // No shake initially
-		HasLastCollision:     false,            // No collision initially
+		CelestialBodies:     level.CelestialBodies,
+		RingAsteroids:       level.RingAsteroids,
+		Player:              player,
+		Camera:              camera,
+		CurrentLevel:        level,
+		CurrentLevelNum:     levelNum,
+		CameraMode:          CameraModeCenter,                                // Default to center mode
+		TimeScale:           1.0,                                             // Normal time initially
+		TargetTimeScale:     1.0,                                             // Target matches current initially
+		ProximityZoom:       1.0,                                             // Normal zoom initially
+		TargetProximityZoom: 1.0,                                             // Target matches current initially
+		ShadowsEnabled:      true,                                            // Enable shadows by default
+		CollisionHistory:    make([]CollisionRecord, 0, MaxCollisionHistory), // Initialize empty collision history
 	}
 
 	// Calculate center of all entities and set camera position
@@ -98,13 +104,23 @@ func (sg *SpaceGame) Reset() error {
 
 // ResetWithCollision resets the level with collision state information
 func (sg *SpaceGame) ResetWithCollision(collisionPos f32.Vec2, bodyIdx int) error {
-	// Store collision information for shake effect and red cross
+	// Add collision to history if valid
 	if bodyIdx >= 0 && bodyIdx < len(sg.CelestialBodies) {
-		sg.LastCollisionPos = collisionPos
-		sg.LastCollisionBodyIdx = bodyIdx
-		sg.HasLastCollision = true
-		sg.ShakeTimer = 2.0       // 2 seconds of shake
-		sg.ShakeIntensity = 0.002 // Shake intensity
+		newCollision := CollisionRecord{
+			Position:       collisionPos,
+			BodyIdx:        bodyIdx,
+			ShakeTimer:     ShakeDuration,  // Duration of shake effect
+			ShakeIntensity: 0.0003,         // Shake intensity
+			MarkerTimer:    MarkerDuration, // Duration of marker visibility
+		}
+
+		// Add to front of history (most recent first)
+		sg.CollisionHistory = append([]CollisionRecord{newCollision}, sg.CollisionHistory...)
+
+		// Keep only the last MaxCollisionHistory records
+		if len(sg.CollisionHistory) > MaxCollisionHistory {
+			sg.CollisionHistory = sg.CollisionHistory[:MaxCollisionHistory]
+		}
 	}
 
 	return sg.LoadLevel(sg.CurrentLevelNum)
@@ -121,13 +137,9 @@ func (sg *SpaceGame) LoadLevel(levelNum int) error {
 	sg.Player.State = PlayerStateIdle
 	sg.Player.ClearTrail() // Clear the movement trail
 
-	// Clear collision state only when switching to a different level
+	// Clear collision history only when switching to a different level
 	if levelNum != sg.CurrentLevelNum {
-		sg.LastCollisionPos = f32.Vec2{0, 0}
-		sg.LastCollisionBodyIdx = -1
-		sg.ShakeTimer = 0.0
-		sg.ShakeIntensity = 0.0
-		sg.HasLastCollision = false
+		sg.CollisionHistory = sg.CollisionHistory[:0] // Clear collision history
 	}
 
 	// Update level data first
@@ -547,15 +559,27 @@ func (sg *SpaceGame) ToggleShadows() {
 	sg.ShadowsEnabled = !sg.ShadowsEnabled
 }
 
-// UpdateShake updates the shake effect timer and intensity
+// UpdateShake updates the shake effect timer and marker timer for all collisions
 func (sg *SpaceGame) UpdateShake(deltaTime float32) {
-	if sg.ShakeTimer > 0 {
-		sg.ShakeTimer -= deltaTime
-		if sg.ShakeTimer <= 0 {
-			sg.ShakeTimer = 0
-			sg.ShakeIntensity = 0
+	// Update all collision records and remove expired ones (based on marker timer)
+	activeCollisions := make([]CollisionRecord, 0, len(sg.CollisionHistory))
+
+	for _, collision := range sg.CollisionHistory {
+		// Update both timers
+		collision.ShakeTimer -= deltaTime
+		collision.MarkerTimer -= deltaTime
+
+		// Keep collision record as long as marker timer is active
+		if collision.MarkerTimer > 0 {
+			// Ensure shake timer doesn't go negative
+			if collision.ShakeTimer < 0 {
+				collision.ShakeTimer = 0
+			}
+			activeCollisions = append(activeCollisions, collision)
 		}
 	}
+
+	sg.CollisionHistory = activeCollisions
 }
 
 // GetCameraModeString returns a string representation of the current camera mode

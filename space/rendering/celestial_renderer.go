@@ -131,12 +131,17 @@ func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceG
 	zoom := model.Camera.GetTotalZoom()
 	t := float32(time.Since(r.startTime).Seconds())
 
-	// Get shake parameters for this planet
+	// Get shake parameters for this planet from collision history
 	shakeTimer := float32(0.0)
 	shakeIntensity := float32(0.0)
-	if bodyIndex == model.LastCollisionBodyIdx && model.ShakeTimer > 0 {
-		shakeTimer = model.ShakeTimer
-		shakeIntensity = model.ShakeIntensity
+
+	// Find the most recent collision for this body
+	for _, collision := range model.CollisionHistory {
+		if collision.BodyIdx == bodyIndex && collision.ShakeTimer > 0 {
+			shakeTimer = collision.ShakeTimer
+			shakeIntensity = collision.ShakeIntensity
+			break // Use the most recent (first in array)
+		}
 	}
 
 	uniforms := map[string]any{

@@ -351,32 +351,43 @@ func (r *Renderer) drawTrajectoryArrow(screen *ebiten.Image, model *Models.Space
 	// For now, this is a placeholder for the trajectory arrow rendering logic
 }
 
-// drawLastCollisionMarker draws a red "x" at the last collision position
+// drawLastCollisionMarker draws red "x" markers at all collision positions from history
 func (r *Renderer) drawLastCollisionMarker(screen *ebiten.Image, model *Models.SpaceGame) {
-	if !model.HasLastCollision {
+	if len(model.CollisionHistory) == 0 {
 		return
 	}
 
 	camera := model.Camera
-	screenPos := camera.WorldToScreen(model.LastCollisionPos, constants.ScreenWidth, constants.ScreenHeight)
 
-	// Red "x" parameters
-	crossSize := float32(10.0) // Half-size of the "x" in pixels (diagonal span)
-	crossColor := colors.LastCollisionCrossColor
-	lineWidth := float32(6.0)
+	// Draw all collision markers, with different sizes/transparency based on age
+	for i, collision := range model.CollisionHistory {
+		screenPos := camera.WorldToScreen(collision.Position, constants.ScreenWidth, constants.ScreenHeight)
 
-	// Draw two diagonal lines to form an "x"
-	// Top-left to bottom-right
-	r.drawLine(screen,
-		screenPos[0]-crossSize, screenPos[1]-crossSize,
-		screenPos[0]+crossSize, screenPos[1]+crossSize,
-		lineWidth, crossColor)
+		// Scale size and alpha based on age (newest = largest/most opaque)
+		ageFactor := 1.0 - float32(i)*0.2 // 1.0, 0.7, 0.4 for positions 0, 1, 2
+		if ageFactor < 0.3 {
+			ageFactor = 0.3 // Minimum visibility
+		}
 
-	// Top-right to bottom-left
-	r.drawLine(screen,
-		screenPos[0]+crossSize, screenPos[1]-crossSize,
-		screenPos[0]-crossSize, screenPos[1]+crossSize,
-		lineWidth, crossColor)
+		crossSize := float32(10.0) * ageFactor // Half-size of the "x" in pixels (diagonal span)
+		lineWidth := float32(6.0) * ageFactor
+
+		// Create color with reduced alpha for older collisions
+		crossColor := color.RGBA{R: colors.LastCollisionCrossColor.R, G: colors.LastCollisionCrossColor.G, B: colors.LastCollisionCrossColor.B, A: 255}
+
+		// Draw two diagonal lines to form an "x"
+		// Top-left to bottom-right
+		r.drawLine(screen,
+			screenPos[0]-crossSize, screenPos[1]-crossSize,
+			screenPos[0]+crossSize, screenPos[1]+crossSize,
+			lineWidth, crossColor)
+
+		// Top-right to bottom-left
+		r.drawLine(screen,
+			screenPos[0]+crossSize, screenPos[1]-crossSize,
+			screenPos[0]-crossSize, screenPos[1]+crossSize,
+			lineWidth, crossColor)
+	}
 }
 
 // drawLine draws a line between two points
