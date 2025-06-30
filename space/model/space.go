@@ -548,10 +548,13 @@ func (sg *SpaceGame) UpdateAsteroids(deltaTime float32) {
 	}
 }
 
-// UpdatePortals updates all portals' states (cooldown timers)
+// UpdatePortals updates all portals' states (cooldown timers and player inside tracking)
 func (sg *SpaceGame) UpdatePortals(deltaTime float32) {
 	for _, portal := range sg.Portals {
 		portal.Update(deltaTime)
+
+		// Update player inside state for each portal
+		portal.UpdatePlayerInsideState(sg.Player)
 	}
 }
 
@@ -631,6 +634,13 @@ func (sg *SpaceGame) TeleportPlayer(sourcePortal *Portal) {
 	// Preserve momentum
 	sg.Player.Velocity = currentVelocity
 	sg.Player.Acceleration = currentAcceleration
+
+	// Mark both portals as having the player inside to prevent immediate re-entry
+	// Set both current and previous state to prevent re-triggering
+	sourcePortal.PlayerInside = true
+	sourcePortal.WasPlayerInside = true
+	targetPortal.PlayerInside = true
+	targetPortal.WasPlayerInside = true
 
 	// Start cooldown on both portals to prevent immediate re-entry
 	const portalCooldown = 0.5 // 0.5 seconds cooldown

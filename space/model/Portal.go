@@ -6,15 +6,17 @@ import (
 
 // Portal represents a wormhole/portal entity that teleports players between paired coordinates
 type Portal struct {
-	ID            int      // Unique identifier for this portal
-	PairID        int      // ID of the paired portal (portals with same PairID are linked)
-	Position      f32.Vec2 // Position of the portal in normalized coordinates
-	Rotation      float32  // Rotation angle in radians for portal orientation
-	Width         float32  // Width of the capsule portal
-	Height        float32  // Height of the capsule portal
-	Mass          float32  // Mass for physics interactions (typically very small)
-	IsActive      bool     // Whether the portal is currently active
-	CooldownTimer float32  // Cooldown timer to prevent rapid teleportation loops
+	ID              int      // Unique identifier for this portal
+	PairID          int      // ID of the paired portal (portals with same PairID are linked)
+	Position        f32.Vec2 // Position of the portal in normalized coordinates
+	Rotation        float32  // Rotation angle in radians for portal orientation
+	Width           float32  // Width of the capsule portal
+	Height          float32  // Height of the capsule portal
+	Mass            float32  // Mass for physics interactions (typically very small)
+	IsActive        bool     // Whether the portal is currently active
+	CooldownTimer   float32  // Cooldown timer to prevent rapid teleportation loops
+	PlayerInside    bool     // Whether the player is currently inside this portal's radius
+	WasPlayerInside bool     // Whether the player was inside in the previous frame
 }
 
 // GetPosition returns the portal's position (implementing a common interface pattern)
@@ -42,11 +44,33 @@ func (p *Portal) GetType() CelestialBodyType {
 	return CelestialBodyTypePortal
 }
 
-// CheckCollisionWithPlayer checks if a player collides with this portal's circular shape
+// CheckCollisionWithPlayer checks if a player should teleport through this portal
+// Returns true only if the player enters the portal from outside (no ping-pong effect)
 func (p *Portal) CheckCollisionWithPlayer(player *Player) bool {
 	if !p.IsActive || p.CooldownTimer > 0 {
 		return false
 	}
+
+	// Only trigger teleportation if player transitioned from outside to inside
+	// PlayerInside = current state, WasPlayerInside = previous frame state
+	// Teleport when: currently inside AND was previously outside
+	return p.PlayerInside && !p.WasPlayerInside
+}
+
+// Update updates the portal's state (mainly cooldown timer)
+func (p *Portal) Update(deltaTime float32) {
+	if p.CooldownTimer > 0 {
+		p.CooldownTimer -= deltaTime
+		if p.CooldownTimer < 0 {
+			p.CooldownTimer = 0
+		}
+	}
+}
+
+// UpdatePlayerInsideState updates whether the player is currently inside this portal
+func (p *Portal) UpdatePlayerInsideState(player *Player) {
+	// Store previous state
+	p.WasPlayerInside = p.PlayerInside
 
 	// Get player position and radius
 	playerPos := player.Position
@@ -61,17 +85,10 @@ func (p *Portal) CheckCollisionWithPlayer(player *Player) bool {
 	portalRadius := (p.Width + p.Height) / 4.0
 	combinedRadius := playerRadius + portalRadius
 
-	return distSq <= combinedRadius*combinedRadius
-}
+	isCurrentlyInside := distSq <= combinedRadius*combinedRadius
 
-// Update updates the portal's state (mainly cooldown timer)
-func (p *Portal) Update(deltaTime float32) {
-	if p.CooldownTimer > 0 {
-		p.CooldownTimer -= deltaTime
-		if p.CooldownTimer < 0 {
-			p.CooldownTimer = 0
-		}
-	}
+	// Update the current inside state
+	p.PlayerInside = isCurrentlyInside
 }
 
 // StartCooldown starts the cooldown timer to prevent immediate re-entry
@@ -87,15 +104,17 @@ func (p *Portal) IsReady() bool {
 // NewPortal creates a new portal with default values
 func NewPortal(id, pairID int, position f32.Vec2, rotation, width, height float32) *Portal {
 	return &Portal{
-		ID:            id,
-		PairID:        pairID,
-		Position:      position,
-		Rotation:      rotation,
-		Width:         width,
-		Height:        height,
-		Mass:          0.01, // Very small mass to avoid affecting physics significantly
-		IsActive:      true,
-		CooldownTimer: 0.0,
+		ID:              id,
+		PairID:          pairID,
+		Position:        position,
+		Rotation:        rotation,
+		Width:           width,
+		Height:          height,
+		Mass:            0.01, // Very small mass to avoid affecting physics significantly
+		IsActive:        true,
+		CooldownTimer:   0.0,
+		PlayerInside:    false, // Player starts outside the portal
+		WasPlayerInside: false, // Player was also outside in the previous frame
 	}
 }
 

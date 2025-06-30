@@ -51,7 +51,6 @@ var whiteHoleShader []byte
 //go:embed spiral_distortion.go
 var spiralDistortionShader []byte
 
-
 var (
 	mplusFaceSource *text.GoTextFaceSource
 )
@@ -178,7 +177,6 @@ func NewRenderer() *Renderer {
 	} else {
 		log.Println("Failed to load spiral distortion shader:", err)
 	}
-
 
 	// Create a white texture matching screen size for shaders that need a source image
 	whiteTexture := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
@@ -489,10 +487,10 @@ func (r *Renderer) drawPortal(screen *ebiten.Image, portal *Models.Portal, model
 	camera := model.Camera
 	worldPos := portal.Position
 	screenPos := camera.WorldToScreen(worldPos, constants.ScreenWidth, constants.ScreenHeight)
-	
+
 	// Use the average of width and height as the circle radius
 	portalRadius := camera.RadiusToScreen((portal.Width+portal.Height)/4, constants.ScreenWidth, constants.ScreenHeight)
-	
+
 	// Portal colors (different colors for different pair IDs)
 	portalColors := []color.RGBA{
 		{R: 0, G: 204, B: 255, A: 180},   // Cyan
@@ -502,16 +500,18 @@ func (r *Renderer) drawPortal(screen *ebiten.Image, portal *Models.Portal, model
 		{R: 153, G: 51, B: 255, A: 180},  // Purple
 		{R: 255, G: 255, B: 51, A: 180},  // Yellow
 	}
-	
+
 	// Select color based on pair ID
 	colorIndex := portal.PairID % len(portalColors)
 	portalColor := portalColors[colorIndex]
-	
+
 	// Adjust alpha based on activity state
 	if !portal.IsActive || portal.CooldownTimer > 0 {
 		portalColor.A = 60 // Dim when inactive or on cooldown
+	} else if portal.PlayerInside {
+		portalColor.A = 120 // Semi-dim when player is inside (won't teleport until they exit and re-enter)
 	}
-	
+
 	// Add pulsing effect
 	pulseIntensity := 0.7 + 0.3*float32(math.Sin(float64(currentTime*3.0)))
 	finalColor := color.RGBA{
@@ -520,15 +520,15 @@ func (r *Renderer) drawPortal(screen *ebiten.Image, portal *Models.Portal, model
 		B: uint8(float32(portalColor.B) * pulseIntensity),
 		A: portalColor.A,
 	}
-	
+
 	// Draw outer glow circle (larger, more transparent)
 	glowRadius := portalRadius * 1.5
 	glowColor := color.RGBA{R: finalColor.R, G: finalColor.G, B: finalColor.B, A: finalColor.A / 4}
 	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], glowRadius, glowColor, true)
-	
+
 	// Draw main portal circle
 	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], portalRadius, finalColor, true)
-	
+
 	// Draw inner bright core
 	coreRadius := portalRadius * 0.3
 	coreColor := color.RGBA{R: 255, G: 255, B: 255, A: uint8(float32(finalColor.A) * 0.8)}
