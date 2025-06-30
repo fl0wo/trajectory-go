@@ -18,18 +18,23 @@ const (
 )
 
 type SpaceGame struct {
-	CelestialBodies     []CelestialBody
-	RingAsteroids       []*RingAsteroid // Separate list for asteroids that need updates
-	Player              *Player
-	Camera              *Camera2D
-	CurrentLevel        *Level
-	CurrentLevelNum     int
-	CameraMode          CameraMode // Camera follow mode setting
-	TimeScale           float32    // Current time dilation scale (1.0 = normal, 0.1 = 10x slower)
-	TargetTimeScale     float32    // Target time scale for smooth interpolation
-	ProximityZoom       float32    // Current proximity zoom multiplier (1.0 = normal, 1.25 = zoomed in)
-	TargetProximityZoom float32    // Target proximity zoom for smooth interpolation
-	ShadowsEnabled      bool       // Toggle for shadow rendering system
+	CelestialBodies      []CelestialBody
+	RingAsteroids        []*RingAsteroid // Separate list for asteroids that need updates
+	Player               *Player
+	Camera               *Camera2D
+	CurrentLevel         *Level
+	CurrentLevelNum      int
+	CameraMode           CameraMode // Camera follow mode setting
+	TimeScale            float32    // Current time dilation scale (1.0 = normal, 0.1 = 10x slower)
+	TargetTimeScale      float32    // Target time scale for smooth interpolation
+	ProximityZoom        float32    // Current proximity zoom multiplier (1.0 = normal, 1.25 = zoomed in)
+	TargetProximityZoom  float32    // Target proximity zoom for smooth interpolation
+	ShadowsEnabled       bool       // Toggle for shadow rendering system
+	LastCollisionPos     f32.Vec2   // Position of last collision for red cross marker
+	LastCollisionBodyIdx int        // Index of last collided celestial body (-1 if none)
+	ShakeTimer           float32    // Timer for shake effect (0 = no shake)
+	ShakeIntensity       float32    // Current shake intensity
+	HasLastCollision     bool       // Whether there was a previous collision to show
 }
 
 type Border struct {
@@ -59,18 +64,23 @@ func NewSpaceGameWithLevel(levelNum int) (*SpaceGame, error) {
 
 	// Create temporary SpaceGame to calculate level center
 	tempGame := &SpaceGame{
-		CelestialBodies:     level.CelestialBodies,
-		RingAsteroids:       level.RingAsteroids,
-		Player:              player,
-		Camera:              camera,
-		CurrentLevel:        level,
-		CurrentLevelNum:     levelNum,
-		CameraMode:          CameraModeCenter, // Default to center mode
-		TimeScale:           1.0,              // Normal time initially
-		TargetTimeScale:     1.0,              // Target matches current initially
-		ProximityZoom:       1.0,              // Normal zoom initially
-		TargetProximityZoom: 1.0,              // Target matches current initially
-		ShadowsEnabled:      true,             // Enable shadows by default
+		CelestialBodies:      level.CelestialBodies,
+		RingAsteroids:        level.RingAsteroids,
+		Player:               player,
+		Camera:               camera,
+		CurrentLevel:         level,
+		CurrentLevelNum:      levelNum,
+		CameraMode:           CameraModeCenter, // Default to center mode
+		TimeScale:            1.0,              // Normal time initially
+		TargetTimeScale:      1.0,              // Target matches current initially
+		ProximityZoom:        1.0,              // Normal zoom initially
+		TargetProximityZoom:  1.0,              // Target matches current initially
+		ShadowsEnabled:       true,             // Enable shadows by default
+		LastCollisionPos:     f32.Vec2{0, 0},   // No collision initially
+		LastCollisionBodyIdx: -1,               // No collision initially
+		ShakeTimer:           0.0,              // No shake initially
+		ShakeIntensity:       0.0,              // No shake initially
+		HasLastCollision:     false,            // No collision initially
 	}
 
 	// Calculate center of all entities and set camera position
@@ -83,6 +93,20 @@ func NewSpaceGameWithLevel(levelNum int) (*SpaceGame, error) {
 
 // Reset resets the current level
 func (sg *SpaceGame) Reset() error {
+	return sg.ResetWithCollision(f32.Vec2{0, 0}, -1)
+}
+
+// ResetWithCollision resets the level with collision state information
+func (sg *SpaceGame) ResetWithCollision(collisionPos f32.Vec2, bodyIdx int) error {
+	// Store collision information for shake effect and red cross
+	if bodyIdx >= 0 && bodyIdx < len(sg.CelestialBodies) {
+		sg.LastCollisionPos = collisionPos
+		sg.LastCollisionBodyIdx = bodyIdx
+		sg.HasLastCollision = true
+		sg.ShakeTimer = 2.0       // 2 seconds of shake
+		sg.ShakeIntensity = 0.002 // Shake intensity
+	}
+
 	return sg.LoadLevel(sg.CurrentLevelNum)
 }
 
@@ -512,6 +536,17 @@ func (sg *SpaceGame) ToggleCameraMode() {
 // ToggleShadows switches shadow rendering on/off
 func (sg *SpaceGame) ToggleShadows() {
 	sg.ShadowsEnabled = !sg.ShadowsEnabled
+}
+
+// UpdateShake updates the shake effect timer and intensity
+func (sg *SpaceGame) UpdateShake(deltaTime float32) {
+	if sg.ShakeTimer > 0 {
+		sg.ShakeTimer -= deltaTime
+		if sg.ShakeTimer <= 0 {
+			sg.ShakeTimer = 0
+			sg.ShakeIntensity = 0
+		}
+	}
 }
 
 // GetCameraModeString returns a string representation of the current camera mode

@@ -30,7 +30,7 @@ func (p *PhysicsSystem) UpdateGame(model *Models.SpaceGame, deltaTime float32, t
 	model.UpdateAsteroids(deltaTime)
 
 	// Apply gravitational forces from all celestial bodies
-	for _, body := range model.CelestialBodies {
+	for i, body := range model.CelestialBodies {
 		model.Player.ApplyGravitationalForce(body)
 
 		// Check for collision with celestial body
@@ -49,8 +49,9 @@ func (p *PhysicsSystem) UpdateGame(model *Models.SpaceGame, deltaTime float32, t
 				}
 				return nil // Exit early since level was changed
 			} else {
-				// Player hit a planet or black hole - reset the level
-				err := model.Reset()
+				// Player hit a planet or black hole - reset the level with collision info
+				collisionPos := model.Player.Position
+				err := model.ResetWithCollision(collisionPos, i)
 				if err != nil {
 					return err
 				}
@@ -70,6 +71,9 @@ func (p *PhysicsSystem) UpdateGame(model *Models.SpaceGame, deltaTime float32, t
 			return nil // Exit early since game was reset
 		}
 	}
+
+	// Update shake effect
+	model.UpdateShake(deltaTime)
 
 	// Update player physics
 	model.Player.Update(deltaTime, timeScale)

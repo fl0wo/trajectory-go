@@ -34,6 +34,8 @@ var (
 	AsteroidOrbit   = util.RGBAColor(87.0, 96.0, 111.0, 255.0)
 
 	BorderIndicator = util.RGBAColor(255, 255, 255, 255) // Border indicator color (purple-ish)
+
+	TransparentColor = color.RGBA{R: 0, G: 0, B: 0, A: 0} // Fully transparent color
 )
 
 // Player Colors

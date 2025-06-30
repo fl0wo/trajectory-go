@@ -47,7 +47,7 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 	}
 
 	// Second pass: draw all celestial bodies on top of orbits (EXCLUDING black holes)
-	for _, body := range model.CelestialBodies {
+	for i, body := range model.CelestialBodies {
 		// Skip black holes
 		if body.GetType() == Models.CelestialBodyTypeBlackHole {
 			continue
@@ -73,7 +73,7 @@ func (r *Renderer) drawCelestialBodies(screen *ebiten.Image, model *Models.Space
 		switch body.GetType() {
 		case Models.CelestialBodyTypePlanet:
 			if planet, ok := body.(*Models.Planet); ok {
-				r.DrawPlanetWithFace(screen, model, planet)
+				r.DrawPlanetWithFace(screen, model, planet, i)
 			}
 		case Models.CelestialBodyTypeWhiteHole:
 			r.DrawWhiteHoleWithFace(screen, model, bodyPos, body.GetRadius(), body.GetOrbitRadius(), bodyColor)
@@ -117,7 +117,7 @@ func (r *Renderer) DrawBlackHoles(screen *ebiten.Image, model *Models.SpaceGame)
 	}
 }
 
-func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceGame, planet *Models.Planet) {
+func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceGame, planet *Models.Planet, bodyIndex int) {
 	screenPos := model.Camera.WorldToScreen(planet.Position, constants.ScreenWidth, constants.ScreenHeight)
 	screenRadius := planet.GetRadius() * model.Camera.GetTotalZoom() * float32(constants.ScreenHeight)
 	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], screenRadius, planet.BaseColor, true)
@@ -131,6 +131,14 @@ func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceG
 	zoom := model.Camera.GetTotalZoom()
 	t := float32(time.Since(r.startTime).Seconds())
 
+	// Get shake parameters for this planet
+	shakeTimer := float32(0.0)
+	shakeIntensity := float32(0.0)
+	if bodyIndex == model.LastCollisionBodyIdx && model.ShakeTimer > 0 {
+		shakeTimer = model.ShakeTimer
+		shakeIntensity = model.ShakeIntensity
+	}
+
 	uniforms := map[string]any{
 		"PlayerPos":         []float32{model.Player.Position[0], model.Player.Position[1]},
 		"PlanetPos":         []float32{planet.Position[0], planet.Position[1]},
@@ -143,6 +151,8 @@ func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceG
 		"ScreenSize":        []float32{sw, sh},
 		"BaseColor":         []float32{float32(planet.BaseColor.R) / 255.0, float32(planet.BaseColor.G) / 255.0, float32(planet.BaseColor.B) / 255.0},
 		"Seed":              planet.Seed,
+		"ShakeTimer":        shakeTimer,
+		"ShakeIntensity":    shakeIntensity,
 	}
 
 	// Draw directly to screen using the shader - no intermediate texture needed
