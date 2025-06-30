@@ -121,6 +121,15 @@ func (sg *SpaceGame) LoadLevel(levelNum int) error {
 	sg.Player.State = PlayerStateIdle
 	sg.Player.ClearTrail() // Clear the movement trail
 
+	// Clear collision state only when switching to a different level
+	if levelNum != sg.CurrentLevelNum {
+		sg.LastCollisionPos = f32.Vec2{0, 0}
+		sg.LastCollisionBodyIdx = -1
+		sg.ShakeTimer = 0.0
+		sg.ShakeIntensity = 0.0
+		sg.HasLastCollision = false
+	}
+
 	// Update level data first
 	sg.CurrentLevel = level
 	sg.CurrentLevelNum = levelNum
