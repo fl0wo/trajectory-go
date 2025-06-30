@@ -34,6 +34,7 @@ type CollisionRecord struct {
 type SpaceGame struct {
 	CelestialBodies     []CelestialBody
 	RingAsteroids       []*RingAsteroid // Separate list for asteroids that need updates
+	Portals             []*Portal       // List of portals for teleportation
 	Player              *Player
 	Camera              *Camera2D
 	CurrentLevel        *Level
@@ -76,6 +77,7 @@ func NewSpaceGameWithLevel(levelNum int) (*SpaceGame, error) {
 	tempGame := &SpaceGame{
 		CelestialBodies:     level.CelestialBodies,
 		RingAsteroids:       level.RingAsteroids,
+		Portals:             level.Portals,
 		Player:              player,
 		Camera:              camera,
 		CurrentLevel:        level,
@@ -147,6 +149,7 @@ func (sg *SpaceGame) LoadLevel(levelNum int) error {
 	sg.CurrentLevelNum = levelNum
 	sg.CelestialBodies = level.CelestialBodies
 	sg.RingAsteroids = level.RingAsteroids
+	sg.Portals = level.Portals
 
 	// Calculate center of all entities and reset camera to that center
 	levelCenter := sg.CalculateLevelCenter()
@@ -543,6 +546,117 @@ func (sg *SpaceGame) UpdateAsteroids(deltaTime float32) {
 	for _, asteroid := range sg.RingAsteroids {
 		asteroid.Update(deltaTime)
 	}
+}
+
+// UpdatePortals updates all portals' states (cooldown timers)
+func (sg *SpaceGame) UpdatePortals(deltaTime float32) {
+	for _, portal := range sg.Portals {
+		portal.Update(deltaTime)
+	}
+}
+
+// CheckPortalCollisions checks for player collisions with portals and handles teleportation
+func (sg *SpaceGame) CheckPortalCollisions() {
+	if sg.Player.State != PlayerStateMoving {
+		return
+	}
+
+	for _, portal := range sg.Portals {
+		if portal.CheckCollisionWithPlayer(sg.Player) {
+			sg.TeleportPlayer(portal)
+			break // Only teleport through one portal per frame
+		}
+	}
+}
+
+// TeleportPlayer teleports the player through a portal while preserving momentum
+func (sg *SpaceGame) TeleportPlayer(sourcePortal *Portal) {
+	// Find the paired portal
+	var targetPortal *Portal
+	for _, portal := range sg.Portals {
+		if portal.PairID == sourcePortal.PairID && portal.ID != sourcePortal.ID {
+			targetPortal = portal
+			break
+		}
+	}
+
+	if targetPortal == nil || !targetPortal.IsReady() {
+		return // No valid target portal found
+	}
+
+	// Calculate rotation difference between portals
+	rotationDiff := targetPortal.Rotation - sourcePortal.Rotation
+
+	// Store current velocity and acceleration
+	currentVelocity := sg.Player.Velocity
+	currentAcceleration := sg.Player.Acceleration
+
+	// Apply rotation transformation to velocity if there's a rotation difference
+	if rotationDiff != 0 {
+		cos := float32(math.Cos(float64(rotationDiff)))
+		sin := float32(math.Sin(float64(rotationDiff)))
+
+		// Rotate velocity vector
+		newVelX := currentVelocity[0]*cos - currentVelocity[1]*sin
+		newVelY := currentVelocity[0]*sin + currentVelocity[1]*cos
+		currentVelocity = f32.Vec2{newVelX, newVelY}
+
+		// Rotate acceleration vector
+		newAccelX := currentAcceleration[0]*cos - currentAcceleration[1]*sin
+		newAccelY := currentAcceleration[0]*sin + currentAcceleration[1]*cos
+		currentAcceleration = f32.Vec2{newAccelX, newAccelY}
+	}
+
+	// Calculate offset from source portal center to ensure player exits target portal properly
+	playerOffsetX := sg.Player.Position[0] - sourcePortal.Position[0]
+	playerOffsetY := sg.Player.Position[1] - sourcePortal.Position[1]
+
+	// Apply rotation to the offset if needed
+	if rotationDiff != 0 {
+		cos := float32(math.Cos(float64(rotationDiff)))
+		sin := float32(math.Sin(float64(rotationDiff)))
+
+		newOffsetX := playerOffsetX*cos - playerOffsetY*sin
+		newOffsetY := playerOffsetX*sin + playerOffsetY*cos
+		playerOffsetX = newOffsetX
+		playerOffsetY = newOffsetY
+	}
+
+	// Teleport player to target portal position with offset
+	sg.Player.Position = f32.Vec2{
+		targetPortal.Position[0] + playerOffsetX,
+		targetPortal.Position[1] + playerOffsetY,
+	}
+
+	// Preserve momentum
+	sg.Player.Velocity = currentVelocity
+	sg.Player.Acceleration = currentAcceleration
+
+	// Start cooldown on both portals to prevent immediate re-entry
+	const portalCooldown = 0.5 // 0.5 seconds cooldown
+	sourcePortal.StartCooldown(portalCooldown)
+	targetPortal.StartCooldown(portalCooldown)
+}
+
+// FindPortalByID finds a portal by its ID
+func (sg *SpaceGame) FindPortalByID(id int) *Portal {
+	for _, portal := range sg.Portals {
+		if portal.ID == id {
+			return portal
+		}
+	}
+	return nil
+}
+
+// FindPortalsByPairID finds all portals with the given pair ID
+func (sg *SpaceGame) FindPortalsByPairID(pairID int) []*Portal {
+	var portals []*Portal
+	for _, portal := range sg.Portals {
+		if portal.PairID == pairID {
+			portals = append(portals, portal)
+		}
+	}
+	return portals
 }
 
 // ToggleCameraMode switches between camera modes

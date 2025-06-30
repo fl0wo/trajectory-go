@@ -58,26 +58,34 @@ var PredefinedLevels = map[int]*Level{
 		},
 	),
 
-	2: NewLevel("Level 2 - White Hole Detour",
-		f32.Vec2{0.2, 0.3},
-		[]CelestialBody{
-			&Planet{
-				Name:        "Mars",
-				Position:    f32.Vec2{0.5, 0.6},
-				Radius:      0.06,
-				Mass:        float32((4.0 / 3.0) * math.Pi * 0.06 * 0.06 * 0.06),
-				OrbitRadius: 0.20,
-				BaseColor:   nextFlatColor(),
-				Seed:        2.0,
+	2: func() *Level {
+		// Create portal pair for level 2 (make them larger and more visible as circles)
+		portal1, portal2 := NewPortalPair(1,
+			f32.Vec2{0.35, 0.3}, f32.Vec2{0.75, 0.7},
+			0.0, math.Pi/2, 0.08, 0.08)
+
+		return NewLevelWithPortals("Level 2 - Portal Gateway",
+			f32.Vec2{0.2, 0.3},
+			[]CelestialBody{
+				&Planet{
+					Name:        "Mars",
+					Position:    f32.Vec2{0.5, 0.6},
+					Radius:      0.06,
+					Mass:        float32((4.0 / 3.0) * math.Pi * 0.06 * 0.06 * 0.06),
+					OrbitRadius: 0.20,
+					BaseColor:   nextFlatColor(),
+					Seed:        2.0,
+				},
+				&WhiteHole{
+					Position:    f32.Vec2{0.85, 0.4},
+					Radius:      0.03,
+					Mass:        0.1,
+					OrbitRadius: 0.15,
+				},
 			},
-			&WhiteHole{
-				Position:    f32.Vec2{0.8, 0.4},
-				Radius:      0.03,
-				Mass:        0.1,
-				OrbitRadius: 0.15,
-			},
-		},
-	),
+			[]*Portal{portal1, portal2},
+		)
+	}(),
 
 	3: func() *Level {
 		jupiter := &Planet{
@@ -259,26 +267,39 @@ var PredefinedLevels = map[int]*Level{
 		},
 	),
 
-	8: NewLevel("Level 8 - Deep Gravity Well",
-		f32.Vec2{0.1, 0.9},
-		[]CelestialBody{
-			&Planet{
-				Name:        "Mars",
-				Position:    f32.Vec2{0.5, 0.5},
-				Radius:      0.15,
-				Mass:        float32((4.0 / 3.0) * math.Pi * 0.15 * 0.15 * 0.15 * 5),
-				OrbitRadius: 0.45,
-				BaseColor:   nextFlatColor(),
-				Seed:        14.0,
+	8: func() *Level {
+		// Create multiple portal pairs for a complex portal maze (circular portals)
+		portal1a, portal1b := NewPortalPair(1,
+			f32.Vec2{0.25, 0.8}, f32.Vec2{0.75, 0.2},
+			0.0, 0.0, 0.06, 0.06)
+
+		portal2a, portal2b := NewPortalPair(2,
+			f32.Vec2{0.35, 0.3}, f32.Vec2{0.65, 0.7},
+			0.0, 0.0, 0.06, 0.06)
+
+		return NewLevelWithAsteroidsAndPortals("Level 8 - Portal Maze",
+			f32.Vec2{0.1, 0.9},
+			[]CelestialBody{
+				&Planet{
+					Name:        "Guardian",
+					Position:    f32.Vec2{0.5, 0.5},
+					Radius:      0.08,
+					Mass:        float32((4.0 / 3.0) * math.Pi * 0.08 * 0.08 * 0.08 * 5),
+					OrbitRadius: 0.25,
+					BaseColor:   nextFlatColor(),
+					Seed:        14.0,
+				},
+				&WhiteHole{
+					Position:    f32.Vec2{0.85, 0.5},
+					Radius:      0.03,
+					Mass:        0.1,
+					OrbitRadius: 0.10,
+				},
 			},
-			&WhiteHole{
-				Position:    f32.Vec2{0.5, 0.25},
-				Radius:      0.03,
-				Mass:        0.1,
-				OrbitRadius: 0.10,
-			},
-		},
-	),
+			[]*RingAsteroid{}, // No asteroids for this level
+			[]*Portal{portal1a, portal1b, portal2a, portal2b},
+		)
+	}(),
 
 	9: NewLevel("Level 9 - Grand Finale",
 		f32.Vec2{0.2, 0.5},

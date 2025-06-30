@@ -6,6 +6,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/you/trajectory/constants"
 	"github.com/you/trajectory/space/colors"
 	Models "github.com/you/trajectory/space/model"
@@ -49,6 +50,7 @@ var whiteHoleShader []byte
 
 //go:embed spiral_distortion.go
 var spiralDistortionShader []byte
+
 
 var (
 	mplusFaceSource *text.GoTextFaceSource
@@ -177,6 +179,7 @@ func NewRenderer() *Renderer {
 		log.Println("Failed to load spiral distortion shader:", err)
 	}
 
+
 	// Create a white texture matching screen size for shaders that need a source image
 	whiteTexture := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
 	whiteTexture.Fill(color.White)
@@ -215,6 +218,7 @@ func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
 		r.renderShadows(r.intermediateBuffer, model)
 		r.drawCelestialBodies(r.intermediateBuffer, model) // Now excludes black holes
 		r.drawAsteroids(r.intermediateBuffer, model)
+		r.drawPortals(r.intermediateBuffer, model)
 		r.drawPlayerTrail(r.intermediateBuffer, model)
 		r.drawPlayer(r.intermediateBuffer, model)
 		r.drawTrajectoryArrow(r.intermediateBuffer, model)
@@ -234,6 +238,7 @@ func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
 		r.renderShadows(screen, model)
 		r.drawCelestialBodies(screen, model)
 		r.drawAsteroids(screen, model)
+		r.drawPortals(screen, model)
 		r.drawPlayerTrail(screen, model)
 		r.drawPlayer(screen, model)
 		r.drawTrajectoryArrow(screen, model)
@@ -420,4 +425,112 @@ func (r *Renderer) drawLine(screen *ebiten.Image, x1, y1, x2, y2, width float32,
 	indices := []uint16{0, 1, 2, 0, 2, 3}
 
 	screen.DrawTriangles(vertices, indices, r.whiteTexture, nil)
+}
+
+// drawPortals renders all portals in the game
+func (r *Renderer) drawPortals(screen *ebiten.Image, model *Models.SpaceGame) {
+	// Get current time for animations
+	currentTime := float32(time.Since(r.startTime).Seconds())
+
+	for _, portal := range model.Portals {
+		// Draw portal as a simple circle
+		r.drawPortal(screen, portal, model, currentTime)
+	}
+}
+
+// drawPortalDebug draws a simple wireframe outline of the portal for debugging
+func (r *Renderer) drawPortalDebug(screen *ebiten.Image, portal *Models.Portal, model *Models.SpaceGame) {
+	camera := model.Camera
+
+	// Convert portal position to screen coordinates
+	screenPos := camera.WorldToScreen(portal.Position, constants.ScreenWidth, constants.ScreenHeight)
+
+	// Convert portal dimensions to screen pixels
+	halfWidth := camera.RadiusToScreen(portal.Width/2, constants.ScreenWidth, constants.ScreenHeight)
+	halfHeight := camera.RadiusToScreen(portal.Height/2, constants.ScreenWidth, constants.ScreenHeight)
+
+	// Portal colors for debug outline
+	debugColors := []color.RGBA{
+		{R: 0, G: 255, B: 255, A: 128},   // Cyan
+		{R: 255, G: 100, B: 200, A: 128}, // Pink
+		{R: 200, G: 255, B: 50, A: 128},  // Lime
+		{R: 255, G: 150, B: 0, A: 128},   // Orange
+		{R: 150, G: 50, B: 255, A: 128},  // Purple
+		{R: 255, G: 255, B: 50, A: 128},  // Yellow
+	}
+
+	colorIndex := portal.PairID % len(debugColors)
+	debugColor := debugColors[colorIndex]
+
+	// Dim color if on cooldown
+	if portal.CooldownTimer > 0 {
+		debugColor.A = 64
+	}
+
+	// Draw simple rectangle outline
+	r.drawRectOutline(screen, screenPos[0]-halfWidth, screenPos[1]-halfHeight, halfWidth*2, halfHeight*2, 2.0, debugColor)
+}
+
+// drawRectOutline draws a rectangle outline
+func (r *Renderer) drawRectOutline(screen *ebiten.Image, x, y, width, height, lineWidth float32, color color.RGBA) {
+	// Top edge
+	r.drawLine(screen, x, y, x+width, y, lineWidth, color)
+	// Bottom edge
+	r.drawLine(screen, x, y+height, x+width, y+height, lineWidth, color)
+	// Left edge
+	r.drawLine(screen, x, y, x, y+height, lineWidth, color)
+	// Right edge
+	r.drawLine(screen, x+width, y, x+width, y+height, lineWidth, color)
+}
+
+// drawPortal renders a single portal as a simple circle
+func (r *Renderer) drawPortal(screen *ebiten.Image, portal *Models.Portal, model *Models.SpaceGame, currentTime float32) {
+	// Convert portal position to screen coordinates using camera methods
+	camera := model.Camera
+	worldPos := portal.Position
+	screenPos := camera.WorldToScreen(worldPos, constants.ScreenWidth, constants.ScreenHeight)
+	
+	// Use the average of width and height as the circle radius
+	portalRadius := camera.RadiusToScreen((portal.Width+portal.Height)/4, constants.ScreenWidth, constants.ScreenHeight)
+	
+	// Portal colors (different colors for different pair IDs)
+	portalColors := []color.RGBA{
+		{R: 0, G: 204, B: 255, A: 180},   // Cyan
+		{R: 255, G: 102, B: 204, A: 180}, // Pink
+		{R: 204, G: 255, B: 51, A: 180},  // Lime
+		{R: 255, G: 153, B: 0, A: 180},   // Orange
+		{R: 153, G: 51, B: 255, A: 180},  // Purple
+		{R: 255, G: 255, B: 51, A: 180},  // Yellow
+	}
+	
+	// Select color based on pair ID
+	colorIndex := portal.PairID % len(portalColors)
+	portalColor := portalColors[colorIndex]
+	
+	// Adjust alpha based on activity state
+	if !portal.IsActive || portal.CooldownTimer > 0 {
+		portalColor.A = 60 // Dim when inactive or on cooldown
+	}
+	
+	// Add pulsing effect
+	pulseIntensity := 0.7 + 0.3*float32(math.Sin(float64(currentTime*3.0)))
+	finalColor := color.RGBA{
+		R: uint8(float32(portalColor.R) * pulseIntensity),
+		G: uint8(float32(portalColor.G) * pulseIntensity),
+		B: uint8(float32(portalColor.B) * pulseIntensity),
+		A: portalColor.A,
+	}
+	
+	// Draw outer glow circle (larger, more transparent)
+	glowRadius := portalRadius * 1.5
+	glowColor := color.RGBA{R: finalColor.R, G: finalColor.G, B: finalColor.B, A: finalColor.A / 4}
+	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], glowRadius, glowColor, true)
+	
+	// Draw main portal circle
+	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], portalRadius, finalColor, true)
+	
+	// Draw inner bright core
+	coreRadius := portalRadius * 0.3
+	coreColor := color.RGBA{R: 255, G: 255, B: 255, A: uint8(float32(finalColor.A) * 0.8)}
+	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], coreRadius, coreColor, true)
 }

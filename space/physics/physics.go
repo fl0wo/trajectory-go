@@ -29,6 +29,12 @@ func (p *PhysicsSystem) UpdateGame(model *Models.SpaceGame, deltaTime float32, t
 	// Update asteroid positions
 	model.UpdateAsteroids(deltaTime)
 
+	// Update portal states (cooldown timers)
+	model.UpdatePortals(deltaTime)
+
+	// Check for portal collisions and handle teleportation
+	model.CheckPortalCollisions()
+
 	// Apply gravitational forces from all celestial bodies
 	for i, body := range model.CelestialBodies {
 		model.Player.ApplyGravitationalForce(body)

@@ -9,6 +9,7 @@ const (
 	CelestialBodyTypeBlackHole
 	CelestialBodyTypeWhiteHole
 	CelestialBodyTypeAsteroid
+	CelestialBodyTypePortal
 )
 
 type CelestialBody interface {
