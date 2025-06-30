@@ -35,6 +35,33 @@ func (p *PhysicsSystem) UpdateGame(model *Models.SpaceGame, deltaTime float32, t
 
 		// Check for collision with celestial body
 		if model.Player.CheckCollisionWithCelestialBody(body) {
+			// Calculate the exact collision point
+			playerPos := model.Player.Position
+			bodyPos := body.GetPosition()
+			playerRadius := model.Player.Radius
+			bodyRadius := body.GetRadius()
+
+			// Distance between centers
+			delta := f32.Vec2{bodyPos[0] - playerPos[0], bodyPos[1] - playerPos[1]}
+			dist := float32(math.Sqrt(float64(delta[0]*delta[0] + delta[1]*delta[1])))
+
+			var collisionPos f32.Vec2
+
+			// Avoid division by zero
+			if dist < 1e-6 {
+				// If centers are nearly coincident, use player position as fallback
+				collisionPos = playerPos
+			} else {
+				// Compute collision point: interpolate along the line from player to body
+				// The collision point is at the edge of the player's circle, scaled by the ratio of radii
+				totalRadius := playerRadius + bodyRadius
+				t := playerRadius / totalRadius // Fraction along the line where circles touch
+				collisionPos = f32.Vec2{
+					playerPos[0] + t*delta[0],
+					playerPos[1] + t*delta[1],
+				}
+			}
+
 			// Check if it's a white hole (victory condition)
 			if body.GetType() == Models.CelestialBodyTypeWhiteHole {
 				// Victory! Move to next level
@@ -50,7 +77,6 @@ func (p *PhysicsSystem) UpdateGame(model *Models.SpaceGame, deltaTime float32, t
 				return nil // Exit early since level was changed
 			} else {
 				// Player hit a planet or black hole - reset the level with collision info
-				collisionPos := model.Player.Position
 				err := model.ResetWithCollision(collisionPos, i)
 				if err != nil {
 					return err
