@@ -219,7 +219,7 @@ func NewRenderer() *Renderer {
 
 	// Create persistent spiral buffer for spiral overlay result
 	spiralBuffer := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
-	
+
 	// Create persistent portal buffers for multi-portal distortion ping-pong
 	portalBuffer1 := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
 	portalBuffer2 := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
@@ -386,7 +386,7 @@ func (r *Renderer) applyPortalDistortion(
 		portalColor := portalColors[colorIndex]
 
 		// Use the average of width and height as the circle radius
-		portalRadius := (portal.Width + portal.Height) / 4
+		portalRadius := portal.Width + portal.Height
 
 		// Calculate activity factor (1.0 if active, 0.0 if cooldown)
 		isActive := float32(1.0)
@@ -422,7 +422,7 @@ func (r *Renderer) applyPortalDistortion(
 			} else {
 				currentTarget = r.portalBuffer2
 			}
-			
+
 			// Clear the target buffer and apply distortion
 			currentTarget.Clear()
 			currentTarget.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.portalDistortionShader, opts)
