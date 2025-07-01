@@ -118,8 +118,9 @@ func (p *Portal) UpdatePlayerInsideState(player *Player) {
 			if distance < p.MinDistanceReached {
 				p.MinDistanceReached = distance
 			}
-			// Check if player has reached close enough to center (within 30% of portal radius)
-			centerThreshold := portalRadius
+
+			// Helping the user a little bit entering the portal
+			centerThreshold := portalRadius * 1.2
 			if distance <= centerThreshold {
 				p.HasReachedCenter = true
 			}

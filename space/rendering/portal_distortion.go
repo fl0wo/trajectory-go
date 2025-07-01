@@ -63,7 +63,6 @@ func distortUV(pix vec2, center vec2, radius float) vec2 {
 
 	return center + dir*newD
 }
-
 func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 	// mask in world‐space
 	wp := screenToWorld(dstPos.xy)
@@ -81,13 +80,5 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 	dp := distortUV(dstPos.xy, cPx, rPx)
 	scene := imageSrc0At(dp)
 
-	// soft mask & tint
-	mask := 1.0 - smoothstep(
-		Portal_Radius*(1.0-EdgeSoftness),
-		Portal_Radius,
-		dW,
-	)
-	tint := vec4(Portal_Color, 1.0) * 0.2 * IsActive
-
-	return mix(scene, scene+tint, mask)
+	return scene
 }
