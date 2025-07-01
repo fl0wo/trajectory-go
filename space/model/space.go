@@ -558,11 +558,11 @@ func (sg *SpaceGame) UpdatePortals(deltaTime float32) {
 	}
 
 	// Update camera target based on portal proximity
-	sg.UpdateCameraTargetForPortals()
+	sg.UpdateCameraTargetForPortals(deltaTime)
 }
 
 // UpdateCameraTargetForPortals sets camera target to center between portal pairs when player is inside
-func (sg *SpaceGame) UpdateCameraTargetForPortals() {
+func (sg *SpaceGame) UpdateCameraTargetForPortals(deltaTime float32) {
 	// Check if player is inside any portal
 	for _, portal := range sg.Portals {
 		if portal.PlayerInside {
@@ -586,6 +586,22 @@ func (sg *SpaceGame) UpdateCameraTargetForPortals() {
 				return // Only need to handle one portal pair
 			}
 		}
+	}
+
+	// If player is not inside any portal, check if they recently exited a portal
+	// In this case, smoothly transition to following the player
+	// BUT: Don't consider it "recently exited" if portal is on cooldown (means teleportation just occurred)
+	playerRecentlyExitedPortal := false
+	for _, portal := range sg.Portals {
+		if !portal.PlayerInside && portal.WasPlayerInside && portal.CooldownTimer <= 0 {
+			playerRecentlyExitedPortal = true
+			break
+		}
+	}
+
+	// If player just exited a portal, smoothly transition camera target to player position
+	if playerRecentlyExitedPortal {
+		sg.Camera.SetTargetSmooth(sg.Player.Position, deltaTime)
 	}
 }
 

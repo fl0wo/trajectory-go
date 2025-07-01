@@ -81,8 +81,8 @@ func (p *Portal) UpdatePlayerInsideState(player *Player) {
 	dy := playerPos[1] - p.Position[1]
 	distSq := dx*dx + dy*dy
 
-	// Use average of width and height as portal radius (same as rendering)
-	portalRadius := (p.Width + p.Height) / 4.0
+	// Use consistent radius calculation with GetRadius method
+	portalRadius := p.GetRadius()
 	combinedRadius := playerRadius + portalRadius
 
 	isCurrentlyInside := distSq <= combinedRadius*combinedRadius

@@ -3,6 +3,7 @@ package Models
 import (
 	"github.com/you/trajectory/constants"
 	"golang.org/x/image/math/f32"
+	"math"
 )
 
 // Camera2D represents a 2D camera that can follow targets smoothly
@@ -76,6 +77,29 @@ func (c *Camera2D) Update(deltaTime float32) {
 // SetTarget sets the camera's target position
 func (c *Camera2D) SetTarget(target f32.Vec2) {
 	c.Target = target
+}
+
+// SetTargetSmooth sets the camera's target position with gradual transition to prevent jumps
+func (c *Camera2D) SetTargetSmooth(target f32.Vec2, deltaTime float32) {
+	// Calculate the distance between current target and new target
+	dx := target[0] - c.Target[0]
+	dy := target[1] - c.Target[1]
+	distance := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+
+	// If the distance is large, gradually transition the target instead of jumping
+	const maxTargetChangePerFrame = float32(0.1) // Adjust this to control target transition speed
+	if distance > maxTargetChangePerFrame {
+		// Normalize the direction and move target gradually
+		if distance > 0 {
+			moveX := (dx / distance) * maxTargetChangePerFrame
+			moveY := (dy / distance) * maxTargetChangePerFrame
+			c.Target[0] += moveX
+			c.Target[1] += moveY
+		}
+	} else {
+		// Small distance, set target directly
+		c.Target = target
+	}
 }
 
 // GetTarget returns the current target position
