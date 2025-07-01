@@ -269,13 +269,10 @@ var PredefinedLevels = map[int]*Level{
 
 	8: func() *Level {
 		// Create multiple portal pairs for a complex portal maze (circular portals)
-		portal1a, portal1b := NewPortalPair(1,
-			f32.Vec2{0.25, 0.8}, f32.Vec2{0.75, 0.2},
-			0.0, 0.0, 0.06, 0.06)
 
 		portal2a, portal2b := NewPortalPair(2,
 			f32.Vec2{0.35, 0.3}, f32.Vec2{0.65, 0.7},
-			0.0, 0.0, 0.06, 0.06)
+			0.0, 0.0, 0.025, 0.025)
 
 		return NewLevelWithAsteroidsAndPortals("Level 8 - Portal Maze",
 			f32.Vec2{0.1, 0.9},
@@ -297,7 +294,7 @@ var PredefinedLevels = map[int]*Level{
 				},
 			},
 			[]*RingAsteroid{}, // No asteroids for this level
-			[]*Portal{portal1a, portal1b, portal2a, portal2b},
+			[]*Portal{portal2a, portal2b},
 		)
 	}(),
 
