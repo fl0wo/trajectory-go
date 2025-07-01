@@ -51,8 +51,8 @@ var whiteHoleShader []byte
 //go:embed spiral_distortion.go
 var spiralDistortionShader []byte
 
-//go:embed wormhole.go
-var wormholeShader []byte
+//go:embed portal_distortion.go
+var portalDistortionShader []byte
 
 var (
 	mplusFaceSource *text.GoTextFaceSource
@@ -115,8 +115,10 @@ type Renderer struct {
 	whiteHoleShader        *ebiten.Shader
 	spiralDistortionShader *ebiten.Shader
 	wormholeShader         *ebiten.Shader
+	portalDistortionShader *ebiten.Shader
 	whiteTexture           *ebiten.Image
 	intermediateBuffer     *ebiten.Image // Persistent buffer for post-processing
+	spiralBuffer           *ebiten.Image // Persistent buffer for spiral overlay result
 	startTime              time.Time     // Game start time for shader animations
 }
 
@@ -198,12 +200,12 @@ func NewRenderer() *Renderer {
 		log.Println("Failed to load spiral distortion shader:", err)
 	}
 
-	// Initialize wormhole shader
-	var wormholeShaderObj *ebiten.Shader
-	if shader, err := ebiten.NewShader(wormholeShader); err == nil {
-		wormholeShaderObj = shader
+	// Initialize portal distortion shader
+	var portalDistortionShaderObj *ebiten.Shader
+	if shader, err := ebiten.NewShader(portalDistortionShader); err == nil {
+		portalDistortionShaderObj = shader
 	} else {
-		log.Println("Failed to load wormhole shader:", err)
+		log.Println("Failed to load portal distortion shader:", err)
 	}
 
 	// Create a white texture matching screen size for shaders that need a source image
@@ -212,6 +214,9 @@ func NewRenderer() *Renderer {
 
 	// Create persistent intermediate buffer for post-processing
 	intermediateBuffer := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
+
+	// Create persistent spiral buffer for spiral overlay result
+	spiralBuffer := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
 
 	return &Renderer{
 		shadowSystem:           shadows.NewShadowSystem(constants.ScreenWidth, constants.ScreenHeight),
@@ -226,14 +231,15 @@ func NewRenderer() *Renderer {
 		blackHoleShader:        blackHoleShaderObj,
 		whiteHoleShader:        whiteHoleShaderObj,
 		spiralDistortionShader: spiralDistortionShaderObj,
-		wormholeShader:         wormholeShaderObj,
+		portalDistortionShader: portalDistortionShaderObj,
 		whiteTexture:           whiteTexture,
 		intermediateBuffer:     intermediateBuffer,
+		spiralBuffer:           spiralBuffer,
 		startTime:              time.Now(), // Initialize start time for shader animations
 	}
 }
 
-// Draw renders the complete game scene with spiral distortion
+// Draw renders the complete game scene with spiral distortion and portal effects
 func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
 	// For testing, always apply the shader (remove this condition later)
 	if r.spiralDistortionShader != nil {
@@ -253,29 +259,16 @@ func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
 		r.drawBorderIndicators(r.intermediateBuffer, model)
 		r.drawFPS(r.intermediateBuffer)
 
-		// Apply post-processing effect to final screen
+		// Apply spiral distortion post-processing effect first
 		blackHoles := r.getBlackHoles(model)
-		r.applySpiralOverlay(screen, r.intermediateBuffer, model, blackHoles)
 
-		// Draw black holes AFTER the spiral distortion effect
-		r.DrawBlackHoles(screen, model)
-		
-		// Draw wormhole portals AFTER everything else to get the final effect
-		r.drawPortals(screen, model)
-	} else {
-		// No shader available, render directly
-		r.drawNebulaBackground(screen, model)
-		r.renderShadows(screen, model)
-		r.drawCelestialBodies(screen, model)
-		r.drawAsteroids(screen, model)
-		r.drawPortals(screen, model)
-		r.drawPlayerTrail(screen, model)
-		r.drawPlayer(screen, model)
-		r.drawTrajectoryArrow(screen, model)
-		r.drawLastCollisionMarker(screen, model)
-		r.drawBorderIndicators(screen, model)
-		r.drawFPS(screen)
-		// When no shader, still draw black holes normally
+		// Clear the persistent spiral buffer and use it for spiral overlay result
+		r.spiralBuffer.Clear()
+		r.applySpiralOverlay(r.spiralBuffer, r.intermediateBuffer, model, blackHoles)
+		// Apply portal distortion as second post-processing effect
+		r.applyPortalDistortion(screen, r.spiralBuffer, model)
+
+		// Draw black holes AFTER all distortion effects
 		r.DrawBlackHoles(screen, model)
 	}
 }
@@ -346,6 +339,69 @@ func (r *Renderer) applySpiralOverlay(
 		// No black holes, just draw the source directly
 		screen.DrawImage(source, nil)
 	}
+}
+
+func (r *Renderer) applyPortalDistortion(
+	screen *ebiten.Image,
+	source *ebiten.Image,
+	model *Models.SpaceGame,
+) {
+	// Skip if no portal distortion shader or no portals
+	if r.portalDistortionShader == nil || len(model.Portals) == 0 {
+		screen.DrawImage(source, nil)
+		return
+	}
+
+	// For now, apply distortion for the first portal (can be extended for multiple portals)
+	portal := model.Portals[0]
+	camera := model.Camera
+
+	// Portal colors (different colors for different pair IDs)
+	portalColors := []color.RGBA{
+		{R: 0, G: 204, B: 255, A: 180},   // Cyan
+		{R: 255, G: 102, B: 204, A: 180}, // Pink
+		{R: 204, G: 255, B: 51, A: 180},  // Lime
+		{R: 255, G: 153, B: 0, A: 180},   // Orange
+		{R: 153, G: 51, B: 255, A: 180},  // Purple
+		{R: 255, G: 255, B: 51, A: 180},  // Yellow
+	}
+
+	// Select color based on pair ID
+	colorIndex := portal.PairID % len(portalColors)
+	portalColor := portalColors[colorIndex]
+
+	// Use the average of width and height as the circle radius
+	portalRadius := (portal.Width + portal.Height) / 4
+
+	// Calculate activity factor (1.0 if active, 0.0 if cooldown)
+	isActive := float32(1.0)
+	if !portal.IsActive || portal.CooldownTimer > 0 {
+		isActive = 0.0
+	}
+
+	// Get current time for animations
+	t := float32(time.Since(r.startTime).Seconds())
+
+	// Set up shader uniforms
+	uniforms := map[string]any{
+		"Portal_Pos":    []float32{portal.Position[0], portal.Position[1]},
+		"Portal_Radius": portalRadius * 4, // Multiply by 4 for compression zone as requested
+		"Portal_Color":  []float32{float32(portalColor.R) / 255, float32(portalColor.G) / 255, float32(portalColor.B) / 255},
+		"CameraPos":     []float32{camera.Position[0], camera.Position[1]},
+		"Zoom":          camera.GetTotalZoom(),
+		"Time":          t,
+		"ScreenSize":    []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
+		"IsActive":      isActive,
+	}
+
+	// Set up shader options
+	opts := &ebiten.DrawRectShaderOptions{
+		Uniforms: uniforms,
+	}
+	opts.Images[0] = source
+
+	// Apply the portal distortion shader to the full screen
+	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.portalDistortionShader, opts)
 }
 
 // renderShadows handles shadow rendering
@@ -457,94 +513,24 @@ func (r *Renderer) drawLine(screen *ebiten.Image, x1, y1, x2, y2, width float32,
 	screen.DrawTriangles(vertices, indices, r.whiteTexture, nil)
 }
 
-// drawPortals renders all portals in the game using wormhole effect
+// drawPortals renders all portals in the game independently
 func (r *Renderer) drawPortals(screen *ebiten.Image, model *Models.SpaceGame) {
-	// Check if we're drawing to the intermediate buffer (during the first pass)
-	// If so, use simple portal rendering to avoid circular reference
-	if screen == r.intermediateBuffer {
-		r.drawPortalsSimple(screen, model)
-		return
-	}
-
-	if r.wormholeShader == nil {
-		// Fallback to simple circles if shader is not available
-		r.drawPortalsSimple(screen, model)
-		return
-	}
-
-	// Group portals by pairs
-	portalPairs := make(map[int][]*Models.Portal)
-	for _, portal := range model.Portals {
-		portalPairs[portal.PairID] = append(portalPairs[portal.PairID], portal)
-	}
-
-	// Draw each portal pair with wormhole effect
-	for _, pair := range portalPairs {
-		if len(pair) == 2 {
-			r.drawPortalPair(screen, pair[0], pair[1], model)
-		}
-	}
+	r.drawPortalsSimple(screen, model)
 }
 
-// drawPortalsSimple renders portals as simple circles (fallback)
+// drawPortalsSimple renders portals as minimal filled circles (fallback)
 func (r *Renderer) drawPortalsSimple(screen *ebiten.Image, model *Models.SpaceGame) {
-	currentTime := float32(time.Since(r.startTime).Seconds())
 	for _, portal := range model.Portals {
-		r.drawPortalSimple(screen, portal, model, currentTime)
+		r.drawPortalCircle(screen, portal, model)
 	}
 }
 
-// drawPortalDebug draws a simple wireframe outline of the portal for debugging
-func (r *Renderer) drawPortalDebug(screen *ebiten.Image, portal *Models.Portal, model *Models.SpaceGame) {
+// drawPortalCircle renders a single portal as a simple filled circle for intermediate buffer
+func (r *Renderer) drawPortalCircle(screen *ebiten.Image, portal *Models.Portal, model *Models.SpaceGame) {
 	camera := model.Camera
 
 	// Convert portal position to screen coordinates
 	screenPos := camera.WorldToScreen(portal.Position, constants.ScreenWidth, constants.ScreenHeight)
-
-	// Convert portal dimensions to screen pixels
-	halfWidth := camera.RadiusToScreen(portal.Width/2, constants.ScreenWidth, constants.ScreenHeight)
-	halfHeight := camera.RadiusToScreen(portal.Height/2, constants.ScreenWidth, constants.ScreenHeight)
-
-	// Portal colors for debug outline
-	debugColors := []color.RGBA{
-		{R: 0, G: 255, B: 255, A: 128},   // Cyan
-		{R: 255, G: 100, B: 200, A: 128}, // Pink
-		{R: 200, G: 255, B: 50, A: 128},  // Lime
-		{R: 255, G: 150, B: 0, A: 128},   // Orange
-		{R: 150, G: 50, B: 255, A: 128},  // Purple
-		{R: 255, G: 255, B: 50, A: 128},  // Yellow
-	}
-
-	colorIndex := portal.PairID % len(debugColors)
-	debugColor := debugColors[colorIndex]
-
-	// Dim color if on cooldown
-	if portal.CooldownTimer > 0 {
-		debugColor.A = 64
-	}
-
-	// Draw simple rectangle outline
-	r.drawRectOutline(screen, screenPos[0]-halfWidth, screenPos[1]-halfHeight, halfWidth*2, halfHeight*2, 2.0, debugColor)
-}
-
-// drawRectOutline draws a rectangle outline
-func (r *Renderer) drawRectOutline(screen *ebiten.Image, x, y, width, height, lineWidth float32, color color.RGBA) {
-	// Top edge
-	r.drawLine(screen, x, y, x+width, y, lineWidth, color)
-	// Bottom edge
-	r.drawLine(screen, x, y+height, x+width, y+height, lineWidth, color)
-	// Left edge
-	r.drawLine(screen, x, y, x, y+height, lineWidth, color)
-	// Right edge
-	r.drawLine(screen, x+width, y, x+width, y+height, lineWidth, color)
-}
-
-// drawPortalSimple renders a single portal as a simple circle (fallback method)
-func (r *Renderer) drawPortalSimple(screen *ebiten.Image, portal *Models.Portal, model *Models.SpaceGame, currentTime float32) {
-	// Convert portal position to screen coordinates using camera methods
-	camera := model.Camera
-	worldPos := portal.Position
-	screenPos := camera.WorldToScreen(worldPos, constants.ScreenWidth, constants.ScreenHeight)
 
 	// Use the average of width and height as the circle radius
 	portalRadius := camera.RadiusToScreen((portal.Width+portal.Height)/4, constants.ScreenWidth, constants.ScreenHeight)
@@ -566,112 +552,8 @@ func (r *Renderer) drawPortalSimple(screen *ebiten.Image, portal *Models.Portal,
 	// Adjust alpha based on activity state
 	if !portal.IsActive || portal.CooldownTimer > 0 {
 		portalColor.A = 60 // Dim when inactive or on cooldown
-	} else if portal.PlayerInside {
-		portalColor.A = 120 // Semi-dim when player is inside (won't teleport until they exit and re-enter)
 	}
 
-	// Add pulsing effect
-	pulseIntensity := 0.7 + 0.3*float32(math.Sin(float64(currentTime*3.0)))
-	finalColor := color.RGBA{
-		R: uint8(float32(portalColor.R) * pulseIntensity),
-		G: uint8(float32(portalColor.G) * pulseIntensity),
-		B: uint8(float32(portalColor.B) * pulseIntensity),
-		A: portalColor.A,
-	}
-
-	// Draw outer glow circle (larger, more transparent)
-	glowRadius := portalRadius * 4
-	glowColor := color.RGBA{R: finalColor.R, G: finalColor.G, B: finalColor.B, A: finalColor.A / 4}
-	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], glowRadius, glowColor, true)
-
-	// Draw main portal circle
-	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], portalRadius, finalColor, true)
-
-	// Draw inner bright core
-	coreRadius := portalRadius * 0.3
-	coreColor := color.RGBA{R: 255, G: 255, B: 255, A: uint8(float32(finalColor.A) * 0.8)}
-	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], coreRadius, coreColor, true)
-}
-
-// drawPortalPair renders a pair of portals with wormhole effect using shader
-func (r *Renderer) drawPortalPair(screen *ebiten.Image, portalA, portalB *Models.Portal, model *Models.SpaceGame) {
-	camera := model.Camera
-	
-	// Portal colors (different colors for different pair IDs)
-	portalColors := []f32.Vec3{
-		{0.0, 0.8, 1.0}, // Cyan
-		{1.0, 0.4, 0.8}, // Pink
-		{0.8, 1.0, 0.2}, // Lime
-		{1.0, 0.6, 0.0}, // Orange
-		{0.6, 0.2, 1.0}, // Purple
-		{1.0, 1.0, 0.2}, // Yellow
-	}
-	
-	// Select color based on pair ID
-	colorIndex := portalA.PairID % len(portalColors)
-	portalColor := portalColors[colorIndex]
-	
-	// Convert portal positions to screen coordinates
-	screenPosA := camera.WorldToScreen(portalA.Position, constants.ScreenWidth, constants.ScreenHeight)
-	screenPosB := camera.WorldToScreen(portalB.Position, constants.ScreenWidth, constants.ScreenHeight)
-	
-	// Calculate portal radii in screen space
-	radiusA := camera.RadiusToScreen((portalA.Width+portalA.Height)/4, constants.ScreenWidth, constants.ScreenHeight)
-	radiusB := camera.RadiusToScreen((portalB.Width+portalB.Height)/4, constants.ScreenWidth, constants.ScreenHeight)
-	
-	// Determine render area that encompasses both portals with some padding
-	padding := float32(100)
-	minX := minFloat32(screenPosA[0]-radiusA-padding, screenPosB[0]-radiusB-padding)
-	maxX := maxFloat32(screenPosA[0]+radiusA+padding, screenPosB[0]+radiusB+padding)
-	minY := minFloat32(screenPosA[1]-radiusA-padding, screenPosB[1]+radiusB+padding)
-	maxY := maxFloat32(screenPosA[1]+radiusA+padding, screenPosB[1]+radiusB+padding)
-	
-	// Clamp to screen bounds
-	minX = maxFloat32(minX, 0)
-	maxX = minFloat32(maxX, float32(constants.ScreenWidth))
-	minY = maxFloat32(minY, 0)
-	maxY = minFloat32(maxY, float32(constants.ScreenHeight))
-	
-	renderWidth := int(maxX - minX)
-	renderHeight := int(maxY - minY)
-	
-	if renderWidth <= 0 || renderHeight <= 0 {
-		return // Nothing to render
-	}
-	
-	// Set up shader options
-	opts := &ebiten.DrawTrianglesShaderOptions{}
-	opts.Uniforms = map[string]interface{}{
-		"PortalA_Pos":      []float32{portalA.Position[0], portalA.Position[1]},
-		"PortalA_Radius":   (portalA.Width + portalA.Height) / 4.0,
-		"PortalA_Rotation": portalA.Rotation,
-		"PortalA_Color":    []float32{portalColor[0], portalColor[1], portalColor[2]},
-		
-		"PortalB_Pos":      []float32{portalB.Position[0], portalB.Position[1]},
-		"PortalB_Radius":   (portalB.Width + portalB.Height) / 4.0,
-		"PortalB_Rotation": portalB.Rotation,
-		"PortalB_Color":    []float32{portalColor[0], portalColor[1], portalColor[2]},
-		
-		"CameraPos":   []float32{camera.Position[0], camera.Position[1]},
-		"Zoom":        camera.GetEffectiveZoom(),
-		"Time":        float32(time.Since(r.startTime).Seconds()),
-		"ScreenSize":  []float32{constants.ScreenWidth, constants.ScreenHeight},
-		"IsActive":    func() float32 { if portalA.IsActive && portalB.IsActive { return 1.0 } else { return 0.0 } }(),
-	}
-	
-	// Set blending mode for portal effect
-	opts.Blend = ebiten.BlendSourceOver
-	
-	// Create vertices for the render area
-	vertices := []ebiten.Vertex{
-		{DstX: minX, DstY: minY, SrcX: minX, SrcY: minY, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
-		{DstX: maxX, DstY: minY, SrcX: maxX, SrcY: minY, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
-		{DstX: minX, DstY: maxY, SrcX: minX, SrcY: maxY, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
-		{DstX: maxX, DstY: maxY, SrcX: maxX, SrcY: maxY, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
-	}
-	indices := []uint16{0, 1, 2, 1, 2, 3}
-	
-	// Apply wormhole shader with the intermediate buffer as source
-	opts.Images[0] = r.intermediateBuffer
-	screen.DrawTrianglesShader(vertices, indices, r.wormholeShader, opts)
+	// Draw simple filled circle
+	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], portalRadius, portalColor, true)
 }
