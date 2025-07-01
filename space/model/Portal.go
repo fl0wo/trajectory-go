@@ -31,7 +31,7 @@ func (p *Portal) GetRadius() float32 {
 
 // GetOrbitRadius returns zero as portals don't have gravitational orbits
 func (p *Portal) GetOrbitRadius() float32 {
-	return p.GetRadius()
+	return p.GetRadius() * 2.0
 }
 
 // GetMass returns the portal's mass for physics calculations

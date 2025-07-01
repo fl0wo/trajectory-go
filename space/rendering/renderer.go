@@ -397,7 +397,7 @@ func (r *Renderer) applyPortalDistortion(
 		// Set up shader uniforms
 		uniforms := map[string]any{
 			"Portal_Pos":    []float32{portal.Position[0], portal.Position[1]},
-			"Portal_Radius": portalRadius * 4, // Multiply by 4 for compression zone as requested
+			"Portal_Radius": portalRadius,
 			"Portal_Color":  []float32{float32(portalColor.R) / 255, float32(portalColor.G) / 255, float32(portalColor.B) / 255},
 			"CameraPos":     []float32{camera.Position[0], camera.Position[1]},
 			"Zoom":          camera.GetTotalZoom(),
@@ -542,11 +542,6 @@ func (r *Renderer) drawLine(screen *ebiten.Image, x1, y1, x2, y2, width float32,
 
 // drawPortals renders all portals in the game independently
 func (r *Renderer) drawPortals(screen *ebiten.Image, model *Models.SpaceGame) {
-	r.drawPortalsSimple(screen, model)
-}
-
-// drawPortalsSimple renders portals as minimal filled circles (fallback)
-func (r *Renderer) drawPortalsSimple(screen *ebiten.Image, model *Models.SpaceGame) {
 	for _, portal := range model.Portals {
 		r.drawPortalCircle(screen, portal, model)
 	}
