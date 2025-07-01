@@ -26,12 +26,12 @@ func (p *Portal) GetPosition() f32.Vec2 {
 
 // GetRadius returns an effective radius for collision detection (average of width and height)
 func (p *Portal) GetRadius() float32 {
-	return (p.Width + p.Height) / 4.0
+	return (p.Width + p.Height)
 }
 
 // GetOrbitRadius returns zero as portals don't have gravitational orbits
 func (p *Portal) GetOrbitRadius() float32 {
-	return 0.0
+	return p.GetRadius()
 }
 
 // GetMass returns the portal's mass for physics calculations

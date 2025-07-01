@@ -163,18 +163,30 @@ func (p *PhysicsSystem) ProcessThrow(model *Models.SpaceGame, startScreenPos, en
 
 // UpdateCameraPhysics updates camera behavior based on camera mode
 func (p *PhysicsSystem) UpdateCameraPhysics(model *Models.SpaceGame, deltaTime float32) {
-	switch model.CameraMode {
-	case Models.CameraModeCenter:
-		// Always follow the center of all entities
-		levelCenter := model.CalculateLevelCenter()
-		model.Camera.SetTarget(levelCenter)
-	case Models.CameraModePlayer:
-		// Follow player when moving, center view when idle
-		if model.Player.IsMoving() {
-			model.Camera.SetTarget(model.Player.Position)
-		} else {
+	// Check if player is inside any portal - if so, don't override the portal targeting
+	playerInsidePortal := false
+	for _, portal := range model.Portals {
+		if portal.PlayerInside {
+			playerInsidePortal = true
+			break
+		}
+	}
+
+	// Only apply normal camera logic if player is not inside a portal
+	if !playerInsidePortal {
+		switch model.CameraMode {
+		case Models.CameraModeCenter:
+			// Always follow the center of all entities
 			levelCenter := model.CalculateLevelCenter()
 			model.Camera.SetTarget(levelCenter)
+		case Models.CameraModePlayer:
+			// Follow player when moving, center view when idle
+			if model.Player.IsMoving() {
+				model.Camera.SetTarget(model.Player.Position)
+			} else {
+				levelCenter := model.CalculateLevelCenter()
+				model.Camera.SetTarget(levelCenter)
+			}
 		}
 	}
 	model.Camera.Update(deltaTime)

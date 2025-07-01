@@ -386,7 +386,7 @@ func (r *Renderer) applyPortalDistortion(
 		portalColor := portalColors[colorIndex]
 
 		// Use the average of width and height as the circle radius
-		portalRadius := portal.Width + portal.Height
+		portalRadius := portal.GetOrbitRadius()
 
 		// Calculate activity factor (1.0 if active, 0.0 if cooldown)
 		isActive := float32(1.0)
@@ -560,7 +560,7 @@ func (r *Renderer) drawPortalCircle(screen *ebiten.Image, portal *Models.Portal,
 	screenPos := camera.WorldToScreen(portal.Position, constants.ScreenWidth, constants.ScreenHeight)
 
 	// Use the average of width and height as the circle radius
-	portalRadius := camera.RadiusToScreen((portal.Width+portal.Height)/4, constants.ScreenWidth, constants.ScreenHeight)
+	portalRadius := camera.RadiusToScreen(portal.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
 
 	// Portal colors (different colors for different pair IDs)
 	portalColors := []color.RGBA{

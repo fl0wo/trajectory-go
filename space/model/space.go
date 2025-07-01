@@ -556,6 +556,37 @@ func (sg *SpaceGame) UpdatePortals(deltaTime float32) {
 		// Update player inside state for each portal
 		portal.UpdatePlayerInsideState(sg.Player)
 	}
+
+	// Update camera target based on portal proximity
+	sg.UpdateCameraTargetForPortals()
+}
+
+// UpdateCameraTargetForPortals sets camera target to center between portal pairs when player is inside
+func (sg *SpaceGame) UpdateCameraTargetForPortals() {
+	// Check if player is inside any portal
+	for _, portal := range sg.Portals {
+		if portal.PlayerInside {
+			// Find the paired portal
+			var pairedPortal *Portal
+			for _, otherPortal := range sg.Portals {
+				if otherPortal.PairID == portal.PairID && otherPortal.ID != portal.ID {
+					pairedPortal = otherPortal
+					break
+				}
+			}
+
+			if pairedPortal != nil {
+				// Calculate center position between the two portals
+				centerX := (portal.Position[0] + pairedPortal.Position[0]) / 2.0
+				centerY := (portal.Position[1] + pairedPortal.Position[1]) / 2.0
+				centerPos := f32.Vec2{centerX, centerY}
+
+				// Set camera target to the center between portals
+				sg.Camera.SetTarget(centerPos)
+				return // Only need to handle one portal pair
+			}
+		}
+	}
 }
 
 // CheckPortalCollisions checks for player collisions with portals and handles teleportation
