@@ -2,21 +2,25 @@ package Models
 
 import (
 	"golang.org/x/image/math/f32"
+	"math"
 )
 
 // Portal represents a wormhole/portal entity that teleports players between paired coordinates
 type Portal struct {
-	ID              int      // Unique identifier for this portal
-	PairID          int      // ID of the paired portal (portals with same PairID are linked)
-	Position        f32.Vec2 // Position of the portal in normalized coordinates
-	Rotation        float32  // Rotation angle in radians for portal orientation
-	Width           float32  // Width of the capsule portal
-	Height          float32  // Height of the capsule portal
-	Mass            float32  // Mass for physics interactions (typically very small)
-	IsActive        bool     // Whether the portal is currently active
-	CooldownTimer   float32  // Cooldown timer to prevent rapid teleportation loops
-	PlayerInside    bool     // Whether the player is currently inside this portal's radius
-	WasPlayerInside bool     // Whether the player was inside in the previous frame
+	ID                 int      // Unique identifier for this portal
+	PairID             int      // ID of the paired portal (portals with same PairID are linked)
+	Position           f32.Vec2 // Position of the portal in normalized coordinates
+	Rotation           float32  // Rotation angle in radians for portal orientation
+	Width              float32  // Width of the capsule portal
+	Height             float32  // Height of the capsule portal
+	Mass               float32  // Mass for physics interactions (typically very small)
+	IsActive           bool     // Whether the portal is currently active
+	CooldownTimer      float32  // Cooldown timer to prevent rapid teleportation loops
+	PlayerInside       bool     // Whether the player is currently inside this portal's radius
+	WasPlayerInside    bool     // Whether the player was inside in the previous frame
+	DistanceToPlayer   float32  // Current distance from portal center to player
+	MinDistanceReached float32  // Minimum distance reached while inside portal
+	HasReachedCenter   bool     // Whether player has reached close enough to center
 }
 
 // GetPosition returns the portal's position (implementing a common interface pattern)
@@ -45,16 +49,28 @@ func (p *Portal) GetType() CelestialBodyType {
 }
 
 // CheckCollisionWithPlayer checks if a player should teleport through this portal
-// Returns true only if the player enters the portal from outside (no ping-pong effect)
+// Returns true only when player has reached close to center and is now moving away
 func (p *Portal) CheckCollisionWithPlayer(player *Player) bool {
 	if !p.IsActive || p.CooldownTimer > 0 {
 		return false
 	}
 
-	// Only trigger teleportation if player transitioned from outside to inside
-	// PlayerInside = current state, WasPlayerInside = previous frame state
-	// Teleport when: currently inside AND was previously outside
-	return p.PlayerInside && !p.WasPlayerInside
+	// Player must be inside the portal radius
+	if !p.PlayerInside {
+		return false
+	}
+
+	// Player must have reached close enough to the center
+	if !p.HasReachedCenter {
+		return false
+	}
+
+	// Teleport when player is moving away from center after reaching it
+	// Simple check: if current distance is greater than minimum reached distance + small threshold
+	threshold := p.GetRadius() * 0.1 // 10% of portal radius
+	isMovingAway := p.DistanceToPlayer > (p.MinDistanceReached + threshold)
+
+	return isMovingAway
 }
 
 // Update updates the portal's state (mainly cooldown timer)
@@ -76,19 +92,43 @@ func (p *Portal) UpdatePlayerInsideState(player *Player) {
 	playerPos := player.Position
 	playerRadius := player.Radius
 
-	// Simple circle-to-circle collision detection
+	// Calculate distance from portal center to player center
 	dx := playerPos[0] - p.Position[0]
 	dy := playerPos[1] - p.Position[1]
-	distSq := dx*dx + dy*dy
+	distance := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+	p.DistanceToPlayer = distance
 
 	// Use consistent radius calculation with GetRadius method
 	portalRadius := p.GetRadius()
 	combinedRadius := playerRadius + portalRadius
 
-	isCurrentlyInside := distSq <= combinedRadius*combinedRadius
+	isCurrentlyInside := distance <= combinedRadius
 
 	// Update the current inside state
 	p.PlayerInside = isCurrentlyInside
+
+	// Track minimum distance reached while inside portal
+	if p.PlayerInside {
+		if !p.WasPlayerInside {
+			// Just entered portal - reset tracking
+			p.MinDistanceReached = distance
+			p.HasReachedCenter = false
+		} else {
+			// Update minimum distance
+			if distance < p.MinDistanceReached {
+				p.MinDistanceReached = distance
+			}
+			// Check if player has reached close enough to center (within 30% of portal radius)
+			centerThreshold := portalRadius * 0.3
+			if distance <= centerThreshold {
+				p.HasReachedCenter = true
+			}
+		}
+	} else if p.WasPlayerInside {
+		// Just exited portal - reset tracking
+		p.HasReachedCenter = false
+		p.MinDistanceReached = math.MaxFloat32
+	}
 }
 
 // StartCooldown starts the cooldown timer to prevent immediate re-entry
@@ -104,17 +144,20 @@ func (p *Portal) IsReady() bool {
 // NewPortal creates a new portal with default values
 func NewPortal(id, pairID int, position f32.Vec2, rotation, width, height float32) *Portal {
 	return &Portal{
-		ID:              id,
-		PairID:          pairID,
-		Position:        position,
-		Rotation:        rotation,
-		Width:           width,
-		Height:          height,
-		Mass:            0.01, // Very small mass to avoid affecting physics significantly
-		IsActive:        true,
-		CooldownTimer:   0.0,
-		PlayerInside:    false, // Player starts outside the portal
-		WasPlayerInside: false, // Player was also outside in the previous frame
+		ID:                 id,
+		PairID:             pairID,
+		Position:           position,
+		Rotation:           rotation,
+		Width:              width,
+		Height:             height,
+		Mass:               0.01, // Very small mass to avoid affecting physics significantly
+		IsActive:           true,
+		CooldownTimer:      0.0,
+		PlayerInside:       false,           // Player starts outside the portal
+		WasPlayerInside:    false,           // Player was also outside in the previous frame
+		DistanceToPlayer:   math.MaxFloat32, // Initialize with large distance
+		MinDistanceReached: math.MaxFloat32, // Initialize with large distance
+		HasReachedCenter:   false,           // Player hasn't reached center yet
 	}
 }
 

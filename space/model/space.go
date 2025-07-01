@@ -690,7 +690,7 @@ func (sg *SpaceGame) TeleportPlayer(sourcePortal *Portal) {
 	targetPortal.WasPlayerInside = true
 
 	// Start cooldown on both portals to prevent immediate re-entry
-	const portalCooldown = 0.5 // 0.5 seconds cooldown
+	const portalCooldown = 2.0 // 2 seconds cooldown
 	sourcePortal.StartCooldown(portalCooldown)
 	targetPortal.StartCooldown(portalCooldown)
 }
