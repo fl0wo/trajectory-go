@@ -119,6 +119,8 @@ type Renderer struct {
 	whiteTexture           *ebiten.Image
 	intermediateBuffer     *ebiten.Image // Persistent buffer for post-processing
 	spiralBuffer           *ebiten.Image // Persistent buffer for spiral overlay result
+	portalBuffer1          *ebiten.Image // Persistent buffer for portal distortion ping-pong
+	portalBuffer2          *ebiten.Image // Persistent buffer for portal distortion ping-pong
 	startTime              time.Time     // Game start time for shader animations
 }
 
@@ -217,6 +219,10 @@ func NewRenderer() *Renderer {
 
 	// Create persistent spiral buffer for spiral overlay result
 	spiralBuffer := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
+	
+	// Create persistent portal buffers for multi-portal distortion ping-pong
+	portalBuffer1 := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
+	portalBuffer2 := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
 
 	return &Renderer{
 		shadowSystem:           shadows.NewShadowSystem(constants.ScreenWidth, constants.ScreenHeight),
@@ -235,6 +241,8 @@ func NewRenderer() *Renderer {
 		whiteTexture:           whiteTexture,
 		intermediateBuffer:     intermediateBuffer,
 		spiralBuffer:           spiralBuffer,
+		portalBuffer1:          portalBuffer1,
+		portalBuffer2:          portalBuffer2,
 		startTime:              time.Now(), // Initialize start time for shader animations
 	}
 }
@@ -352,8 +360,6 @@ func (r *Renderer) applyPortalDistortion(
 		return
 	}
 
-	// For now, apply distortion for the first portal (can be extended for multiple portals)
-	portal := model.Portals[0]
 	camera := model.Camera
 
 	// Portal colors (different colors for different pair IDs)
@@ -366,42 +372,63 @@ func (r *Renderer) applyPortalDistortion(
 		{R: 255, G: 255, B: 51, A: 180},  // Yellow
 	}
 
-	// Select color based on pair ID
-	colorIndex := portal.PairID % len(portalColors)
-	portalColor := portalColors[colorIndex]
-
-	// Use the average of width and height as the circle radius
-	portalRadius := (portal.Width + portal.Height) / 4
-
-	// Calculate activity factor (1.0 if active, 0.0 if cooldown)
-	isActive := float32(1.0)
-	if !portal.IsActive || portal.CooldownTimer > 0 {
-		isActive = 0.0
-	}
-
 	// Get current time for animations
 	t := float32(time.Since(r.startTime).Seconds())
 
-	// Set up shader uniforms
-	uniforms := map[string]any{
-		"Portal_Pos":    []float32{portal.Position[0], portal.Position[1]},
-		"Portal_Radius": portalRadius * 4, // Multiply by 4 for compression zone as requested
-		"Portal_Color":  []float32{float32(portalColor.R) / 255, float32(portalColor.G) / 255, float32(portalColor.B) / 255},
-		"CameraPos":     []float32{camera.Position[0], camera.Position[1]},
-		"Zoom":          camera.GetTotalZoom(),
-		"Time":          t,
-		"ScreenSize":    []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
-		"IsActive":      isActive,
-	}
+	// Use ping-pong buffers for multiple portal distortions
+	var currentSource *ebiten.Image = source
+	var currentTarget *ebiten.Image
 
-	// Set up shader options
-	opts := &ebiten.DrawRectShaderOptions{
-		Uniforms: uniforms,
-	}
-	opts.Images[0] = source
+	// Apply distortion for each portal sequentially
+	for i, portal := range model.Portals {
+		// Select color based on pair ID
+		colorIndex := portal.PairID % len(portalColors)
+		portalColor := portalColors[colorIndex]
 
-	// Apply the portal distortion shader to the full screen
-	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.portalDistortionShader, opts)
+		// Use the average of width and height as the circle radius
+		portalRadius := (portal.Width + portal.Height) / 4
+
+		// Calculate activity factor (1.0 if active, 0.0 if cooldown)
+		isActive := float32(1.0)
+		if !portal.IsActive || portal.CooldownTimer > 0 {
+			isActive = 0.0
+		}
+
+		// Set up shader uniforms
+		uniforms := map[string]any{
+			"Portal_Pos":    []float32{portal.Position[0], portal.Position[1]},
+			"Portal_Radius": portalRadius * 4, // Multiply by 4 for compression zone as requested
+			"Portal_Color":  []float32{float32(portalColor.R) / 255, float32(portalColor.G) / 255, float32(portalColor.B) / 255},
+			"CameraPos":     []float32{camera.Position[0], camera.Position[1]},
+			"Zoom":          camera.GetTotalZoom(),
+			"Time":          t,
+			"ScreenSize":    []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
+			"IsActive":      isActive,
+		}
+
+		// Set up shader options
+		opts := &ebiten.DrawRectShaderOptions{
+			Uniforms: uniforms,
+		}
+		opts.Images[0] = currentSource
+
+		// For the last portal, draw directly to screen
+		if i == len(model.Portals)-1 {
+			screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.portalDistortionShader, opts)
+		} else {
+			// Use ping-pong buffers for intermediate portals
+			if i%2 == 0 {
+				currentTarget = r.portalBuffer1
+			} else {
+				currentTarget = r.portalBuffer2
+			}
+			
+			// Clear the target buffer and apply distortion
+			currentTarget.Clear()
+			currentTarget.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.portalDistortionShader, opts)
+			currentSource = currentTarget
+		}
+	}
 }
 
 // renderShadows handles shadow rendering
