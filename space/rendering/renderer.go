@@ -561,7 +561,7 @@ func (r *Renderer) drawPortalRing(screen *ebiten.Image, portal *Models.Portal, m
 	portalColors := colors.PortalColors
 	clr := portalColors[portal.PairID%len(portalColors)]
 	if !portal.IsActive || portal.CooldownTimer > 0 {
-		clr.A = 60
+		clr = colors.PortalColorInactive // Use inactive color if not active
 	}
 
 	ringWidth := portalRadius * 0.1
