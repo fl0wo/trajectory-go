@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"log"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
@@ -13,10 +14,10 @@ import (
 	Models "github.com/you/trajectory/space/model"
 )
 
-type LevelSquare struct {
-	X, Y, Size float32
-	LevelNum   int
-	IsLocked   bool
+type LevelNode struct {
+	X, Y, Radius float32
+	LevelNum     int
+	IsLocked     bool
 }
 
 type HomeScreenImpl struct {
@@ -25,7 +26,13 @@ type HomeScreenImpl struct {
 	textFaceSource                                       *text.GoTextFaceSource
 	layout                                               *ResponsiveLayout
 	settingsButtonX, settingsButtonY, settingsButtonSize float32
-	levelSquares                                         []LevelSquare
+	levelNodes                                           []LevelNode
+	scrollOffsetX                                        float32 // Current horizontal scroll offset
+	targetScrollX                                        float32 // Target scroll position for smooth scrolling
+	isDragging                                           bool    // Whether user is currently dragging
+	dragStartX                                           float32 // Mouse X position when drag started
+	dragStartScrollX                                     float32 // Scroll offset when drag started
+	totalPathWidth                                       float32 // Total width of the level path
 }
 
 func NewHomeScreen(screenManager *ScreenManager) *HomeScreenImpl {
@@ -40,78 +47,137 @@ func NewHomeScreen(screenManager *ScreenManager) *HomeScreenImpl {
 		screenManager:  screenManager,
 		textFaceSource: textFaceSource,
 		layout:         NewResponsiveLayout(1920, 1080), // Default, updated in Layout
+		scrollOffsetX:  0,
+		targetScrollX:  0,
+		isDragging:     false,
 	}
 
-	homeScreen.generateLevelSquares()
+	homeScreen.generateLevelNodes()
 	return homeScreen
 }
 
-func (h *HomeScreenImpl) generateLevelSquares() {
+func (h *HomeScreenImpl) generateLevelNodes() {
 	// Get total number of levels from PredefinedLevels
 	totalLevels := len(Models.PredefinedLevels)
-	h.levelSquares = make([]LevelSquare, totalLevels)
+	h.levelNodes = make([]LevelNode, totalLevels)
 
 	// For now, all levels are unlocked (you can add logic for locked levels later)
 	for i := 1; i <= totalLevels; i++ {
-		h.levelSquares[i-1] = LevelSquare{
+		h.levelNodes[i-1] = LevelNode{
 			LevelNum: i,
 			IsLocked: false, // All unlocked for now
+			Radius:   0,     // Will be set in updateLevelNodePositions
 		}
 	}
 }
 
-func (h *HomeScreenImpl) updateLevelSquarePositions() {
-	if len(h.levelSquares) == 0 {
+func (h *HomeScreenImpl) updateLevelNodePositions() {
+	if len(h.levelNodes) == 0 {
 		return
 	}
 
-	squareSize := float32(h.layout.GetButtonSize()) * 1.2
-	margin := float32(h.layout.GetMargin())
+	// Calculate responsive circle size and spacing
+	radius := float32(h.layout.GetButtonSize()) * 0.8
+	spacing := radius * 10.0 // Space between circle centers
 
-	// Calculate grid layout (3 columns for 9 levels)
-	cols := 3
-	rows := (len(h.levelSquares) + cols - 1) / cols
+	// Center vertically
+	centerY := float32(h.layout.Height) / 2
 
-	// Calculate starting position to center the grid
-	totalWidth := float32(cols)*squareSize + float32(cols-1)*margin
-	totalHeight := float32(rows)*squareSize + float32(rows-1)*margin
+	// Calculate total path width
+	h.totalPathWidth = float32(len(h.levelNodes)-1) * spacing
 
-	startX := (float32(h.layout.Width) - totalWidth) / 2
-	startY := (float32(h.layout.Height) - totalHeight) / 2
-
-	// Position each square
-	for i := range h.levelSquares {
-		row := i / cols
-		col := i % cols
-
-		h.levelSquares[i].X = startX + float32(col)*(squareSize+margin)
-		h.levelSquares[i].Y = startY + float32(row)*(squareSize+margin)
-		h.levelSquares[i].Size = squareSize
+	// Position each node horizontally with proper spacing
+	for i := range h.levelNodes {
+		h.levelNodes[i].X = float32(i) * spacing
+		h.levelNodes[i].Y = centerY
+		h.levelNodes[i].Radius = radius
 	}
 }
 
 func (h *HomeScreenImpl) Update() error {
-	// Update level square positions based on current layout
-	h.updateLevelSquarePositions()
+	// Update level node positions based on current layout
+	h.updateLevelNodePositions()
 
-	// Handle touch/click input
+	// Handle mouse/touch input
+	x, y := ebiten.CursorPosition()
+	fx, fy := float32(x), float32(y)
+
+	// Handle drag scrolling
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		x, y := ebiten.CursorPosition()
-		fx, fy := float32(x), float32(y)
-
-		// Check if settings button was clicked
+		// Check if settings button was clicked first
 		if IsPointInCircle(fx, fy, h.settingsButtonX+h.settingsButtonSize/2, h.settingsButtonY+h.settingsButtonSize/2, h.settingsButtonSize/2) {
 			h.screenManager.SetScreen(SettingsScreen)
 			return nil
 		}
 
-		// Check if any level square was clicked
-		for _, square := range h.levelSquares {
-			if !square.IsLocked && IsPointInRect(fx, fy, square.X, square.Y, square.Size, square.Size) {
-				// Load the selected level and go to game screen
-				h.screenManager.SetScreenWithLevel(GameScreen, square.LevelNum)
-				return nil
+		// Start dragging
+		h.isDragging = true
+		h.dragStartX = fx
+		h.dragStartScrollX = h.scrollOffsetX
+	}
+
+	if h.isDragging && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		// Update scroll position based on drag
+		dragDelta := fx - h.dragStartX
+		h.targetScrollX = h.dragStartScrollX - dragDelta // Reverse direction for natural scrolling
+
+		// Clamp scroll position
+		maxScroll := h.totalPathWidth - float32(h.layout.Width) + h.levelNodes[0].Radius*2
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+
+		if h.targetScrollX < 0 {
+			h.targetScrollX = 0
+		} else if h.targetScrollX > maxScroll {
+			h.targetScrollX = maxScroll
+		}
+	}
+
+	if inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
+		if h.isDragging {
+			// Check if this was a click (small movement) rather than a drag
+			dragDistance := float32(math.Abs(float64(fx - h.dragStartX)))
+			if dragDistance < 10 { // Threshold for click vs drag
+				// Check if any level node was clicked
+				for _, node := range h.levelNodes {
+					nodeScreenX := node.X - h.scrollOffsetX
+					if !node.IsLocked && IsPointInCircle(fx, fy, nodeScreenX, node.Y, node.Radius) {
+						// Load the selected level and go to game screen
+						h.screenManager.SetScreenWithLevel(GameScreen, node.LevelNum)
+						return nil
+					}
+				}
 			}
+		}
+		h.isDragging = false
+	}
+
+	// Smooth scrolling animation
+	scrollSpeed := float32(8.0)      // Adjust for faster/slower scrolling
+	deltaTime := float32(1.0 / 60.0) // Assume 60 FPS
+	t := scrollSpeed * deltaTime
+	if t > 1.0 {
+		t = 1.0
+	}
+	h.scrollOffsetX += (h.targetScrollX - h.scrollOffsetX) * t
+
+	// Handle mouse wheel scrolling
+	_, wheelY := ebiten.Wheel()
+	if wheelY != 0 {
+		scrollAmount := float32(wheelY) * -50 // Adjust scroll sensitivity
+		h.targetScrollX += scrollAmount
+
+		// Clamp scroll position
+		maxScroll := h.totalPathWidth - float32(h.layout.Width) + h.levelNodes[0].Radius*2
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+
+		if h.targetScrollX < 0 {
+			h.targetScrollX = 0
+		} else if h.targetScrollX > maxScroll {
+			h.targetScrollX = maxScroll
 		}
 	}
 
@@ -119,8 +185,8 @@ func (h *HomeScreenImpl) Update() error {
 }
 
 func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
-	// Fill screen with black background
-	screen.Fill(color.RGBA{A: 255})
+	// Fill screen with dark blue background (space-like)
+	screen.Fill(color.RGBA{15, 25, 50, 255})
 
 	margin := h.layout.GetMargin()
 
@@ -154,45 +220,68 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 	titleWidth := int(titleWidthF)
 
 	titleX := (h.layout.Width - titleWidth) / 2
-	titleY := margin * 3
+	titleY := margin * 2
 
 	titleOp := &text.DrawOptions{}
 	titleOp.GeoM.Translate(float64(titleX), float64(titleY))
 	titleOp.ColorScale.ScaleWithColor(color.RGBA{255, 255, 255, 255})
 	text.Draw(screen, titleText, titleFace, titleOp)
 
-	// Draw subtitle
-	var subtitleText string
-	if h.layout.IsMobile() {
-		subtitleText = "Select a level to play"
-	} else {
-		subtitleText = "Select a level to play"
+	// Draw connecting lines between level nodes first (so they appear behind circles)
+	lineColor := color.RGBA{100, 150, 255, 180} // Light blue connecting lines
+	for i := 0; i < len(h.levelNodes)-1; i++ {
+		currentNode := h.levelNodes[i]
+		nextNode := h.levelNodes[i+1]
+
+		// Calculate screen positions (accounting for scroll)
+		currentX := currentNode.X - h.scrollOffsetX
+		nextX := nextNode.X - h.scrollOffsetX
+
+		// Only draw lines that are visible on screen
+		if (currentX > -currentNode.Radius && currentX < float32(h.layout.Width)+currentNode.Radius) ||
+			(nextX > -nextNode.Radius && nextX < float32(h.layout.Width)+nextNode.Radius) {
+			DrawConnectionLine(screen, currentX, currentNode.Y, nextX, nextNode.Y, lineColor)
+		}
 	}
 
-	subtitleFace := &text.GoTextFace{
-		Source: h.textFaceSource,
-		Size:   h.layout.GetBodyFontSize(),
-	}
-
-	subtitleWidthF, _ := text.Measure(subtitleText, subtitleFace, 0)
-	subtitleWidth := int(subtitleWidthF)
-	subtitleX := (h.layout.Width - subtitleWidth) / 2
-	subtitleY := titleY + int(h.layout.GetTitleFontSize()) + margin/2
-
-	subtitleOp := &text.DrawOptions{}
-	subtitleOp.GeoM.Translate(float64(subtitleX), float64(subtitleY))
-	subtitleOp.ColorScale.ScaleWithColor(color.RGBA{192, 192, 192, 255})
-	text.Draw(screen, subtitleText, subtitleFace, subtitleOp)
-
-	// Draw level squares
+	// Draw level nodes (circles with numbers)
 	levelNumberFace := &text.GoTextFace{
 		Source: h.textFaceSource,
 		Size:   h.layout.GetBodyFontSize(),
 	}
 
-	for _, square := range h.levelSquares {
-		DrawLevelSquare(screen, square.X, square.Y, square.Size, square.LevelNum, levelNumberFace, square.IsLocked)
+	for _, node := range h.levelNodes {
+		// Calculate screen position (accounting for scroll)
+		screenX := node.X - h.scrollOffsetX
+
+		// Only draw nodes that are visible on screen (with some margin)
+		if screenX > -node.Radius*2 && screenX < float32(h.layout.Width)+node.Radius*2 {
+			DrawLevelCircle(screen, screenX, node.Y, node.Radius, node.LevelNum, levelNumberFace, node.IsLocked)
+		}
 	}
+
+	// Draw scroll instructions at bottom
+	var instructionText string
+	if h.layout.IsMobile() {
+		instructionText = "Drag to scroll • Tap circle to play level"
+	} else {
+		instructionText = "Drag to scroll • Click circle to play level • Mouse wheel to scroll"
+	}
+
+	instructionFace := &text.GoTextFace{
+		Source: h.textFaceSource,
+		Size:   h.layout.GetSmallFontSize(),
+	}
+
+	instructionWidthF, _ := text.Measure(instructionText, instructionFace, 0)
+	instructionWidth := int(instructionWidthF)
+	instructionX := (h.layout.Width - instructionWidth) / 2
+	instructionY := h.layout.Height - margin - int(h.layout.GetSmallFontSize())
+
+	instructionOp := &text.DrawOptions{}
+	instructionOp.GeoM.Translate(float64(instructionX), float64(instructionY))
+	instructionOp.ColorScale.ScaleWithColor(color.RGBA{128, 128, 128, 255})
+	text.Draw(screen, instructionText, instructionFace, instructionOp)
 }
 
 func (h *HomeScreenImpl) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {

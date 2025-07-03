@@ -69,9 +69,8 @@ func IsPointInRect(px, py, x, y, width, height float32) bool {
 	return px >= x && px <= x+width && py >= y && py <= y+height
 }
 
-// DrawLevelSquare draws a level selection square with number inside
-func DrawLevelSquare(screen *ebiten.Image, x, y, size float32, levelNum int, textFace *text.GoTextFace, isLocked bool) {
-
+// DrawLevelCircle draws a level selection circle with number inside (Super Mario Galaxy style)
+func DrawLevelCircle(screen *ebiten.Image, centerX, centerY, radius float32, levelNum int, textFace *text.GoTextFace, isLocked bool) {
 	// Choose colors based on lock state
 	var bgColor, borderColor, textColor color.RGBA
 	if isLocked {
@@ -79,27 +78,56 @@ func DrawLevelSquare(screen *ebiten.Image, x, y, size float32, levelNum int, tex
 		borderColor = color.RGBA{100, 100, 100, 255} // Lighter gray
 		textColor = color.RGBA{150, 150, 150, 255}   // Gray text
 	} else {
-		bgColor = color.RGBA{40, 120, 200, 255}     // Blue
-		borderColor = color.RGBA{60, 140, 220, 255} // Lighter blue
-		textColor = color.RGBA{255, 255, 255, 255}  // White text
+		bgColor = color.RGBA{255, 215, 0, 255}       // Gold background
+		borderColor = color.RGBA{255, 255, 255, 255} // White border
+		textColor = color.RGBA{0, 0, 0, 255}         // Black text
 	}
 
-	// Draw background square
-	vector.DrawFilledRect(screen, x, y, size, size, bgColor, true)
+	// Draw background circle
+	vector.DrawFilledCircle(screen, centerX, centerY, radius, bgColor, true)
 
-	// Draw border
-	borderWidth := float32(2)
-	vector.StrokeRect(screen, x, y, size, size, borderWidth, borderColor, true)
+	// Draw border circle
+	borderWidth := float32(3)
+	vector.StrokeCircle(screen, centerX, centerY, radius, borderWidth, borderColor, true)
 
 	// Draw level number in center
 	levelText := fmt.Sprintf("%d", levelNum)
 	textWidth, textHeight := text.Measure(levelText, textFace, 0)
 
-	textX := x + (size-float32(textWidth))/2
-	textY := y + (size-float32(textHeight))/2
+	textX := centerX - float32(textWidth)/2
+	textY := centerY - float32(textHeight)/2
 
 	op := &text.DrawOptions{}
 	op.GeoM.Translate(float64(textX), float64(textY))
 	op.ColorScale.ScaleWithColor(textColor)
 	text.Draw(screen, levelText, textFace, op)
+}
+
+// DrawConnectionLine draws a line connecting two level circles
+func DrawConnectionLine(screen *ebiten.Image, x1, y1, x2, y2 float32, lineColor color.RGBA) {
+	// Calculate line direction and draw multiple small segments for a thicker line
+	dx := x2 - x1
+	dy := y2 - y1
+	length := float32(math.Sqrt(float64(dx*dx + dy*dy)))
+
+	if length == 0 {
+		return
+	}
+
+	// Normalize direction
+	dx /= length
+	dy /= length
+
+	// Line thickness
+	thickness := float32(4)
+
+	// Draw thick line using multiple parallel thin lines
+	for i := float32(-thickness / 2); i <= thickness/2; i += 0.5 {
+		// Perpendicular offset
+		perpX := -dy * i
+		perpY := dx * i
+
+		// Draw line with offset
+		vector.StrokeLine(screen, x1+perpX, y1+perpY, x2+perpX, y2+perpY, 1, lineColor, true)
+	}
 }
