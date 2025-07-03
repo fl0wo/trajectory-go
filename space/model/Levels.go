@@ -54,7 +54,7 @@ var PredefinedLevels = map[int]*Level{
 				&Planet{
 					Name:        "Mars",
 					Position:    f32.Vec2{0.5, 0.6},
-					Radius:      0.06,
+					Radius:      0.12,
 					Mass:        float32((4.0 / 3.0) * math.Pi * 0.06 * 0.06 * 0.06),
 					OrbitRadius: 0.20,
 					BaseColor:   nextFlatColor(),

@@ -25,6 +25,7 @@ type ShadowSystem struct {
 type line struct{ X1, Y1, X2, Y2 float64 }
 
 func (l *line) angle() float64 { return math.Atan2(l.Y2-l.Y1, l.X2-l.X1) }
+
 func newRay(x, y, length, angle float64) line {
 	return line{x, y, x + length*math.Cos(angle), y + length*math.Sin(angle)}
 }
@@ -89,6 +90,7 @@ func circleToLines(center f32.Vec2, radius float32, segments int) []line {
 	return lines
 }
 
+// getAllOccluderPoints includes only celestials and asteroids (not portals)
 func getAllOccluderPoints(
 	celestialPositions []f32.Vec2, celestialRadii []float32,
 	asteroidPositions []f32.Vec2, asteroidRadii []float32,
@@ -115,19 +117,10 @@ func getAllOccluderPoints(
 			})
 		}
 	}
-	for i, pos := range portalPositions {
-		r := portalRadii[i]
-		for j := 0; j < 12; j++ {
-			θ := 2 * math.Pi * float64(j) / 12
-			pts = append(pts, [2]float64{
-				float64(pos[0]) + float64(r)*math.Cos(θ),
-				float64(pos[1]) + float64(r)*math.Sin(θ),
-			})
-		}
-	}
 	return pts
 }
 
+// getAllOccluderLines includes only celestials and asteroids
 func getAllOccluderLines(
 	celestialPositions []f32.Vec2, celestialRadii []float32,
 	asteroidPositions []f32.Vec2, asteroidRadii []float32,
@@ -140,10 +133,134 @@ func getAllOccluderLines(
 	for i, pos := range asteroidPositions {
 		lines = append(lines, circleToLines(pos, asteroidRadii[i], 8)...)
 	}
-	for i, pos := range portalPositions {
-		lines = append(lines, circleToLines(pos, portalRadii[i], 12)...)
-	}
 	return lines
+}
+
+// getPortalLines returns line segments for portal 0 only
+func getPortalLines(portalPositions []f32.Vec2, portalRadii []float32) []line {
+	if len(portalPositions) == 0 {
+		return nil
+	}
+	return circleToLines(portalPositions[0], portalRadii[0], 12)
+}
+
+// findPortalHit checks if a ray hits portal 0
+func findPortalHit(r line, portalLines []line) (float64, float64, bool) {
+	var minD float64 = math.Inf(1)
+	var hitX, hitY float64
+	hit := false
+	for _, pl := range portalLines {
+		if x, y, ok := intersection(r, pl); ok {
+			d := (r.X1-x)*(r.X1-x) + (r.Y1-y)*(r.Y1-y)
+			if d < minD {
+				minD = d
+				hitX, hitY = x, y
+				hit = true
+			}
+		}
+	}
+	return hitX, hitY, hit
+}
+
+// rayCastingWithPortals casts rays from the light source, conducting light from portal 0 to portal 1
+func rayCastingWithPortals(
+	lightX, lightY float64,
+	celestialPositions []f32.Vec2, celestialRadii []float32,
+	asteroidPositions []f32.Vec2, asteroidRadii []float32,
+	portalPositions []f32.Vec2, portalRadii []float32,
+) (playerRays []line, portalRays []line) {
+	const rayLength = 3000
+	occluderLines := getAllOccluderLines(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
+	portalLines := getPortalLines(portalPositions, portalRadii)
+	points := getAllOccluderPoints(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
+
+	// Cast rays from the player
+	for _, pt := range points {
+		ang := math.Atan2(float64(pt[1])-lightY, float64(pt[0])-lightX)
+		for _, off := range []float64{-0.002, 0.002} {
+			rayAngle := ang + off
+			r := newRay(lightX, lightY, rayLength, rayAngle)
+
+			// Find intersections with occluders
+			var occluderHits [][2]float64
+			for _, ol := range occluderLines {
+				if x, y, ok := intersection(r, ol); ok {
+					occluderHits = append(occluderHits, [2]float64{x, y})
+				}
+			}
+
+			// Find intersection with portal 0
+			var portalHit [2]float64
+			var portalHitOk bool
+			var portalHitD float64
+			if len(portalLines) > 0 {
+				px, py, hit := findPortalHit(r, portalLines)
+				if hit {
+					portalHit = [2]float64{px, py}
+					portalHitOk = true
+					portalHitD = (lightX-px)*(lightX-px) + (lightY-py)*(lightY-py)
+				}
+			}
+
+			if portalHitOk {
+				// Determine if portal hit is closer than occluder hits
+				closestOccluderD := math.Inf(1)
+				for _, oh := range occluderHits {
+					d := (lightX-oh[0])*(lightX-oh[0]) + (lightY-oh[1])*(lightY-oh[1])
+					if d < closestOccluderD {
+						closestOccluderD = d
+					}
+				}
+				if portalHitD < closestOccluderD {
+					// Ray hits portal 0 first; clip it there and propagate from portal 1
+					playerRays = append(playerRays, line{lightX, lightY, portalHit[0], portalHit[1]})
+					if len(portalPositions) > 1 {
+						portal1X, portal1Y := float64(portalPositions[1][0]), float64(portalPositions[1][1])
+						portalRay := clipRay(portal1X, portal1Y, rayLength, rayAngle, occluderLines)
+						portalRays = append(portalRays, portalRay)
+					}
+				} else {
+					// Occluder is closer; clip ray there
+					minD := math.Inf(1)
+					var closest [2]float64
+					for _, oh := range occluderHits {
+						d := (lightX-oh[0])*(lightX-oh[0]) + (lightY-oh[1])*(lightY-oh[1])
+						if d < minD {
+							minD = d
+							closest = oh
+						}
+					}
+					playerRays = append(playerRays, line{lightX, lightY, closest[0], closest[1]})
+				}
+			} else if len(occluderHits) > 0 {
+				// No portal hit; clip against occluders
+				minD := math.Inf(1)
+				var closest [2]float64
+				for _, oh := range occluderHits {
+					d := (lightX-oh[0])*(lightX-oh[0]) + (lightY-oh[1])*(lightY-oh[1])
+					if d < minD {
+						minD = d
+						closest = oh
+					}
+				}
+				playerRays = append(playerRays, line{lightX, lightY, closest[0], closest[1]})
+			} else {
+				playerRays = append(playerRays, r)
+			}
+		}
+	}
+
+	// Sort rays by angle for proper polygon construction
+	sort.Slice(playerRays, func(i, j int) bool {
+		return playerRays[i].angle() < playerRays[j].angle()
+	})
+	if len(portalRays) > 0 {
+		sort.Slice(portalRays, func(i, j int) bool {
+			return portalRays[i].angle() < portalRays[j].angle()
+		})
+	}
+
+	return playerRays, portalRays
 }
 
 func normalizeAngle(a float64) float64 {
@@ -156,50 +273,6 @@ func normalizeAngle(a float64) float64 {
 	return a
 }
 
-func rayCasting(
-	lightX, lightY float64,
-	celestialPositions []f32.Vec2, celestialRadii []float32,
-	asteroidPositions []f32.Vec2, asteroidRadii []float32,
-	portalPositions []f32.Vec2, portalRadii []float32,
-) []line {
-	const rayLength = 3000
-	points := getAllOccluderPoints(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
-	olines := getAllOccluderLines(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
-
-	var rays []line
-	for _, pt := range points {
-		base := line{lightX, lightY, pt[0], pt[1]}
-		ang := base.angle()
-		for _, off := range []float64{-0.002, 0.002} {
-			r := newRay(lightX, lightY, rayLength, ang+off)
-			var hits [][2]float64
-			for _, ol := range olines {
-				if x, y, ok := intersection(r, ol); ok {
-					hits = append(hits, [2]float64{x, y})
-				}
-			}
-			if len(hits) > 0 {
-				minD := math.Inf(1)
-				var cpt [2]float64
-				for _, h := range hits {
-					d := (lightX-h[0])*(lightX-h[0]) + (lightY-h[1])*(lightY-h[1])
-					if d < minD {
-						minD = d
-						cpt = h
-					}
-				}
-				rays = append(rays, line{lightX, lightY, cpt[0], cpt[1]})
-			} else {
-				rays = append(rays, r)
-			}
-		}
-	}
-	sort.Slice(rays, func(i, j int) bool {
-		return rays[i].angle() < rays[j].angle()
-	})
-	return rays
-}
-
 func rayVertices(x1, y1, x2, y2, x3, y3 float64) []ebiten.Vertex {
 	return []ebiten.Vertex{
 		{DstX: float32(x1), DstY: float32(y1), ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
@@ -208,7 +281,7 @@ func rayVertices(x1, y1, x2, y2, x3, y3 float64) []ebiten.Vertex {
 	}
 }
 
-// RenderShadows renders a spotlight of fovAngle (degrees) aimed at winPos
+// RenderShadows renders a spotlight with light propagation from portal 0 to portal 1
 func (ss *ShadowSystem) RenderShadows(
 	screen *ebiten.Image,
 	lightPos f32.Vec2,
@@ -227,114 +300,113 @@ func (ss *ShadowSystem) RenderShadows(
 		return
 	}
 
-	// 1) Darken entire screen
+	// 1) Fill screen with shadow
 	ss.shadowImage.Fill(colors.ShadowBackground)
 
 	lightX, lightY := float64(lightPos[0]), float64(lightPos[1])
 
-	// 2) Get all interior (already clipped) rays
-	allRays := rayCasting(
+	// 2) Get rays for player and portal
+	playerRays, portalRays := rayCastingWithPortals(
 		lightX, lightY,
 		celestialPositions, celestialRadii,
 		asteroidPositions, asteroidRadii,
 		portalPositions, portalRadii,
 	)
 
-	// 3) Spotlight center & half‐FOV
-	base := math.Atan2(
-		float64(winPos[1])-lightY,
-		float64(winPos[0])-lightX,
-	)
+	// 3) Calculate spotlight center and half-FOV
+	base := math.Atan2(float64(winPos[1])-lightY, float64(winPos[0])-lightX)
 	half := (fovAngle * math.Pi / 180) / 2
 
-	// 4) Filter interior rays inside cone
-	var interior []line
-	for _, r := range allRays {
+	// 4) Filter player rays within the FOV cone
+	var interiorPlayer []line
+	for _, r := range playerRays {
 		if math.Abs(normalizeAngle(r.angle()-base)) <= half {
-			interior = append(interior, r)
+			interiorPlayer = append(interiorPlayer, r)
 		}
 	}
-	sort.Slice(interior, func(i, j int) bool {
-		return normalizeAngle(interior[i].angle()-base) <
-			normalizeAngle(interior[j].angle()-base)
+	sort.Slice(interiorPlayer, func(i, j int) bool {
+		return normalizeAngle(interiorPlayer[i].angle()-base) < normalizeAngle(interiorPlayer[j].angle()-base)
 	})
 
-	// 5) Build occluderLines for boundary clipping
-	occluderLines := getAllOccluderLines(
-		celestialPositions, celestialRadii,
-		asteroidPositions, asteroidRadii,
-		portalPositions, portalRadii,
-	)
+	// 5) Build occluder lines for boundary clipping
+	occluderLines := getAllOccluderLines(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
 	diag := math.Hypot(float64(ss.screenWidth), float64(ss.screenHeight))
 
-	// 6) Clip the two boundary rays
+	// 6) Clip boundary rays for player
 	left := clipRay(lightX, lightY, diag, base-half, occluderLines)
 	right := clipRay(lightX, lightY, diag, base+half, occluderLines)
 
-	// 7) Assemble final ray list: left boundary, interior, right boundary
-	finalRays := make([]line, 0, len(interior)+2)
-	finalRays = append(finalRays, left)
-	finalRays = append(finalRays, interior...)
-	finalRays = append(finalRays, right)
+	// 7) Assemble final player ray list
+	finalPlayerRays := []line{left}
+	finalPlayerRays = append(finalPlayerRays, interiorPlayer...)
+	finalPlayerRays = append(finalPlayerRays, right)
 
-	// 8) Carve holes in the shadow image
+	// 8) Carve out player light polygon
 	triOpt := &ebiten.DrawTrianglesOptions{Address: ebiten.AddressRepeat}
 	triOpt.Blend = ebiten.BlendSourceOut
-	for i := 0; i < len(finalRays)-1; i++ {
-		a, b := finalRays[i], finalRays[i+1]
+	for i := 0; i < len(finalPlayerRays)-1; i++ {
+		a, b := finalPlayerRays[i], finalPlayerRays[i+1]
 		vs := rayVertices(lightX, lightY, b.X2, b.Y2, a.X2, a.Y2)
 		ss.shadowImage.DrawTriangles(vs, []uint16{0, 1, 2}, ss.triangleImage, triOpt)
 	}
 
-	// 9) Overlay the semi-transparent shadow
+	// 9) Carve out portal light polygon if applicable
+	if len(portalRays) > 0 && len(portalPositions) > 1 {
+		portal1X, portal1Y := float64(portalPositions[1][0]), float64(portalPositions[1][1])
+		for i := 0; i < len(portalRays)-1; i++ {
+			a, b := portalRays[i], portalRays[i+1]
+			vs := rayVertices(portal1X, portal1Y, b.X2, b.Y2, a.X2, a.Y2)
+			ss.shadowImage.DrawTriangles(vs, []uint16{0, 1, 2}, ss.triangleImage, triOpt)
+		}
+	}
+
+	// 10) Overlay the shadow on the screen
 	shadowOpt := &ebiten.DrawImageOptions{}
 	shadowOpt.ColorScale.ScaleAlpha(0.7)
 	screen.DrawImage(ss.shadowImage, shadowOpt)
 
-	// 10) Draw the light cone with stepped falloff shader
+	// 11) Draw light cones with shader (if available)
 	if ss.lightShader != nil {
-		// Calculate max distance for the light cone
-		maxDistance := math.Hypot(float64(ss.screenWidth), float64(ss.screenHeight))
-
+		maxDistance := float32(math.Hypot(float64(ss.screenWidth), float64(ss.screenHeight)))
 		lightOpt := &ebiten.DrawTrianglesShaderOptions{}
 		lightOpt.Uniforms = map[string]any{
 			"LightPos":    []float32{float32(lightX), float32(lightY)},
-			"MaxDistance": float32(maxDistance),
+			"MaxDistance": maxDistance,
 			"Zoom":        cameraZoom,
 			"Fov":         fovAngle,
 		}
 		lightOpt.Images[0] = ss.triangleImage
 		lightOpt.Blend = ebiten.BlendSourceOver
 
-		// Draw each triangle of the light cone with the shader applied
-		for i := 0; i < len(finalRays)-1; i++ {
-			a, b := finalRays[i], finalRays[i+1]
+		// Player light cone
+		for i := 0; i < len(finalPlayerRays)-1; i++ {
+			a, b := finalPlayerRays[i], finalPlayerRays[i+1]
 			vs := rayVertices(lightX, lightY, b.X2, b.Y2, a.X2, a.Y2)
 			screen.DrawTrianglesShader(vs, []uint16{0, 1, 2}, ss.lightShader, lightOpt)
 		}
-	} else {
-		// Fallback to original white cone rendering
-		//lightOpt := &ebiten.DrawTrianglesOptions{Address: ebiten.AddressRepeat}
-		//for i := 0; i < len(finalRays)-1; i++ {
-		//	a, b := finalRays[i], finalRays[i+1]
-		//	vs := rayVertices(lightX, lightY, b.X2, b.Y2, a.X2, a.Y2)
-		//	for j := range vs {
-		//		vs[j].ColorA = 0.3
-		//	}
-		//	screen.DrawTriangles(vs, []uint16{0, 1, 2}, ss.triangleImage, lightOpt)
-		//}
+
+		// Portal light cone
+		if len(portalRays) > 0 && len(portalPositions) > 1 {
+			portal1X, portal1Y := float64(portalPositions[1][0]), float64(portalPositions[1][1])
+			lightOpt.Uniforms["LightPos"] = []float32{float32(portal1X), float32(portal1Y)}
+			lightOpt.Uniforms["Fov"] = float64(360) // Full illumination from portal
+			for i := 0; i < len(portalRays)-1; i++ {
+				a, b := portalRays[i], portalRays[i+1]
+				vs := rayVertices(portal1X, portal1Y, b.X2, b.Y2, a.X2, a.Y2)
+				screen.DrawTrianglesShader(vs, []uint16{0, 1, 2}, ss.lightShader, lightOpt)
+			}
+		}
 	}
 
-	// 11) Optional debug rays
+	// 12) Debug rays
 	if showRays {
-		for _, r := range finalRays {
-			vector.StrokeLine(
-				screen,
-				float32(r.X1), float32(r.Y1),
-				float32(r.X2), float32(r.Y2),
-				1, colors.DebugRay,
-				true,
-			)
+		for _, r := range finalPlayerRays {
+			vector.StrokeLine(screen, float32(r.X1), float32(r.Y1), float32(r.X2), float32(r.Y2), 1, colors.DebugRay, true)
+		}
+		if len(portalRays) > 0 {
+			for _, r := range portalRays {
+				vector.StrokeLine(screen, float32(r.X1), float32(r.Y1), float32(r.X2), float32(r.Y2), 1, colors.DebugRay, true)
+			}
 		}
 	}
 }
