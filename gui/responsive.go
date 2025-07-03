@@ -57,16 +57,16 @@ func (r *ResponsiveLayout) GetButtonSize() int {
 
 func (r *ResponsiveLayout) GetTitleFontSize() float64 {
 	if r.IsMobile() {
-		return r.ScaledSize(48)
+		return r.ScaledSize(48 * 2)
 	}
-	return r.ScaledSize(64)
+	return r.ScaledSize(64 * 2)
 }
 
 func (r *ResponsiveLayout) GetBodyFontSize() float64 {
 	if r.IsMobile() {
-		return r.ScaledSize(24)
+		return r.ScaledSize(48)
 	}
-	return r.ScaledSize(32)
+	return r.ScaledSize(64)
 }
 
 func (r *ResponsiveLayout) GetSmallFontSize() float64 {

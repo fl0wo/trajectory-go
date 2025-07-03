@@ -158,6 +158,8 @@ const (
 
 	CenterScalingMaxFactor = 2.0 // maximum scaling factor at center (3x bigger)
 	CenterScalingRadius    = 3.0 // divisor for screen width to determine scaling zone (screen/4)
+
+	CameraXOffsetScale = 2.0 // scale factor for camera X offset (reduced from 0.75)
 )
 
 type LevelNode struct {
@@ -550,7 +552,7 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 	margin := h.layout.GetMargin()
 
 	// Draw star count in top-left corner
-	starText := fmt.Sprintf("⭐ %d", h.starCount)
+	starText := fmt.Sprintf("S %d", h.starCount)
 	starFace := &text.GoTextFace{
 		Source: h.textFaceSource,
 		Size:   h.layout.GetBodyFontSize(),
@@ -666,12 +668,12 @@ func (h *HomeScreenImpl) drawNebulaBackground(screen *ebiten.Image) {
 
 	// Calculate camera position based on scroll offset
 	// Normalize scroll position to [0,1] range for shader
-	cameraPosX := h.scrollOffsetX / (h.totalPathWidth + width)
-	if cameraPosX < 0 {
-		cameraPosX = 0
-	} else if cameraPosX > 1 {
-		cameraPosX = 1
-	}
+	cameraPosX := h.scrollOffsetX / (h.totalPathWidth + width) * CameraXOffsetScale
+	//if cameraPosX < 0 {
+	//	cameraPosX = 0
+	//} else if cameraPosX > 1 {
+	//	cameraPosX = 1
+	//}
 	cameraPosY := float32(0.5) // Center vertically
 
 	// Create shader options with uniforms
