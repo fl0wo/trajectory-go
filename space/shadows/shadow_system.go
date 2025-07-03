@@ -92,6 +92,7 @@ func circleToLines(center f32.Vec2, radius float32, segments int) []line {
 func getAllOccluderPoints(
 	celestialPositions []f32.Vec2, celestialRadii []float32,
 	asteroidPositions []f32.Vec2, asteroidRadii []float32,
+	portalPositions []f32.Vec2, portalRadii []float32,
 ) [][2]float64 {
 	var pts [][2]float64
 	for i, pos := range celestialPositions {
@@ -114,12 +115,23 @@ func getAllOccluderPoints(
 			})
 		}
 	}
+	for i, pos := range portalPositions {
+		r := portalRadii[i]
+		for j := 0; j < 12; j++ {
+			θ := 2 * math.Pi * float64(j) / 12
+			pts = append(pts, [2]float64{
+				float64(pos[0]) + float64(r)*math.Cos(θ),
+				float64(pos[1]) + float64(r)*math.Sin(θ),
+			})
+		}
+	}
 	return pts
 }
 
 func getAllOccluderLines(
 	celestialPositions []f32.Vec2, celestialRadii []float32,
 	asteroidPositions []f32.Vec2, asteroidRadii []float32,
+	portalPositions []f32.Vec2, portalRadii []float32,
 ) []line {
 	var lines []line
 	for i, pos := range celestialPositions {
@@ -127,6 +139,9 @@ func getAllOccluderLines(
 	}
 	for i, pos := range asteroidPositions {
 		lines = append(lines, circleToLines(pos, asteroidRadii[i], 8)...)
+	}
+	for i, pos := range portalPositions {
+		lines = append(lines, circleToLines(pos, portalRadii[i], 12)...)
 	}
 	return lines
 }
@@ -145,10 +160,11 @@ func rayCasting(
 	lightX, lightY float64,
 	celestialPositions []f32.Vec2, celestialRadii []float32,
 	asteroidPositions []f32.Vec2, asteroidRadii []float32,
+	portalPositions []f32.Vec2, portalRadii []float32,
 ) []line {
 	const rayLength = 3000
-	points := getAllOccluderPoints(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii)
-	olines := getAllOccluderLines(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii)
+	points := getAllOccluderPoints(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
+	olines := getAllOccluderLines(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
 
 	var rays []line
 	for _, pt := range points {
@@ -203,6 +219,8 @@ func (ss *ShadowSystem) RenderShadows(
 	celestialRadii []float32,
 	asteroidPositions []f32.Vec2,
 	asteroidRadii []float32,
+	portalPositions []f32.Vec2,
+	portalRadii []float32,
 	showRays bool,
 ) {
 	if len(celestialPositions) == 0 && len(asteroidPositions) == 0 {
@@ -219,6 +237,7 @@ func (ss *ShadowSystem) RenderShadows(
 		lightX, lightY,
 		celestialPositions, celestialRadii,
 		asteroidPositions, asteroidRadii,
+		portalPositions, portalRadii,
 	)
 
 	// 3) Spotlight center & half‐FOV
@@ -244,6 +263,7 @@ func (ss *ShadowSystem) RenderShadows(
 	occluderLines := getAllOccluderLines(
 		celestialPositions, celestialRadii,
 		asteroidPositions, asteroidRadii,
+		portalPositions, portalRadii,
 	)
 	diag := math.Hypot(float64(ss.screenWidth), float64(ss.screenHeight))
 

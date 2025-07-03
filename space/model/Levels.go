@@ -9,16 +9,12 @@ import (
 	"golang.org/x/image/math/f32"
 )
 
-// FlatColors is a reusable palette for all planets and stars,
-// updated to your provided base colors.
-var FlatColors = colors.FlatColors
-
 var colorCursor int
 
 // nextFlatColor returns the next color from FlatColors in sequence,
 // wrapping around if necessary.
 func nextFlatColor() color.RGBA {
-	c := FlatColors[colorCursor%len(FlatColors)]
+	c := colors.FlatColors[colorCursor%len(colors.FlatColors)]
 	colorCursor++
 	return c
 }
