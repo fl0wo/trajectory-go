@@ -22,8 +22,7 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 
 	// 1) per-band alpha
 	var alphas = [STEPS]float{
-		.8,  // band 1
-		.2,  // band 2
+		1,   // band 1
 		.2,  // band 3
 		0.0, // band 4 (transparent)
 		.1,  // band 5
@@ -31,17 +30,15 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 
 	// 2) per-band color
 	var colors = [STEPS]vec3{
-		vec3(254.0/255.0, 254.0/255.0, 254.0/255.0), // rgb(254,254,254)
-		vec3(254.0/255.0, 254.0/255.0, 254.0/255.0), // rgb(254,254,254)
-		vec3(254.0/255.0, 254.0/255.0, 254.0/255.0), // rgb(254,254,254)
+		vec3(204.0/255.0, 204.0/255.0, 204.0/255.0), // rgb(254,254,254)
+		vec3(204.0/255.0, 204.0/255.0, 204.0/255.0), // rgb(254,254,254)
 		vec3(0.0, 0.0, 0.0),                         // transparent
-		vec3(254.0/255.0, 254.0/255.0, 254.0/255.0), // rgb(254,254,254)
+		vec3(204.0/255.0, 204.0/255.0, 204.0/255.0), // rgb(254,254,254)
 	}
 
 	// 3) explicit spacing for each band (must sum ≤ 1.0)
 	var spaces = [STEPS]float{
 		10.0 / TOTAL_UNITS,                // band 1 width
-		0.25 / TOTAL_UNITS / (Fov / 360),  // band 2 width
 		0.25 / TOTAL_UNITS / (Fov / 360),  // band 3 width
 		1.0 / TOTAL_UNITS,                 // band 4 width
 		0.125 / TOTAL_UNITS / (Fov / 360), // band 5 width
