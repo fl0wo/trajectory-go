@@ -1,6 +1,7 @@
 package Models
 
 import (
+	"github.com/you/trajectory/space/colors"
 	"image/color"
 	"math"
 
@@ -10,20 +11,7 @@ import (
 
 // FlatColors is a reusable palette for all planets and stars,
 // updated to your provided base colors.
-var FlatColors = []color.RGBA{
-	{R: 255, G: 107, B: 129, A: 255}, // rgba(255,107,129,1.0)
-	{R: 83, G: 82, B: 237, A: 255},   // rgba(83,82,237,1.0)
-	{R: 55, G: 66, B: 250, A: 255},   // rgba(55,66,250,1.0)
-	{R: 30, G: 144, B: 255, A: 255},  // rgba(30,144,255,1.0)
-	{R: 123, G: 237, B: 159, A: 255}, // rgba(123,237,159,1.0)
-	{R: 46, G: 213, B: 115, A: 255},  // rgba(46,213,115,1.0)
-	{R: 255, G: 165, B: 2, A: 255},   // rgba(255,165,2,1.0)
-	{R: 236, G: 204, B: 104, A: 255}, // rgba(236,204,104,1.0)
-	{R: 179, G: 55, B: 113, A: 255},  // rgba(179,55,113,1.0)
-	{R: 154, G: 236, B: 219, A: 255}, // rgba(154,236,219,1.0)
-	{R: 109, G: 33, B: 79, A: 255},   // rgba(109,33,79,1.0)
-	{R: 85, G: 230, B: 193, A: 255},  // rgba(85,230,193,1.0)
-}
+var FlatColors = colors.FlatColors
 
 var colorCursor int
 

@@ -12,6 +12,21 @@ var (
 
 	// ShadowBackground Shadow system background
 	ShadowBackground = color.RGBA{R: 6, G: 2, B: 25, A: 255}
+
+	FlatColors = []color.RGBA{
+		{R: 255, G: 107, B: 129, A: 255}, // rgba(255,107,129,1.0)
+		{R: 83, G: 82, B: 237, A: 255},   // rgba(83,82,237,1.0)
+		{R: 55, G: 66, B: 250, A: 255},   // rgba(55,66,250,1.0)
+		{R: 30, G: 144, B: 255, A: 255},  // rgba(30,144,255,1.0)
+		{R: 123, G: 237, B: 159, A: 255}, // rgba(123,237,159,1.0)
+		{R: 46, G: 213, B: 115, A: 255},  // rgba(46,213,115,1.0)
+		{R: 255, G: 165, B: 2, A: 255},   // rgba(255,165,2,1.0)
+		{R: 236, G: 204, B: 104, A: 255}, // rgba(236,204,104,1.0)
+		{R: 179, G: 55, B: 113, A: 255},  // rgba(179,55,113,1.0)
+		{R: 154, G: 236, B: 219, A: 255}, // rgba(154,236,219,1.0)
+		{R: 109, G: 33, B: 79, A: 255},   // rgba(109,33,79,1.0)
+		{R: 85, G: 230, B: 193, A: 255},  // rgba(85,230,193,1.0)
+	}
 )
 
 // Celestial Body Colors
@@ -37,6 +52,10 @@ var (
 
 	TransparentColor        = color.RGBA{R: 0, G: 0, B: 0, A: 0}     // Fully transparent color
 	LastCollisionCrossColor = color.RGBA{R: 255, G: 0, B: 0, A: 255} // Red cross for last collision
+
+	PortalColors = FlatColors
+
+	PortalColorInnerRing = NebulaBackground
 )
 
 // Player Colors
@@ -59,13 +78,6 @@ var (
 
 // Light System Colors (for shader reference)
 var (
-	// LightStep1 Light step colors for shader (RGB values normalized to 0-1)
-	LightStep1 = [3]float32{254.0 / 255.0, 254.0 / 255.0, 254.0 / 255.0} // rgb(254,254,254)
-	LightStep2 = [3]float32{253.0 / 255.0, 218.0 / 255.0, 145.0 / 255.0} // rgb(253,218,145)
-	LightStep3 = [3]float32{254.0 / 255.0, 166.0 / 255.0, 59.0 / 255.0}  // rgb(254,166,59)
-	LightStep4 = [3]float32{0.0, 0.0, 0.0}                               // transparent
-	LightStep5 = [3]float32{245.0 / 255.0, 57.0 / 255.0, 68.0 / 255.0}   // rgb(245,57,68)
-
 	// TriangleImage Triangle image color for shadow system
 	TriangleImage = color.RGBA{R: 254, G: 254, B: 254, A: 0} // Fully transparent white
 )

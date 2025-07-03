@@ -543,39 +543,32 @@ func (r *Renderer) drawLine(screen *ebiten.Image, x1, y1, x2, y2, width float32,
 // drawPortals renders all portals in the game independently
 func (r *Renderer) drawPortals(screen *ebiten.Image, model *Models.SpaceGame) {
 	for _, portal := range model.Portals {
-		r.drawPortalCircle(screen, portal, model)
+		r.drawPortalRing(screen, portal, model)
 	}
 }
 
-// drawPortalCircle renders a single portal as a simple filled circle for intermediate buffer
-func (r *Renderer) drawPortalCircle(screen *ebiten.Image, portal *Models.Portal, model *Models.SpaceGame) {
+// drawPortalRing renders a single portal as a stroked ring
+func (r *Renderer) drawPortalRing(screen *ebiten.Image, portal *Models.Portal, model *Models.SpaceGame) {
 	camera := model.Camera
 
 	// Convert portal position to screen coordinates
 	screenPos := camera.WorldToScreen(portal.Position, constants.ScreenWidth, constants.ScreenHeight)
 
-	// Use the average of width and height as the circle radius
+	// Compute radius in screen pixels
 	portalRadius := camera.RadiusToScreen(portal.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
 
-	// Portal colors (different colors for different pair IDs)
-	portalColors := []color.RGBA{
-		{R: 0, G: 204, B: 255, A: 180},   // Cyan
-		{R: 255, G: 102, B: 204, A: 180}, // Pink
-		{R: 204, G: 255, B: 51, A: 180},  // Lime
-		{R: 255, G: 153, B: 0, A: 180},   // Orange
-		{R: 153, G: 51, B: 255, A: 180},  // Purple
-		{R: 255, G: 255, B: 51, A: 180},  // Yellow
-	}
-
-	// Select color based on pair ID
-	colorIndex := portal.PairID % len(portalColors)
-	portalColor := portalColors[colorIndex]
-
-	// Adjust alpha based on activity state
+	// Choose color by PairID
+	portalColors := colors.PortalColors
+	clr := portalColors[portal.PairID%len(portalColors)]
 	if !portal.IsActive || portal.CooldownTimer > 0 {
-		portalColor.A = 60 // Dim when inactive or on cooldown
+		clr.A = 60
 	}
 
-	// Draw simple filled circle
-	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], portalRadius, portalColor, true)
+	ringWidth := portalRadius * 0.1
+	radiusInner := portalRadius - ringWidth
+
+	// Draw outer circle
+	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], portalRadius, clr, true)
+	// Draw inner circle
+	vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], radiusInner, colors.PortalColorInnerRing, true)
 }

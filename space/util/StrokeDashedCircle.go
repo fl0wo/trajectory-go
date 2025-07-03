@@ -90,3 +90,25 @@ func StrokeDashedCircle(
 		return vs, is
 	})
 }
+
+// DrawStrokeCircle draws a continuous ring (no dashes) centered at (cx,cy)
+// with radius r, strokeWidth, color clr, and optional antialiasing.
+func DrawStrokeCircle(
+	dst *ebiten.Image,
+	cx, cy, r float32,
+	strokeWidth float32,
+	clr color.Color,
+	antialias bool,
+) {
+	strokeOp := &vector.StrokeOptions{Width: strokeWidth}
+
+	useCachedVerticesAndIndices(func(vs []ebiten.Vertex, is []uint16) ([]ebiten.Vertex, []uint16) {
+		var path vector.Path
+		// single full circle
+		path.Arc(cx, cy, r, 0, float32(2*math.Pi), vector.Clockwise)
+		// we don't Close — stroke doesn’t need fill
+		vs, is = path.AppendVerticesAndIndicesForStroke(vs, is, strokeOp)
+		drawVerticesForUtil(dst, vs, is, clr, antialias)
+		return vs, is
+	})
+}

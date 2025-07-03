@@ -6,9 +6,9 @@
 package main
 
 // Portal distortion parameters
-const EdgeSoftness = 0.5    // Fraction of radius for soft mask
-const SwirlStrength = 0.1   // radians of swirl at the rim
-const RadialWarpPower = 0.6 // <1 warps more strongly inward
+const EdgeSoftness = 0.15    // Fraction of radius for soft mask
+const SwirlStrength = 0      // radians of swirl at the rim
+const RadialWarpPower = 0.45 // <1 warps more strongly inward
 
 // Uniforms injected from Go
 var Portal_Pos vec2
