@@ -451,7 +451,7 @@ func (r *Renderer) renderShadows(screen *ebiten.Image, model *Models.SpaceGame) 
 	lightDirection := camera.WorldToScreen(camera.Position, constants.ScreenWidth, constants.ScreenHeight)
 	fov := r.getAdaptiveFov(lightDirection, lightPos)
 
-	r.shadowSystem.RenderShadows(screen, lightPos, lightDirection, fov, camera.GetTotalZoom(), celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii, portalRotations, true)
+	r.shadowSystem.RenderShadows(screen, lightPos, lightDirection, fov, camera.GetTotalZoom(), celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii, portalRotations, false)
 }
 
 // drawTrajectoryArrow draws the trajectory arrow when dragging
