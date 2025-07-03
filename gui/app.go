@@ -16,6 +16,10 @@ func NewApp() (*App, error) {
 	homeScreen := NewHomeScreen(screenManager)
 	screenManager.SetHomeScreen(homeScreen)
 
+	// Create settings screen
+	settingsScreen := NewSettingsScreen(screenManager)
+	screenManager.SetSettingsScreen(settingsScreen)
+
 	// Create game screen (your existing game)
 	gameScreen, err := space.NewGame()
 	if err != nil {
