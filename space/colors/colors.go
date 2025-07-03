@@ -54,7 +54,7 @@ var (
 	LastCollisionCrossColor = color.RGBA{R: 255, G: 0, B: 0, A: 255} // Red cross for last collision
 
 	PortalColors        = FlatColors
-	PortalColorInactive = color.RGBA{R: 0, G: 0, B: 0, A: 0} // Inactive portal color (faded white)
+	PortalColorInactive = color.RGBA{R: 255, G: 107, B: 129, A: 100} // Inactive portal color (faded white)
 
 	PortalColorInnerRing = NebulaBackground
 )

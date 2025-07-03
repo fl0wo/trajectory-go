@@ -238,7 +238,7 @@ func rayCastingWithPortals(
 				}
 			}
 
-			// Find the closest portal intersection for propagation
+			// Find closest portal intersection for propagation
 			px, py, hitPortalIdx, hitPortal := findPortalHit(r, allPortalLines)
 			var portalHitD float64
 			if hitPortal {
@@ -318,12 +318,27 @@ func (ss *ShadowSystem) RenderShadows(
 		return
 	}
 
-	// 1) Fill screen with shadow
+	// Fill screen with shadow
 	ss.shadowImage.Fill(colors.ShadowBackground)
 
 	lightX, lightY := float64(lightPos[0]), float64(lightPos[1])
 
-	// 2) Get rays for player and portals
+	// Check if light source is inside any portal
+	for i, pos := range portalPositions {
+		dx := lightX - float64(pos[0])
+		dy := lightY - float64(pos[1])
+		distance := math.Sqrt(dx*dx + dy*dy)
+		if distance <= float64(portalRadii[i]) {
+			// Light source is inside a portal; render only the shadow (no light)
+			shadowOpt := &ebiten.DrawImageOptions{}
+			shadowOpt.ColorScale.ScaleAlpha(0.7)
+			screen.DrawImage(ss.shadowImage, shadowOpt)
+			return
+		}
+	}
+
+	// Proceed with normal light rendering if not inside a portal
+	// Get rays for player and portals
 	playerRays, portalRaySets := rayCastingWithPortals(
 		lightX, lightY,
 		celestialPositions, celestialRadii,
@@ -331,11 +346,11 @@ func (ss *ShadowSystem) RenderShadows(
 		portalPositions, portalRadii,
 	)
 
-	// 3) Calculate spotlight center and half-FOV
+	// Calculate spotlight center and half-FOV
 	base := math.Atan2(float64(winPos[1])-lightY, float64(winPos[0])-lightX)
 	half := (fovAngle * math.Pi / 180) / 2
 
-	// 4) Filter player rays within the FOV cone
+	// Filter player rays within the FOV cone
 	var interiorPlayer []line
 	for _, r := range playerRays {
 		if math.Abs(normalizeAngle(r.angle()-base)) <= half {
@@ -346,20 +361,20 @@ func (ss *ShadowSystem) RenderShadows(
 		return normalizeAngle(interiorPlayer[i].angle()-base) < normalizeAngle(interiorPlayer[j].angle()-base)
 	})
 
-	// 5) Build occluder lines for boundary clipping
+	// Build occluder lines for boundary clipping
 	occluderLines, occluderTypes, occluderIndices := getAllOccluderLines(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
 	diag := math.Hypot(float64(ss.screenWidth), float64(ss.screenHeight))
 
-	// 6) Clip boundary rays for player (no portal ignore for player rays)
+	// Clip boundary rays for player (no portal ignore for player rays)
 	left := clipRay(lightX, lightY, diag, base-half, occluderLines, occluderTypes, occluderIndices, -1)
 	right := clipRay(lightX, lightY, diag, base+half, occluderLines, occluderTypes, occluderIndices, -1)
 
-	// 7) Assemble final player ray list
+	// Assemble final player ray list
 	finalPlayerRays := []line{left}
 	finalPlayerRays = append(finalPlayerRays, interiorPlayer...)
 	finalPlayerRays = append(finalPlayerRays, right)
 
-	// 8) Carve out player light polygon
+	// Carve out player light polygon
 	triOpt := &ebiten.DrawTrianglesOptions{Address: ebiten.AddressRepeat}
 	triOpt.Blend = ebiten.BlendSourceOut
 	for i := 0; i < len(finalPlayerRays)-1; i++ {
@@ -368,7 +383,7 @@ func (ss *ShadowSystem) RenderShadows(
 		ss.shadowImage.DrawTriangles(vs, []uint16{0, 1, 2}, ss.triangleImage, triOpt)
 	}
 
-	// 9) Carve out portal light polygons for each portal with rays
+	// Carve out portal light polygons for each portal with rays
 	for portalIdx, rays := range portalRaySets {
 		if len(rays) > 0 {
 			portalX, portalY := float64(portalPositions[portalIdx][0]), float64(portalPositions[portalIdx][1])
@@ -380,12 +395,12 @@ func (ss *ShadowSystem) RenderShadows(
 		}
 	}
 
-	// 10) Overlay the shadow on the screen
+	// Overlay the shadow on the screen
 	shadowOpt := &ebiten.DrawImageOptions{}
 	shadowOpt.ColorScale.ScaleAlpha(0.7)
 	screen.DrawImage(ss.shadowImage, shadowOpt)
 
-	// 11) Draw light cones with shader (if available)
+	// Draw light cones with shader (if available)
 	if ss.lightShader != nil {
 		maxDistance := float32(math.Hypot(float64(ss.screenWidth), float64(ss.screenHeight)))
 		lightOpt := &ebiten.DrawTrianglesShaderOptions{}
@@ -420,7 +435,7 @@ func (ss *ShadowSystem) RenderShadows(
 		}
 	}
 
-	// 12) Debug rays
+	// Debug rays
 	if showRays {
 		for _, r := range finalPlayerRays {
 			vector.StrokeLine(screen, float32(r.X1), float32(r.Y1), float32(r.X2), float32(r.Y2), 1, colors.DebugRay, true)
