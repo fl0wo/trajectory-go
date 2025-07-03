@@ -27,9 +27,9 @@ const (
 	ClickThreshold = 10.0 // pixels - below this is considered a click
 
 	// Momentum and friction
-	MomentumMultiplier = 8.0  // velocity to momentum conversion (reduced from 30.0)
-	MomentumFriction   = 0.92 // friction applied each frame (reduced from 0.95)
-	MinimumVelocity    = 1.0  // minimum velocity to keep momentum going (increased from 0.1)
+	MomentumMultiplier = 8.0 // velocity to momentum conversion (reduced from 30.0)
+	MomentumFriction   = 0.9 // friction applied each frame (reduced from 0.95)
+	MinimumVelocity    = 1.0 // minimum velocity to keep momentum going (increased from 0.1)
 
 	// Animation speeds
 	ScrollAnimationSpeed = 6.0        // scroll interpolation speed (reduced from 12.0)
@@ -46,6 +46,11 @@ const (
 	// Layout margins
 	LeftMarginDivisor     = 2.0 // divisor for left margin calculation
 	TitleMarginMultiplier = 2.0 // title margin from top
+
+	// Magnetic snapping
+	MagneticSnapDelay     = 0   // seconds to wait after user stops scrolling before snapping
+	MagneticSnapSpeed     = 4.0 // speed of magnetic snapping animation
+	MagneticSnapThreshold = 5.0 // pixels - how close to target before considering "snapped"
 )
 
 type LevelNode struct {
@@ -73,6 +78,12 @@ type HomeScreenImpl struct {
 	dragHistory      []float32 // History of recent drag movements for momentum
 	dragHistoryTimes []float32 // Timestamps for drag history
 	lastFrameTime    float32   // Time of last frame for delta calculation
+
+	// Magnetic snapping variables
+	isSnapping           bool    // Whether currently performing magnetic snap
+	snapTarget           float32 // Target position for magnetic snap
+	snapTimer            float32 // Time since user stopped scrolling
+	userStoppedScrolling bool    // Whether user has stopped all scrolling input
 }
 
 func NewHomeScreen(screenManager *ScreenManager) *HomeScreenImpl {
@@ -83,17 +94,21 @@ func NewHomeScreen(screenManager *ScreenManager) *HomeScreenImpl {
 	}
 
 	homeScreen := &HomeScreenImpl{
-		starCount:        12, // Example star count
-		screenManager:    screenManager,
-		textFaceSource:   textFaceSource,
-		layout:           NewResponsiveLayout(1920, 1080), // Default, updated in Layout
-		scrollOffsetX:    0,
-		targetScrollX:    0,
-		isDragging:       false,
-		scrollVelocity:   0,
-		dragHistory:      make([]float32, 0, DragHistoryCapacity), // Keep last N drag positions
-		dragHistoryTimes: make([]float32, 0, DragHistoryCapacity), // Keep last N timestamps
-		lastFrameTime:    0,
+		starCount:            12, // Example star count
+		screenManager:        screenManager,
+		textFaceSource:       textFaceSource,
+		layout:               NewResponsiveLayout(1920, 1080), // Default, updated in Layout
+		scrollOffsetX:        0,
+		targetScrollX:        0,
+		isDragging:           false,
+		scrollVelocity:       0,
+		dragHistory:          make([]float32, 0, DragHistoryCapacity), // Keep last N drag positions
+		dragHistoryTimes:     make([]float32, 0, DragHistoryCapacity), // Keep last N timestamps
+		lastFrameTime:        0,
+		isSnapping:           false,
+		snapTarget:           0,
+		snapTimer:            0,
+		userStoppedScrolling: false,
 	}
 
 	homeScreen.generateLevelNodes()
@@ -170,6 +185,11 @@ func (h *HomeScreenImpl) Update() error {
 		h.scrollVelocity = 0              // Stop any existing momentum
 		h.dragHistory = h.dragHistory[:0] // Clear history
 		h.dragHistoryTimes = h.dragHistoryTimes[:0]
+
+		// Stop any magnetic snapping
+		h.isSnapping = false
+		h.snapTimer = 0
+		h.userStoppedScrolling = false
 	}
 
 	if h.isDragging && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
@@ -266,7 +286,15 @@ func (h *HomeScreenImpl) Update() error {
 		h.targetScrollX += scrollAmount
 		h.scrollVelocity = 0 // Stop momentum when using wheel
 		h.clampScrollPosition()
+
+		// Stop any magnetic snapping when user uses wheel
+		h.isSnapping = false
+		h.snapTimer = 0
+		h.userStoppedScrolling = false
 	}
+
+	// Magnetic snapping logic
+	h.updateMagneticSnapping(deltaTime)
 
 	return nil
 }
@@ -284,6 +312,83 @@ func (h *HomeScreenImpl) clampScrollPosition() {
 	} else if h.targetScrollX > maxScroll {
 		h.targetScrollX = maxScroll
 		h.scrollVelocity = 0 // Stop momentum at boundaries
+	}
+}
+
+// findClosestLevelToCenter finds the level node closest to the center of the screen
+func (h *HomeScreenImpl) findClosestLevelToCenter() float32 {
+	if len(h.levelNodes) == 0 {
+		return 0
+	}
+
+	screenCenter := float32(h.layout.Width) / 2
+
+	closestDistance := float32(math.MaxFloat32)
+	closestNodeX := h.levelNodes[0].X
+
+	for _, node := range h.levelNodes {
+		// Calculate where this node appears on screen
+		nodeScreenX := node.X - h.scrollOffsetX
+
+		// Distance from screen center
+		distance := float32(math.Abs(float64(nodeScreenX - screenCenter)))
+
+		if distance < closestDistance {
+			closestDistance = distance
+			closestNodeX = node.X
+		}
+	}
+
+	// Calculate the scroll position that would center this node
+	return closestNodeX - screenCenter
+}
+
+// updateMagneticSnapping handles the magnetic snapping effect to center levels
+func (h *HomeScreenImpl) updateMagneticSnapping(deltaTime float32) {
+	// Check if user has stopped all scrolling input
+	userActive := h.isDragging || math.Abs(float64(h.scrollVelocity)) > MinimumVelocity
+
+	if userActive {
+		// User is still actively scrolling
+		h.userStoppedScrolling = false
+		h.snapTimer = 0
+		h.isSnapping = false
+		return
+	}
+
+	// User has stopped scrolling
+	if !h.userStoppedScrolling {
+		h.userStoppedScrolling = true
+		h.snapTimer = 0
+		h.isSnapping = false
+	}
+
+	// Increment timer
+	h.snapTimer += deltaTime
+
+	// Start snapping after delay
+	if !h.isSnapping && h.snapTimer >= MagneticSnapDelay {
+		h.isSnapping = true
+		h.snapTarget = h.findClosestLevelToCenter()
+	}
+
+	// Perform magnetic snapping animation
+	if h.isSnapping {
+		// Calculate distance to target
+		distance := h.snapTarget - h.targetScrollX
+
+		// Check if we're close enough to consider snapped
+		if math.Abs(float64(distance)) < MagneticSnapThreshold {
+			h.targetScrollX = h.snapTarget
+			h.isSnapping = false
+		} else {
+			// Smooth interpolation towards target
+			snapSpeed := MagneticSnapSpeed * deltaTime
+			if snapSpeed > 1.0 {
+				snapSpeed = 1.0
+			}
+			h.targetScrollX += distance * snapSpeed
+		}
 	}
 }
 
