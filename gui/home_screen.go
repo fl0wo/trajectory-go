@@ -3,15 +3,14 @@ package gui
 import (
 	"bytes"
 	"fmt"
-	"image/color"
-	"log"
-	"math"
-
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	Models "github.com/you/trajectory/space/model"
+	"image/color"
+	"log"
+	"math"
 )
 
 type LevelNode struct {
@@ -122,13 +121,11 @@ func (h *HomeScreenImpl) Update() error {
 		h.targetScrollX = h.dragStartScrollX - dragDelta // Reverse direction for natural scrolling
 
 		// Clamp scroll position
-		maxScroll := h.totalPathWidth - float32(h.layout.Width) + h.levelNodes[0].Radius*2
-		if maxScroll < 0 {
-			maxScroll = 0
-		}
+		layoutWidth := float32(h.layout.Width)
+		maxScroll := h.totalPathWidth - layoutWidth/2
 
-		if h.targetScrollX < 0 {
-			h.targetScrollX = 0
+		if h.targetScrollX < -layoutWidth/2 {
+			h.targetScrollX = -layoutWidth / 2 // Allow some space on the left
 		} else if h.targetScrollX > maxScroll {
 			h.targetScrollX = maxScroll
 		}
