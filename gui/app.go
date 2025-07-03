@@ -2,7 +2,6 @@ package gui
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/you/trajectory/space"
 )
 
 type App struct {
@@ -20,8 +19,8 @@ func NewApp() (*App, error) {
 	settingsScreen := NewSettingsScreen(screenManager)
 	screenManager.SetSettingsScreen(settingsScreen)
 
-	// Create game screen (your existing game)
-	gameScreen, err := space.NewGame()
+	// Create game screen wrapper with level support
+	gameScreen, err := NewGameScreenWrapper()
 	if err != nil {
 		return nil, err
 	}

@@ -49,6 +49,12 @@ func NewGame() (*Game, error) {
 	return g, nil
 }
 
+// LoadLevel loads a specific level into the game
+func (g *Game) LoadLevel(levelNum int) error {
+	// Use the existing LoadLevel method from the model
+	return g.model.LoadLevel(levelNum)
+}
+
 // Update updates the current game state.
 func (g *Game) Update() error {
 	// Calculate delta time

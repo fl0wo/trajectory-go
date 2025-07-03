@@ -11,8 +11,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	w, h := ebiten.Monitor().Size()
-	ebiten.SetWindowSize(int(float32(w)/1.5), int(float32(h)/1.5))
+	// w, h := ebiten.Monitor().Size()
+	// ebiten.SetWindowSize(int(float32(w)/1.5), int(float32(h)/1.5))
+	ebiten.SetWindowSize(800, 450) // Set a fixed window size for simplicity
 	ebiten.SetWindowTitle("Trajectory Space Game")
 	if err := ebiten.RunGame(app); err != nil {
 		log.Fatal(err)

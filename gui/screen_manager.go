@@ -83,3 +83,28 @@ func (sm *ScreenManager) Layout(outsideWidth, outsideHeight int) (screenWidth, s
 func (sm *ScreenManager) GetCurrentType() ScreenType {
 	return sm.currentType
 }
+
+func (sm *ScreenManager) SetScreenWithLevel(screenType ScreenType, levelNum int) {
+	sm.currentType = screenType
+
+	switch screenType {
+	case HomeScreen:
+		sm.currentScreen = sm.homeScreen
+	case GameScreen:
+		// Create a new game screen with the specified level
+		if gameScreen, ok := sm.gameScreen.(GameScreenWithLevel); ok {
+			gameScreen.LoadLevel(levelNum)
+			sm.currentScreen = gameScreen
+		} else {
+			sm.currentScreen = sm.gameScreen
+		}
+	case SettingsScreen:
+		sm.currentScreen = sm.settingsScreen
+	}
+}
+
+// Interface for game screens that support level loading
+type GameScreenWithLevel interface {
+	Screen
+	LoadLevel(levelNum int) error
+}

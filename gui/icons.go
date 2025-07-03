@@ -1,10 +1,12 @@
 package gui
 
 import (
+	"fmt"
 	"image/color"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
@@ -60,4 +62,44 @@ func IsPointInCircle(px, py, cx, cy, r float32) bool {
 	dx := px - cx
 	dy := py - cy
 	return dx*dx+dy*dy <= r*r
+}
+
+// IsPointInRect checks if a point (px, py) is inside a rectangle at (x, y) with width and height
+func IsPointInRect(px, py, x, y, width, height float32) bool {
+	return px >= x && px <= x+width && py >= y && py <= y+height
+}
+
+// DrawLevelSquare draws a level selection square with number inside
+func DrawLevelSquare(screen *ebiten.Image, x, y, size float32, levelNum int, textFace *text.GoTextFace, isLocked bool) {
+
+	// Choose colors based on lock state
+	var bgColor, borderColor, textColor color.RGBA
+	if isLocked {
+		bgColor = color.RGBA{60, 60, 60, 255}        // Dark gray
+		borderColor = color.RGBA{100, 100, 100, 255} // Lighter gray
+		textColor = color.RGBA{150, 150, 150, 255}   // Gray text
+	} else {
+		bgColor = color.RGBA{40, 120, 200, 255}     // Blue
+		borderColor = color.RGBA{60, 140, 220, 255} // Lighter blue
+		textColor = color.RGBA{255, 255, 255, 255}  // White text
+	}
+
+	// Draw background square
+	vector.DrawFilledRect(screen, x, y, size, size, bgColor, true)
+
+	// Draw border
+	borderWidth := float32(2)
+	vector.StrokeRect(screen, x, y, size, size, borderWidth, borderColor, true)
+
+	// Draw level number in center
+	levelText := fmt.Sprintf("%d", levelNum)
+	textWidth, textHeight := text.Measure(levelText, textFace, 0)
+
+	textX := x + (size-float32(textWidth))/2
+	textY := y + (size-float32(textHeight))/2
+
+	op := &text.DrawOptions{}
+	op.GeoM.Translate(float64(textX), float64(textY))
+	op.ColorScale.ScaleWithColor(textColor)
+	text.Draw(screen, levelText, textFace, op)
 }

@@ -10,7 +10,14 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
+	Models "github.com/you/trajectory/space/model"
 )
+
+type LevelSquare struct {
+	X, Y, Size float32
+	LevelNum   int
+	IsLocked   bool
+}
 
 type HomeScreenImpl struct {
 	starCount                                            int
@@ -18,6 +25,7 @@ type HomeScreenImpl struct {
 	textFaceSource                                       *text.GoTextFaceSource
 	layout                                               *ResponsiveLayout
 	settingsButtonX, settingsButtonY, settingsButtonSize float32
+	levelSquares                                         []LevelSquare
 }
 
 func NewHomeScreen(screenManager *ScreenManager) *HomeScreenImpl {
@@ -27,15 +35,65 @@ func NewHomeScreen(screenManager *ScreenManager) *HomeScreenImpl {
 		log.Fatal(err)
 	}
 
-	return &HomeScreenImpl{
+	homeScreen := &HomeScreenImpl{
 		starCount:      12, // Example star count
 		screenManager:  screenManager,
 		textFaceSource: textFaceSource,
 		layout:         NewResponsiveLayout(1920, 1080), // Default, updated in Layout
 	}
+
+	homeScreen.generateLevelSquares()
+	return homeScreen
+}
+
+func (h *HomeScreenImpl) generateLevelSquares() {
+	// Get total number of levels from PredefinedLevels
+	totalLevels := len(Models.PredefinedLevels)
+	h.levelSquares = make([]LevelSquare, totalLevels)
+
+	// For now, all levels are unlocked (you can add logic for locked levels later)
+	for i := 1; i <= totalLevels; i++ {
+		h.levelSquares[i-1] = LevelSquare{
+			LevelNum: i,
+			IsLocked: false, // All unlocked for now
+		}
+	}
+}
+
+func (h *HomeScreenImpl) updateLevelSquarePositions() {
+	if len(h.levelSquares) == 0 {
+		return
+	}
+
+	squareSize := float32(h.layout.GetButtonSize()) * 1.2
+	margin := float32(h.layout.GetMargin())
+
+	// Calculate grid layout (3 columns for 9 levels)
+	cols := 3
+	rows := (len(h.levelSquares) + cols - 1) / cols
+
+	// Calculate starting position to center the grid
+	totalWidth := float32(cols)*squareSize + float32(cols-1)*margin
+	totalHeight := float32(rows)*squareSize + float32(rows-1)*margin
+
+	startX := (float32(h.layout.Width) - totalWidth) / 2
+	startY := (float32(h.layout.Height) - totalHeight) / 2
+
+	// Position each square
+	for i := range h.levelSquares {
+		row := i / cols
+		col := i % cols
+
+		h.levelSquares[i].X = startX + float32(col)*(squareSize+margin)
+		h.levelSquares[i].Y = startY + float32(row)*(squareSize+margin)
+		h.levelSquares[i].Size = squareSize
+	}
 }
 
 func (h *HomeScreenImpl) Update() error {
+	// Update level square positions based on current layout
+	h.updateLevelSquarePositions()
+
 	// Handle touch/click input
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		x, y := ebiten.CursorPosition()
@@ -47,8 +105,14 @@ func (h *HomeScreenImpl) Update() error {
 			return nil
 		}
 
-		// Click anywhere else to go to game
-		h.screenManager.SetScreen(GameScreen)
+		// Check if any level square was clicked
+		for _, square := range h.levelSquares {
+			if !square.IsLocked && IsPointInRect(fx, fy, square.X, square.Y, square.Size, square.Size) {
+				// Load the selected level and go to game screen
+				h.screenManager.SetScreenWithLevel(GameScreen, square.LevelNum)
+				return nil
+			}
+		}
 	}
 
 	return nil
@@ -79,19 +143,18 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 
 	DrawSettingsIcon(screen, h.settingsButtonX, h.settingsButtonY, h.settingsButtonSize, color.RGBA{255, 255, 255, 255})
 
-	// Draw game title in center
+	// Draw game title at top
 	titleText := "TRAJECTORY"
 	titleFace := &text.GoTextFace{
 		Source: h.textFaceSource,
 		Size:   h.layout.GetTitleFontSize(),
 	}
 
-	titleWidthF, titleHeightF := text.Measure(titleText, titleFace, 0)
+	titleWidthF, _ := text.Measure(titleText, titleFace, 0)
 	titleWidth := int(titleWidthF)
-	titleHeight := int(titleHeightF)
 
 	titleX := (h.layout.Width - titleWidth) / 2
-	titleY := (h.layout.Height-titleHeight)/2 - int(h.layout.GetBodyFontSize())
+	titleY := margin * 3
 
 	titleOp := &text.DrawOptions{}
 	titleOp.GeoM.Translate(float64(titleX), float64(titleY))
@@ -101,9 +164,9 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 	// Draw subtitle
 	var subtitleText string
 	if h.layout.IsMobile() {
-		subtitleText = "Tap to start your space journey"
+		subtitleText = "Select a level to play"
 	} else {
-		subtitleText = "Click to start your space journey"
+		subtitleText = "Select a level to play"
 	}
 
 	subtitleFace := &text.GoTextFace{
@@ -114,35 +177,22 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 	subtitleWidthF, _ := text.Measure(subtitleText, subtitleFace, 0)
 	subtitleWidth := int(subtitleWidthF)
 	subtitleX := (h.layout.Width - subtitleWidth) / 2
-	subtitleY := titleY + titleHeight + int(h.layout.GetBodyFontSize())/2
+	subtitleY := titleY + int(h.layout.GetTitleFontSize()) + margin/2
 
 	subtitleOp := &text.DrawOptions{}
 	subtitleOp.GeoM.Translate(float64(subtitleX), float64(subtitleY))
 	subtitleOp.ColorScale.ScaleWithColor(color.RGBA{192, 192, 192, 255})
 	text.Draw(screen, subtitleText, subtitleFace, subtitleOp)
 
-	// Draw instructions at bottom
-	var instructionText string
-	if h.layout.IsMobile() {
-		instructionText = "Tap settings ⚙️ for options"
-	} else {
-		instructionText = "Click settings ⚙️ for options"
-	}
-
-	instructionFace := &text.GoTextFace{
+	// Draw level squares
+	levelNumberFace := &text.GoTextFace{
 		Source: h.textFaceSource,
-		Size:   h.layout.GetSmallFontSize(),
+		Size:   h.layout.GetBodyFontSize(),
 	}
 
-	instructionWidthF, _ := text.Measure(instructionText, instructionFace, 0)
-	instructionWidth := int(instructionWidthF)
-	instructionX := (h.layout.Width - instructionWidth) / 2
-	instructionY := h.layout.Height - margin - int(h.layout.GetSmallFontSize())
-
-	instructionOp := &text.DrawOptions{}
-	instructionOp.GeoM.Translate(float64(instructionX), float64(instructionY))
-	instructionOp.ColorScale.ScaleWithColor(color.RGBA{128, 128, 128, 255})
-	text.Draw(screen, instructionText, instructionFace, instructionOp)
+	for _, square := range h.levelSquares {
+		DrawLevelSquare(screen, square.X, square.Y, square.Size, square.LevelNum, levelNumberFace, square.IsLocked)
+	}
 }
 
 func (h *HomeScreenImpl) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
