@@ -207,7 +207,9 @@ func rayCastingWithPortals(
 	lightX, lightY float64,
 	celestialPositions []f32.Vec2, celestialRadii []float32,
 	asteroidPositions []f32.Vec2, asteroidRadii []float32,
-	portalPositions []f32.Vec2, portalRadii []float32,
+	portalPositions []f32.Vec2,
+	portalRotations []float32, // how much the portal is rotated in radians
+	portalRadii []float32,
 ) (playerRays []line, portalRaySets map[int][]line) {
 	const rayLength = 3000
 	occluderLines, occluderTypes, occluderIndices := getAllOccluderLines(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
@@ -253,7 +255,10 @@ func rayCastingWithPortals(
 				if pairedIdx < len(portalPositions) {
 					pairedX, pairedY := float64(portalPositions[pairedIdx][0]), float64(portalPositions[pairedIdx][1])
 					// Propagate ray from paired portal, ignoring its own lines
-					portalRay := clipRay(pairedX, pairedY, rayLength, rayAngle, occluderLines, occluderTypes, occluderIndices, pairedIdx)
+
+					rotationDiff := float64(portalRotations[pairedIdx] - portalRotations[hitPortalIdx])
+					rotatedAngle := normalizeAngle(rayAngle + rotationDiff)
+					portalRay := clipRay(pairedX, pairedY, rayLength, rotatedAngle, occluderLines, occluderTypes, occluderIndices, pairedIdx)
 					portalRaySets[pairedIdx] = append(portalRaySets[pairedIdx], portalRay)
 				}
 			} else if occluderHit {
@@ -344,7 +349,7 @@ func (ss *ShadowSystem) RenderShadows(
 		lightX, lightY,
 		celestialPositions, celestialRadii,
 		asteroidPositions, asteroidRadii,
-		portalPositions, portalRadii,
+		portalPositions, portalRotations, portalRadii,
 	)
 
 	// Calculate spotlight center and half-FOV
