@@ -2,18 +2,19 @@ package main
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/you/trajectory/space"
+	"github.com/you/trajectory/gui"
 	"log"
 )
 
 func main() {
-	game, err := space.NewGame()
+	app, err := gui.NewApp()
 	if err != nil {
 		log.Fatal(err)
 	}
-	ebiten.SetWindowSize(1920, 1080) // Set to your desired resolution
+	w, h := ebiten.Monitor().Size()
+	ebiten.SetWindowSize(int(float32(w)/1.5), int(float32(h)/1.5))
 	ebiten.SetWindowTitle("Trajectory Space Game")
-	if err := ebiten.RunGame(game); err != nil {
+	if err := ebiten.RunGame(app); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -91,7 +91,7 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 	halfFOV := FOVAngle / 2.0
 	if angle <= halfFOV {
 		// Inside light cone AND within range - invert the color
-		return vec4(1.0-OriginalColor.rgb, OriginalColor.a/Zoom) // more transparent with zoom
+		return vec4(1.0-OriginalColor.rgb, OriginalColor.a) // more transparent with zoom
 	} else {
 		// Outside light cone - use original color
 		return OriginalColor
