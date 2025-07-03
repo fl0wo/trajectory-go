@@ -10,7 +10,7 @@ type Portal struct {
 	ID                 int      // Unique identifier for this portal
 	PairID             int      // ID of the paired portal (portals with same PairID are linked)
 	Position           f32.Vec2 // Position of the portal in normalized coordinates
-	Rotation           float32  // Rotation angle in radians for portal orientation
+	Rotation           float32  // Rotation angle in angles for portal orientation
 	Width              float32  // Width of the capsule portal
 	Height             float32  // Height of the capsule portal
 	Mass               float32  // Mass for physics interactions (typically very small)

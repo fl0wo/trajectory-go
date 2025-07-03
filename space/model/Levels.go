@@ -46,7 +46,11 @@ var PredefinedLevels = map[int]*Level{
 		// 1->2 and 2->1 portal pair
 		portal1, portal2 := NewPortalPair(1,
 			f32.Vec2{0.35, 0.3}, f32.Vec2{0.75, 0.7},
-			0.0, math.Pi/2, 0.025, 0.025)
+			0.0,
+			90.0,
+			0.025,
+			0.025,
+		)
 
 		return NewLevelWithPortals("Level 2 - Portal Gateway",
 			f32.Vec2{0.2, 0.3},
@@ -257,7 +261,11 @@ var PredefinedLevels = map[int]*Level{
 
 		portal2a, portal2b := NewPortalPair(2,
 			f32.Vec2{0.35, 0.3}, f32.Vec2{0.65, 0.7},
-			0.0, 0.0, 0.025, 0.025)
+			0.0,
+			90.0,
+			0.025,
+			0.025,
+		)
 
 		return NewLevelWithAsteroidsAndPortals("Level 8 - Portal Maze",
 			f32.Vec2{0.1, 0.9},

@@ -634,17 +634,18 @@ func (sg *SpaceGame) TeleportPlayer(sourcePortal *Portal) {
 		return // No valid target portal found
 	}
 
-	// Calculate rotation difference between portals
+	// Calculate rotation difference between portals (in degrees)
 	rotationDiff := targetPortal.Rotation - sourcePortal.Rotation
-
 	// Store current velocity and acceleration
 	currentVelocity := sg.Player.Velocity
 	currentAcceleration := sg.Player.Acceleration
 
-	// Apply rotation transformation to velocity if there's a rotation difference
+	// Apply rotation transformation only if rotationDiff is non-zero
 	if rotationDiff != 0 {
-		cos := float32(math.Cos(float64(rotationDiff)))
-		sin := float32(math.Sin(float64(rotationDiff)))
+		// Convert rotationDiff from degrees to radians
+		rotationDiffRad := float32(math.Pi * rotationDiff / 180.0)
+		cos := float32(math.Cos(float64(rotationDiffRad)))
+		sin := float32(math.Sin(float64(rotationDiffRad)))
 
 		// Rotate velocity vector
 		newVelX := currentVelocity[0]*cos - currentVelocity[1]*sin
@@ -663,8 +664,10 @@ func (sg *SpaceGame) TeleportPlayer(sourcePortal *Portal) {
 
 	// Apply rotation to the offset if needed
 	if rotationDiff != 0 {
-		cos := float32(math.Cos(float64(rotationDiff)))
-		sin := float32(math.Sin(float64(rotationDiff)))
+		// Convert rotationDiff to radians for offset rotation
+		rotationDiffRad := math.Pi * rotationDiff / 180.0
+		cos := float32(math.Cos(float64(rotationDiffRad)))
+		sin := float32(math.Sin(float64(rotationDiffRad)))
 
 		newOffsetX := playerOffsetX*cos - playerOffsetY*sin
 		newOffsetY := playerOffsetX*sin + playerOffsetY*cos
@@ -683,7 +686,6 @@ func (sg *SpaceGame) TeleportPlayer(sourcePortal *Portal) {
 	sg.Player.Acceleration = currentAcceleration
 
 	// Mark both portals as having the player inside to prevent immediate re-entry
-	// Set both current and previous state to prevent re-triggering
 	sourcePortal.PlayerInside = true
 	sourcePortal.WasPlayerInside = true
 	targetPortal.PlayerInside = true

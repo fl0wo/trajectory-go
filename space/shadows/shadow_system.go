@@ -312,6 +312,7 @@ func (ss *ShadowSystem) RenderShadows(
 	asteroidRadii []float32,
 	portalPositions []f32.Vec2,
 	portalRadii []float32,
+	portalRotations []float32, // how much the portal is rotated in radians
 	showRays bool,
 ) {
 	if len(celestialPositions) == 0 && len(asteroidPositions) == 0 && len(portalPositions) == 0 {
