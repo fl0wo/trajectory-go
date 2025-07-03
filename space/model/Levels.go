@@ -43,7 +43,7 @@ var PredefinedLevels = map[int]*Level{
 	),
 
 	2: func() *Level {
-		// Create portal pair for level 2 (make them larger and more visible as circles)
+		// 1->2 and 2->1 portal pair
 		portal1, portal2 := NewPortalPair(1,
 			f32.Vec2{0.35, 0.3}, f32.Vec2{0.75, 0.7},
 			0.0, math.Pi/2, 0.025, 0.025)
@@ -67,6 +67,7 @@ var PredefinedLevels = map[int]*Level{
 					OrbitRadius: 0.15,
 				},
 			},
+			// following XOR for portals
 			[]*Portal{portal1, portal2},
 		)
 	}(),

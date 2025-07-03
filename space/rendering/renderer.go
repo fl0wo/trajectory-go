@@ -70,30 +70,6 @@ const (
 	fovLight = 90.0
 )
 
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// minFloat32 returns the minimum of two float32 values
-func minFloat32(a, b float32) float32 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// maxFloat32 returns the maximum of two float32 values
-func maxFloat32(a, b float32) float32 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 const (
 	baseArm       = float32(8) // half-length of each arm by default
 	stretchFactor = float32(1) // how much longer the interior arms get

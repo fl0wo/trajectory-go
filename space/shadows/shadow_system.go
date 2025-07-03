@@ -30,14 +30,20 @@ func newRay(x, y, length, angle float64) line {
 	return line{x, y, x + length*math.Cos(angle), y + length*math.Sin(angle)}
 }
 
-// clipRay fires a single ray at 'angle' and stops it at the first occluder (or lets it run full-length)
+// clipRay fires a single ray at 'angle' and stops at the first occluder (or full length), ignoring specified portal
 func clipRay(
 	lightX, lightY, length, angle float64,
 	occluderLines []line,
+	occluderTypes []string,
+	occluderIndices []int,
+	ignorePortalIdx int,
 ) line {
 	r := newRay(lightX, lightY, length, angle)
 	var hits [][2]float64
-	for _, ol := range occluderLines {
+	for i, ol := range occluderLines {
+		if occluderTypes[i] == "portal" && occluderIndices[i] == ignorePortalIdx {
+			continue // Skip intersections with the ignored portal
+		}
 		if px, py, ok := intersection(r, ol); ok {
 			hits = append(hits, [2]float64{px, py})
 		}
@@ -90,7 +96,7 @@ func circleToLines(center f32.Vec2, radius float32, segments int) []line {
 	return lines
 }
 
-// getAllOccluderPoints includes only celestials and asteroids (not portals)
+// getAllOccluderPoints includes celestials, asteroids, and all portals
 func getAllOccluderPoints(
 	celestialPositions []f32.Vec2, celestialRadii []float32,
 	asteroidPositions []f32.Vec2, asteroidRadii []float32,
@@ -117,150 +123,162 @@ func getAllOccluderPoints(
 			})
 		}
 	}
+	for i, pos := range portalPositions {
+		r := portalRadii[i]
+		for j := 0; j < 12; j++ {
+			θ := 2 * math.Pi * float64(j) / 12
+			pts = append(pts, [2]float64{
+				float64(pos[0]) + float64(r)*math.Cos(θ),
+				float64(pos[1]) + float64(r)*math.Sin(θ),
+			})
+		}
+	}
 	return pts
 }
 
-// getAllOccluderLines includes only celestials and asteroids
+// getAllOccluderLines includes celestials, asteroids, and all portals, with type and index tracking
 func getAllOccluderLines(
 	celestialPositions []f32.Vec2, celestialRadii []float32,
 	asteroidPositions []f32.Vec2, asteroidRadii []float32,
 	portalPositions []f32.Vec2, portalRadii []float32,
-) []line {
-	var lines []line
+) (lines []line, types []string, indices []int) {
 	for i, pos := range celestialPositions {
-		lines = append(lines, circleToLines(pos, celestialRadii[i], 16)...)
+		cLines := circleToLines(pos, celestialRadii[i], 16)
+		lines = append(lines, cLines...)
+		for range cLines {
+			types = append(types, "celestial")
+			indices = append(indices, i)
+		}
 	}
 	for i, pos := range asteroidPositions {
-		lines = append(lines, circleToLines(pos, asteroidRadii[i], 8)...)
+		aLines := circleToLines(pos, asteroidRadii[i], 8)
+		lines = append(lines, aLines...)
+		for range aLines {
+			types = append(types, "asteroid")
+			indices = append(indices, i)
+		}
 	}
-	return lines
+	for i, pos := range portalPositions {
+		pLines := circleToLines(pos, portalRadii[i], 12)
+		lines = append(lines, pLines...)
+		for range pLines {
+			types = append(types, "portal")
+			indices = append(indices, i)
+		}
+	}
+	return lines, types, indices
 }
 
-// getPortalLines returns line segments for portal 0 only
-func getPortalLines(portalPositions []f32.Vec2, portalRadii []float32) []line {
-	if len(portalPositions) == 0 {
-		return nil
+// getAllPortalLines returns line segments for all portals for propagation checks
+func getAllPortalLines(portalPositions []f32.Vec2, portalRadii []float32) [][]line {
+	var allPortalLines [][]line
+	for i, pos := range portalPositions {
+		lines := circleToLines(pos, portalRadii[i], 12)
+		allPortalLines = append(allPortalLines, lines)
 	}
-	return circleToLines(portalPositions[0], portalRadii[0], 12)
+	return allPortalLines
 }
 
-// findPortalHit checks if a ray hits portal 0
-func findPortalHit(r line, portalLines []line) (float64, float64, bool) {
+// findPortalHit checks if a ray hits any portal and returns the hit point and portal index
+func findPortalHit(r line, allPortalLines [][]line) (float64, float64, int, bool) {
 	var minD float64 = math.Inf(1)
 	var hitX, hitY float64
-	hit := false
-	for _, pl := range portalLines {
-		if x, y, ok := intersection(r, pl); ok {
-			d := (r.X1-x)*(r.X1-x) + (r.Y1-y)*(r.Y1-y)
-			if d < minD {
-				minD = d
-				hitX, hitY = x, y
-				hit = true
+	var hitPortal int = -1
+	for i, portalLines := range allPortalLines {
+		for _, pl := range portalLines {
+			if x, y, ok := intersection(r, pl); ok {
+				d := (r.X1-x)*(r.X1-x) + (r.Y1-y)*(r.Y1-y)
+				if d < minD {
+					minD = d
+					hitX, hitY = x, y
+					hitPortal = i
+				}
 			}
 		}
 	}
-	return hitX, hitY, hit
+	if hitPortal != -1 {
+		return hitX, hitY, hitPortal, true
+	}
+	return 0, 0, -1, false
 }
 
-// rayCastingWithPortals casts rays from the light source, conducting light from portal 0 to portal 1
+// rayCastingWithPortals casts rays from the light source and conducts light through all portal pairs using XOR
 func rayCastingWithPortals(
 	lightX, lightY float64,
 	celestialPositions []f32.Vec2, celestialRadii []float32,
 	asteroidPositions []f32.Vec2, asteroidRadii []float32,
 	portalPositions []f32.Vec2, portalRadii []float32,
-) (playerRays []line, portalRays []line) {
+) (playerRays []line, portalRaySets map[int][]line) {
 	const rayLength = 3000
-	occluderLines := getAllOccluderLines(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
-	portalLines := getPortalLines(portalPositions, portalRadii)
+	occluderLines, occluderTypes, occluderIndices := getAllOccluderLines(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
+	allPortalLines := getAllPortalLines(portalPositions, portalRadii)
 	points := getAllOccluderPoints(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
 
-	// Cast rays from the player
+	portalRaySets = make(map[int][]line)
+
+	// Cast rays from the player to all occluder points
 	for _, pt := range points {
 		ang := math.Atan2(float64(pt[1])-lightY, float64(pt[0])-lightX)
 		for _, off := range []float64{-0.002, 0.002} {
 			rayAngle := ang + off
 			r := newRay(lightX, lightY, rayLength, rayAngle)
 
-			// Find intersections with occluders
-			var occluderHits [][2]float64
+			// Find closest occluder intersection (including portals)
+			var closestOccluderD = math.Inf(1)
+			var closestOccluder [2]float64
+			var occluderHit bool
 			for _, ol := range occluderLines {
 				if x, y, ok := intersection(r, ol); ok {
-					occluderHits = append(occluderHits, [2]float64{x, y})
-				}
-			}
-
-			// Find intersection with portal 0
-			var portalHit [2]float64
-			var portalHitOk bool
-			var portalHitD float64
-			if len(portalLines) > 0 {
-				px, py, hit := findPortalHit(r, portalLines)
-				if hit {
-					portalHit = [2]float64{px, py}
-					portalHitOk = true
-					portalHitD = (lightX-px)*(lightX-px) + (lightY-py)*(lightY-py)
-				}
-			}
-
-			if portalHitOk {
-				// Determine if portal hit is closer than occluder hits
-				closestOccluderD := math.Inf(1)
-				for _, oh := range occluderHits {
-					d := (lightX-oh[0])*(lightX-oh[0]) + (lightY-oh[1])*(lightY-oh[1])
+					d := (lightX-x)*(lightX-x) + (lightY-y)*(lightY-y)
 					if d < closestOccluderD {
 						closestOccluderD = d
+						closestOccluder = [2]float64{x, y}
+						occluderHit = true
 					}
 				}
-				if portalHitD < closestOccluderD {
-					// Ray hits portal 0 first; clip it there and propagate from portal 1
-					playerRays = append(playerRays, line{lightX, lightY, portalHit[0], portalHit[1]})
-					if len(portalPositions) > 1 {
-						portal1X, portal1Y := float64(portalPositions[1][0]), float64(portalPositions[1][1])
-						portalRay := clipRay(portal1X, portal1Y, rayLength, rayAngle, occluderLines)
-						portalRays = append(portalRays, portalRay)
-					}
-				} else {
-					// Occluder is closer; clip ray there
-					minD := math.Inf(1)
-					var closest [2]float64
-					for _, oh := range occluderHits {
-						d := (lightX-oh[0])*(lightX-oh[0]) + (lightY-oh[1])*(lightY-oh[1])
-						if d < minD {
-							minD = d
-							closest = oh
-						}
-					}
-					playerRays = append(playerRays, line{lightX, lightY, closest[0], closest[1]})
+			}
+
+			// Find the closest portal intersection for propagation
+			px, py, hitPortalIdx, hitPortal := findPortalHit(r, allPortalLines)
+			var portalHitD float64
+			if hitPortal {
+				portalHitD = (lightX-px)*(lightX-px) + (lightY-py)*(lightY-py)
+			}
+
+			// Determine action based on closest hit
+			if hitPortal && (!occluderHit || portalHitD <= closestOccluderD) {
+				// Portal hit first; clip player ray and propagate to paired portal
+				playerRays = append(playerRays, line{lightX, lightY, px, py})
+				pairedIdx := hitPortalIdx ^ 1
+				if pairedIdx < len(portalPositions) {
+					pairedX, pairedY := float64(portalPositions[pairedIdx][0]), float64(portalPositions[pairedIdx][1])
+					// Propagate ray from paired portal, ignoring its own lines
+					portalRay := clipRay(pairedX, pairedY, rayLength, rayAngle, occluderLines, occluderTypes, occluderIndices, pairedIdx)
+					portalRaySets[pairedIdx] = append(portalRaySets[pairedIdx], portalRay)
 				}
-			} else if len(occluderHits) > 0 {
-				// No portal hit; clip against occluders
-				minD := math.Inf(1)
-				var closest [2]float64
-				for _, oh := range occluderHits {
-					d := (lightX-oh[0])*(lightX-oh[0]) + (lightY-oh[1])*(lightY-oh[1])
-					if d < minD {
-						minD = d
-						closest = oh
-					}
-				}
-				playerRays = append(playerRays, line{lightX, lightY, closest[0], closest[1]})
+			} else if occluderHit {
+				// Occluder (or portal as occluder) hit first; clip player ray
+				playerRays = append(playerRays, line{lightX, lightY, closestOccluder[0], closestOccluder[1]})
 			} else {
+				// No hits; use full ray length
 				playerRays = append(playerRays, r)
 			}
 		}
 	}
 
-	// Sort rays by angle for proper polygon construction
+	// Sort player rays by angle
 	sort.Slice(playerRays, func(i, j int) bool {
 		return playerRays[i].angle() < playerRays[j].angle()
 	})
-	if len(portalRays) > 0 {
-		sort.Slice(portalRays, func(i, j int) bool {
-			return portalRays[i].angle() < portalRays[j].angle()
+
+	// Sort portal rays for each portal
+	for _, rays := range portalRaySets {
+		sort.Slice(rays, func(i, j int) bool {
+			return rays[i].angle() < rays[j].angle()
 		})
 	}
 
-	return playerRays, portalRays
+	return playerRays, portalRaySets
 }
 
 func normalizeAngle(a float64) float64 {
@@ -281,7 +299,7 @@ func rayVertices(x1, y1, x2, y2, x3, y3 float64) []ebiten.Vertex {
 	}
 }
 
-// RenderShadows renders a spotlight with light propagation from portal 0 to portal 1
+// RenderShadows renders a spotlight with light propagation through all portal pairs
 func (ss *ShadowSystem) RenderShadows(
 	screen *ebiten.Image,
 	lightPos f32.Vec2,
@@ -296,7 +314,7 @@ func (ss *ShadowSystem) RenderShadows(
 	portalRadii []float32,
 	showRays bool,
 ) {
-	if len(celestialPositions) == 0 && len(asteroidPositions) == 0 {
+	if len(celestialPositions) == 0 && len(asteroidPositions) == 0 && len(portalPositions) == 0 {
 		return
 	}
 
@@ -305,8 +323,8 @@ func (ss *ShadowSystem) RenderShadows(
 
 	lightX, lightY := float64(lightPos[0]), float64(lightPos[1])
 
-	// 2) Get rays for player and portal
-	playerRays, portalRays := rayCastingWithPortals(
+	// 2) Get rays for player and portals
+	playerRays, portalRaySets := rayCastingWithPortals(
 		lightX, lightY,
 		celestialPositions, celestialRadii,
 		asteroidPositions, asteroidRadii,
@@ -329,12 +347,12 @@ func (ss *ShadowSystem) RenderShadows(
 	})
 
 	// 5) Build occluder lines for boundary clipping
-	occluderLines := getAllOccluderLines(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
+	occluderLines, occluderTypes, occluderIndices := getAllOccluderLines(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
 	diag := math.Hypot(float64(ss.screenWidth), float64(ss.screenHeight))
 
-	// 6) Clip boundary rays for player
-	left := clipRay(lightX, lightY, diag, base-half, occluderLines)
-	right := clipRay(lightX, lightY, diag, base+half, occluderLines)
+	// 6) Clip boundary rays for player (no portal ignore for player rays)
+	left := clipRay(lightX, lightY, diag, base-half, occluderLines, occluderTypes, occluderIndices, -1)
+	right := clipRay(lightX, lightY, diag, base+half, occluderLines, occluderTypes, occluderIndices, -1)
 
 	// 7) Assemble final player ray list
 	finalPlayerRays := []line{left}
@@ -350,13 +368,15 @@ func (ss *ShadowSystem) RenderShadows(
 		ss.shadowImage.DrawTriangles(vs, []uint16{0, 1, 2}, ss.triangleImage, triOpt)
 	}
 
-	// 9) Carve out portal light polygon if applicable
-	if len(portalRays) > 0 && len(portalPositions) > 1 {
-		portal1X, portal1Y := float64(portalPositions[1][0]), float64(portalPositions[1][1])
-		for i := 0; i < len(portalRays)-1; i++ {
-			a, b := portalRays[i], portalRays[i+1]
-			vs := rayVertices(portal1X, portal1Y, b.X2, b.Y2, a.X2, a.Y2)
-			ss.shadowImage.DrawTriangles(vs, []uint16{0, 1, 2}, ss.triangleImage, triOpt)
+	// 9) Carve out portal light polygons for each portal with rays
+	for portalIdx, rays := range portalRaySets {
+		if len(rays) > 0 {
+			portalX, portalY := float64(portalPositions[portalIdx][0]), float64(portalPositions[portalIdx][1])
+			for i := 0; i < len(rays)-1; i++ {
+				a, b := rays[i], rays[i+1]
+				vs := rayVertices(portalX, portalY, b.X2, b.Y2, a.X2, a.Y2)
+				ss.shadowImage.DrawTriangles(vs, []uint16{0, 1, 2}, ss.triangleImage, triOpt)
+			}
 		}
 	}
 
@@ -385,15 +405,17 @@ func (ss *ShadowSystem) RenderShadows(
 			screen.DrawTrianglesShader(vs, []uint16{0, 1, 2}, ss.lightShader, lightOpt)
 		}
 
-		// Portal light cone
-		if len(portalRays) > 0 && len(portalPositions) > 1 {
-			portal1X, portal1Y := float64(portalPositions[1][0]), float64(portalPositions[1][1])
-			lightOpt.Uniforms["LightPos"] = []float32{float32(portal1X), float32(portal1Y)}
-			lightOpt.Uniforms["Fov"] = float64(360) // Full illumination from portal
-			for i := 0; i < len(portalRays)-1; i++ {
-				a, b := portalRays[i], portalRays[i+1]
-				vs := rayVertices(portal1X, portal1Y, b.X2, b.Y2, a.X2, a.Y2)
-				screen.DrawTrianglesShader(vs, []uint16{0, 1, 2}, ss.lightShader, lightOpt)
+		// Portal light cones
+		for portalIdx, rays := range portalRaySets {
+			if len(rays) > 0 {
+				portalX, portalY := float64(portalPositions[portalIdx][0]), float64(portalPositions[portalIdx][1])
+				lightOpt.Uniforms["LightPos"] = []float32{float32(portalX), float32(portalY)}
+				lightOpt.Uniforms["Fov"] = float64(360) // Full illumination from portal
+				for i := 0; i < len(rays)-1; i++ {
+					a, b := rays[i], rays[i+1]
+					vs := rayVertices(portalX, portalY, b.X2, b.Y2, a.X2, a.Y2)
+					screen.DrawTrianglesShader(vs, []uint16{0, 1, 2}, ss.lightShader, lightOpt)
+				}
 			}
 		}
 	}
@@ -403,8 +425,8 @@ func (ss *ShadowSystem) RenderShadows(
 		for _, r := range finalPlayerRays {
 			vector.StrokeLine(screen, float32(r.X1), float32(r.Y1), float32(r.X2), float32(r.Y2), 1, colors.DebugRay, true)
 		}
-		if len(portalRays) > 0 {
-			for _, r := range portalRays {
+		for _, rays := range portalRaySets {
+			for _, r := range rays {
 				vector.StrokeLine(screen, float32(r.X1), float32(r.Y1), float32(r.X2), float32(r.Y2), 1, colors.DebugRay, true)
 			}
 		}
