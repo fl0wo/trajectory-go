@@ -128,42 +128,36 @@ func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
 
 // Scrolling behavior constants
 const (
-	// Drag history tracking
 	DragHistoryCapacity   = 10
 	DragHistoryTimeWindow = 0.1 // seconds
 
-	// Exponential scaling
 	ExponentialThreshold = 50.0  // pixels before exponential scaling kicks in
 	ExponentialFactor    = 200.0 // pixels needed to double the effect
 
-	// Click vs drag detection
 	ClickThreshold = 10.0 // pixels - below this is considered a click
 
-	// Momentum and friction
-	MomentumMultiplier = 8.0 // velocity to momentum conversion (reduced from 30.0)
+	MomentumMultiplier = 6.0 // velocity to momentum conversion (reduced from 30.0)
 	MomentumFriction   = 0.9 // friction applied each frame (reduced from 0.95)
 	MinimumVelocity    = 1.0 // minimum velocity to keep momentum going (increased from 0.1)
 
-	// Animation speeds
 	ScrollAnimationSpeed = 6.0        // scroll interpolation speed (reduced from 12.0)
 	FallbackDeltaTime    = 1.0 / 60.0 // 60fps fallback
 
-	// Mouse wheel scrolling
 	BaseWheelScrollAmount = 40.0 // base wheel scroll amount (reduced from 80.0)
 	WheelMultiplierFactor = 0.2  // wheel acceleration factor (reduced from 0.5)
 
-	// Level node spacing
 	NodeSpacingMultiplier = 8.0 // spacing between level nodes (reduced from 10.0)
 	NodeSizeMultiplier    = 0.8 // size of level nodes relative to button size
 
-	// Layout margins
 	LeftMarginDivisor     = 2.0 // divisor for left margin calculation
 	TitleMarginMultiplier = 2.0 // title margin from top
 
-	// Magnetic snapping
 	MagneticSnapDelay     = 0.1 // seconds to wait after user stops scrolling before snapping
 	MagneticSnapSpeed     = 4.0 // speed of magnetic snapping animation
 	MagneticSnapThreshold = 5.0 // pixels - how close to target before considering "snapped"
+
+	CenterScalingMaxFactor = 2.0 // maximum scaling factor at center (3x bigger)
+	CenterScalingRadius    = 3.0 // divisor for screen width to determine scaling zone (screen/4)
 )
 
 type LevelNode struct {
@@ -365,7 +359,9 @@ func (h *HomeScreenImpl) Update() error {
 				// Check if any level node was clicked
 				for _, node := range h.levelNodes {
 					nodeScreenX := node.X - h.scrollOffsetX
-					if !node.IsLocked && IsPointInCircle(fx, fy, nodeScreenX, node.Y, node.Radius) {
+					scaleFactor := h.calculateCenterScaling(nodeScreenX)
+					scaledRadius := node.Radius * scaleFactor
+					if !node.IsLocked && IsPointInCircle(fx, fy, nodeScreenX, node.Y, scaledRadius) {
 						// Load the selected level and go to game screen
 						h.screenManager.SetScreenWithLevel(GameScreen, node.LevelNum)
 						return nil
@@ -522,6 +518,26 @@ func (h *HomeScreenImpl) updateMagneticSnapping(deltaTime float32) {
 	}
 }
 
+// calculateCenterScaling calculates the scaling factor for a level node based on its distance from screen center
+func (h *HomeScreenImpl) calculateCenterScaling(nodeScreenX float32) float32 {
+	screenCenter := float32(h.layout.Width) / 2
+	scalingZone := float32(h.layout.Width) / CenterScalingRadius // screen/4
+
+	// Calculate distance from center
+	distanceFromCenter := float32(math.Abs(float64(nodeScreenX - screenCenter)))
+
+	// If outside scaling zone, no scaling
+	if distanceFromCenter > scalingZone {
+		return 1.0
+	}
+
+	// Linear interpolation: 0 distance = 3x scale, scalingZone distance = 1x scale
+	normalizedDistance := distanceFromCenter / scalingZone
+	scaleFactor := CenterScalingMaxFactor - (CenterScalingMaxFactor-1.0)*normalizedDistance
+
+	return scaleFactor
+}
+
 func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 	// Draw nebula background shader if available
 	if h.nebulaShader != nil {
@@ -597,9 +613,13 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 		// Calculate screen position (accounting for scroll)
 		screenX := node.X - h.scrollOffsetX
 
+		// Calculate scaling factor based on distance from center
+		scaleFactor := h.calculateCenterScaling(screenX)
+		scaledRadius := node.Radius * scaleFactor
+
 		// Only draw nodes that are visible on screen (with some margin)
-		if screenX > -node.Radius*2 && screenX < float32(h.layout.Width)+node.Radius*2 {
-			DrawLevelCircle(screen, screenX, node.Y, node.Radius, node.LevelNum, levelNumberFace, node.IsLocked)
+		if screenX > -scaledRadius*2 && screenX < float32(h.layout.Width)+scaledRadius*2 {
+			DrawLevelCircle(screen, screenX, node.Y, scaledRadius, node.LevelNum, levelNumberFace, node.IsLocked)
 		}
 	}
 
