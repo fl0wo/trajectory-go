@@ -282,16 +282,33 @@ func (h *HomeScreenImpl) createLevelPreview(levelNum int) *ebiten.Image {
 		return nil
 	}
 
-	// Create an image with the preview dimensions
+	// Use the game's native resolution for proper rendering
+	gameWidth, gameHeight := game.Layout(1920, 1080) // Use the game's expected dimensions
+
+	// Create a full-size image for proper rendering
+	fullSizeImage := ebiten.NewImage(gameWidth, gameHeight)
+
+	// Update the game a few times to ensure proper initialization
+	// This allows camera and other systems to stabilize
+	for i := 0; i < 3; i++ {
+		_ = game.Update() // Ignore error for preview generation
+	}
+
+	// Draw the game at full resolution
+	game.Draw(fullSizeImage)
+
+	// Create the preview image at the smaller size
 	previewWidth := int(PreviewRectWidth)
 	previewHeight := int(PreviewRectHeight)
 	previewImage := ebiten.NewImage(previewWidth, previewHeight)
 
-	// Set the game's layout to match preview size
-	game.Layout(previewWidth, previewHeight)
+	// Scale down the full-size image to the preview size
+	op := &ebiten.DrawImageOptions{}
+	scaleX := float64(previewWidth) / float64(gameWidth)
+	scaleY := float64(previewHeight) / float64(gameHeight)
+	op.GeoM.Scale(scaleX, scaleY)
 
-	// Draw the game once to generate the preview
-	game.Draw(previewImage)
+	previewImage.DrawImage(fullSizeImage, op)
 
 	return previewImage
 }
