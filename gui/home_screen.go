@@ -154,6 +154,10 @@ const (
 	PreviewRectWidth  = 180.0 // width of level preview rectangles
 	PreviewRectHeight = 120.0 // height of level preview rectangles
 
+	// Preview image resolution (higher than display size for crisp quality)
+	PreviewResolutionScale = 0.1                                  // percentage of screen width for preview resolution
+	PreviewAspectRatio     = PreviewRectWidth / PreviewRectHeight // maintain aspect ratio
+
 	LeftMarginDivisor     = 2.0 // divisor for left margin calculation
 	TitleMarginMultiplier = 2.0 // title margin from top
 
@@ -260,14 +264,14 @@ func (h *HomeScreenImpl) generateLevelPreviews() {
 
 	// Create preview images for each level
 	for levelNum := 1; levelNum <= totalLevels; levelNum++ {
-		previewImage := h.createLevelPreview(levelNum)
+		previewImage := h.createLevelPreview(levelNum, h.layout.Width, h.layout.Height)
 		if previewImage != nil {
 			h.levelPreviews[levelNum] = previewImage
 		}
 	}
 }
 
-func (h *HomeScreenImpl) createLevelPreview(levelNum int) *ebiten.Image {
+func (h *HomeScreenImpl) createLevelPreview(levelNum int, screenWidth, screenHeight int) *ebiten.Image {
 	// Create a temporary game instance
 	game, err := space.NewGame()
 	if err != nil {
@@ -297,12 +301,21 @@ func (h *HomeScreenImpl) createLevelPreview(levelNum int) *ebiten.Image {
 	// Draw the game at full resolution
 	game.Draw(fullSizeImage)
 
-	// Create the preview image at the smaller size
-	previewWidth := int(PreviewRectWidth)
-	previewHeight := int(PreviewRectHeight)
+	// Calculate high-resolution preview dimensions based on screen size
+	// Use a percentage of screen width for preview resolution, maintaining aspect ratio
+	previewWidth := int(float32(screenWidth) * PreviewResolutionScale)
+	previewHeight := int(float32(previewWidth) / PreviewAspectRatio)
+
+	// Ensure minimum resolution for quality
+	minWidth := int(PreviewRectWidth * 2) // At least 2x the display size
+	if previewWidth < minWidth {
+		previewWidth = minWidth
+		previewHeight = int(float32(previewWidth) / PreviewAspectRatio)
+	}
+
 	previewImage := ebiten.NewImage(previewWidth, previewHeight)
 
-	// Scale down the full-size image to the preview size
+	// Scale down the full-size image to the high-res preview size
 	op := &ebiten.DrawImageOptions{}
 	scaleX := float64(previewWidth) / float64(gameWidth)
 	scaleY := float64(previewHeight) / float64(gameHeight)
