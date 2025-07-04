@@ -8,6 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
+	"github.com/you/trajectory/space"
 	Models "github.com/you/trajectory/space/model"
 	"image/color"
 	"log"
@@ -146,8 +147,12 @@ const (
 	BaseWheelScrollAmount = 40.0 // base wheel scroll amount (reduced from 80.0)
 	WheelMultiplierFactor = 0.2  // wheel acceleration factor (reduced from 0.5)
 
-	NodeSpacingMultiplier = 8.0 // spacing between level nodes (reduced from 10.0)
-	NodeSizeMultiplier    = 0.8 // size of level nodes relative to button size
+	NodeSpacingMultiplier = 12.0 // spacing between level nodes
+	NodeSizeMultiplier    = 0.8  // size of level nodes relative to button size
+
+	// Level preview rectangles
+	PreviewRectWidth  = 180.0 // width of level preview rectangles
+	PreviewRectHeight = 120.0 // height of level preview rectangles
 
 	LeftMarginDivisor     = 2.0 // divisor for left margin calculation
 	TitleMarginMultiplier = 2.0 // title margin from top
@@ -163,9 +168,9 @@ const (
 )
 
 type LevelNode struct {
-	X, Y, Radius float32
-	LevelNum     int
-	IsLocked     bool
+	X, Y, Width, Height float32
+	LevelNum            int
+	IsLocked            bool
 }
 
 type HomeScreenImpl struct {
@@ -197,6 +202,9 @@ type HomeScreenImpl struct {
 	// Nebula shader variables
 	nebulaShader *ebiten.Shader
 	startTime    time.Time
+
+	// Level preview caching
+	levelPreviews map[int]*ebiten.Image // Cache of rendered level previews
 }
 
 func NewHomeScreen(screenManager *ScreenManager) *HomeScreenImpl {
@@ -223,12 +231,17 @@ func NewHomeScreen(screenManager *ScreenManager) *HomeScreenImpl {
 		snapTimer:            0,
 		userStoppedScrolling: false,
 		startTime:            time.Now(),
+		levelPreviews:        make(map[int]*ebiten.Image),
 	}
 
 	// Initialize nebula shader
 	homeScreen.initNebulaShader()
 
 	homeScreen.generateLevelNodes()
+
+	// Generate level previews
+	homeScreen.generateLevelPreviews()
+
 	return homeScreen
 }
 
@@ -241,6 +254,48 @@ func (h *HomeScreenImpl) initNebulaShader() {
 	h.nebulaShader = shader
 }
 
+func (h *HomeScreenImpl) generateLevelPreviews() {
+	// Get total number of levels
+	totalLevels := len(Models.PredefinedLevels)
+
+	// Create preview images for each level
+	for levelNum := 1; levelNum <= totalLevels; levelNum++ {
+		previewImage := h.createLevelPreview(levelNum)
+		if previewImage != nil {
+			h.levelPreviews[levelNum] = previewImage
+		}
+	}
+}
+
+func (h *HomeScreenImpl) createLevelPreview(levelNum int) *ebiten.Image {
+	// Create a temporary game instance
+	game, err := space.NewGame()
+	if err != nil {
+		log.Printf("Failed to create game for level preview %d: %v", levelNum, err)
+		return nil
+	}
+
+	// Load the specific level
+	err = game.LoadLevel(levelNum)
+	if err != nil {
+		log.Printf("Failed to load level %d for preview: %v", levelNum, err)
+		return nil
+	}
+
+	// Create an image with the preview dimensions
+	previewWidth := int(PreviewRectWidth)
+	previewHeight := int(PreviewRectHeight)
+	previewImage := ebiten.NewImage(previewWidth, previewHeight)
+
+	// Set the game's layout to match preview size
+	game.Layout(previewWidth, previewHeight)
+
+	// Draw the game once to generate the preview
+	game.Draw(previewImage)
+
+	return previewImage
+}
+
 func (h *HomeScreenImpl) generateLevelNodes() {
 	// Get total number of levels from PredefinedLevels
 	totalLevels := len(Models.PredefinedLevels)
@@ -251,7 +306,8 @@ func (h *HomeScreenImpl) generateLevelNodes() {
 		h.levelNodes[i-1] = LevelNode{
 			LevelNum: i,
 			IsLocked: false, // All unlocked for now
-			Radius:   0,     // Will be set in updateLevelNodePositions
+			Width:    0,     // Will be set in updateLevelNodePositions
+			Height:   0,     // Will be set in updateLevelNodePositions
 		}
 	}
 }
@@ -261,9 +317,10 @@ func (h *HomeScreenImpl) updateLevelNodePositions() {
 		return
 	}
 
-	// Calculate responsive circle size and spacing
-	radius := float32(h.layout.GetButtonSize()) * NodeSizeMultiplier
-	spacing := radius * NodeSpacingMultiplier // Space between circle centers
+	// Calculate responsive rectangle size and spacing
+	width := float32(PreviewRectWidth)
+	height := float32(PreviewRectHeight)
+	spacing := width * 1.5 // Space between rectangle centers
 
 	// Center vertically
 	centerY := float32(h.layout.Height) / 2
@@ -275,7 +332,8 @@ func (h *HomeScreenImpl) updateLevelNodePositions() {
 	for i := range h.levelNodes {
 		h.levelNodes[i].X = float32(i) * spacing
 		h.levelNodes[i].Y = centerY
-		h.levelNodes[i].Radius = radius
+		h.levelNodes[i].Width = width
+		h.levelNodes[i].Height = height
 	}
 }
 
@@ -362,8 +420,12 @@ func (h *HomeScreenImpl) Update() error {
 				for _, node := range h.levelNodes {
 					nodeScreenX := node.X - h.scrollOffsetX
 					scaleFactor := h.calculateCenterScaling(nodeScreenX)
-					scaledRadius := node.Radius * scaleFactor
-					if !node.IsLocked && IsPointInCircle(fx, fy, nodeScreenX, node.Y, scaledRadius) {
+					scaledWidth := node.Width * scaleFactor
+					scaledHeight := node.Height * scaleFactor
+					// Rectangle coordinates (center-based to corner-based)
+					rectX := nodeScreenX - scaledWidth/2
+					rectY := node.Y - scaledHeight/2
+					if !node.IsLocked && IsPointInRect(fx, fy, rectX, rectY, scaledWidth, scaledHeight) {
 						// Load the selected level and go to game screen
 						h.screenManager.SetScreenWithLevel(GameScreen, node.LevelNum)
 						return nil
@@ -571,7 +633,7 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 	DrawSettingsIcon(screen, h.settingsButtonX, h.settingsButtonY, h.settingsButtonSize, color.RGBA{255, 255, 255, 255})
 
 	// Draw game title at top
-	titleText := "TRAJECTORY"
+	titleText := "Throw The Alien"
 	titleFace := &text.GoTextFace{
 		Source: h.textFaceSource,
 		Size:   h.layout.GetTitleFontSize(),
@@ -585,11 +647,11 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 
 	titleOp := &text.DrawOptions{}
 	titleOp.GeoM.Translate(float64(titleX), float64(titleY))
-	titleOp.ColorScale.ScaleWithColor(color.RGBA{255, 255, 255, 255})
+	titleOp.ColorScale.ScaleWithColor(color.RGBA{R: 255, G: 255, B: 255, A: 255})
 	text.Draw(screen, titleText, titleFace, titleOp)
 
-	// Draw connecting lines between level nodes first (so they appear behind circles)
-	lineColor := color.RGBA{100, 150, 255, 180} // Light blue connecting lines
+	// Draw connecting lines between level nodes first (so they appear behind rectangles)
+	lineColor := color.RGBA{R: 100, G: 150, B: 255, A: 180} // Light blue connecting lines
 	for i := 0; i < len(h.levelNodes)-1; i++ {
 		currentNode := h.levelNodes[i]
 		nextNode := h.levelNodes[i+1]
@@ -599,13 +661,13 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 		nextX := nextNode.X - h.scrollOffsetX
 
 		// Only draw lines that are visible on screen
-		if (currentX > -currentNode.Radius && currentX < float32(h.layout.Width)+currentNode.Radius) ||
-			(nextX > -nextNode.Radius && nextX < float32(h.layout.Width)+nextNode.Radius) {
+		if (currentX > -currentNode.Width && currentX < float32(h.layout.Width)+currentNode.Width) ||
+			(nextX > -nextNode.Width && nextX < float32(h.layout.Width)+nextNode.Width) {
 			DrawConnectionLine(screen, currentX, currentNode.Y, nextX, nextNode.Y, lineColor)
 		}
 	}
 
-	// Draw level nodes (circles with numbers)
+	// Draw level nodes (rectangles with level previews)
 	levelNumberFace := &text.GoTextFace{
 		Source: h.textFaceSource,
 		Size:   h.layout.GetBodyFontSize(),
@@ -617,11 +679,14 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 
 		// Calculate scaling factor based on distance from center
 		scaleFactor := h.calculateCenterScaling(screenX)
-		scaledRadius := node.Radius * scaleFactor
+		scaledWidth := node.Width * scaleFactor
+		scaledHeight := node.Height * scaleFactor
 
 		// Only draw nodes that are visible on screen (with some margin)
-		if screenX > -scaledRadius*2 && screenX < float32(h.layout.Width)+scaledRadius*2 {
-			DrawLevelCircle(screen, screenX, node.Y, scaledRadius, node.LevelNum, levelNumberFace, node.IsLocked)
+		if screenX > -scaledWidth && screenX < float32(h.layout.Width)+scaledWidth {
+			// Get the cached preview image for this level
+			previewImage := h.levelPreviews[node.LevelNum]
+			DrawLevelPreviewRect(screen, screenX, node.Y, scaledWidth, scaledHeight, node.LevelNum, levelNumberFace, node.IsLocked, previewImage)
 		}
 	}
 
