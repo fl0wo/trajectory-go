@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"github.com/you/trajectory/space/colors"
 	"image/color"
 	"math"
 
@@ -116,9 +117,9 @@ func DrawLevelPreviewRect(screen *ebiten.Image, centerX, centerY, width, height 
 		textColor = color.RGBA{150, 150, 150, 255}   // Gray text
 		bgColor = color.RGBA{30, 30, 30, 100}        // Dark semi-transparent background
 	} else {
-		borderColor = color.RGBA{255, 215, 0, 255} // Gold border
-		textColor = color.RGBA{255, 255, 255, 255} // White text
-		bgColor = color.RGBA{20, 20, 40, 150}      // Dark blue semi-transparent background
+		borderColor = colors.BorderPreviewLevel // Black border
+		textColor = colors.BorderPreviewLevel   // White text
+		bgColor = colors.BorderPreviewLevel     // Dark blue semi-transparent background
 	}
 
 	// Draw preview image if available, otherwise draw background rectangle
