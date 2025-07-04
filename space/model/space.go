@@ -153,8 +153,24 @@ func (sg *SpaceGame) LoadLevel(levelNum int) error {
 
 	// Calculate center of all entities and reset camera to that center
 	levelCenter := sg.CalculateLevelCenter()
+
+	// Completely reset the camera to ensure clean state
 	sg.Camera.Position = levelCenter
 	sg.Camera.SetTarget(levelCenter)
+
+	// Reset all camera zoom and offset properties to defaults
+	sg.Camera.Zoom = 1.0
+	sg.Camera.TargetZoom = 1.0
+	sg.Camera.ProximityZoom = 1.0
+	sg.Camera.DragZoom = 0.0
+	sg.Camera.TargetDragZoom = 0.0
+	sg.Camera.Offset = f32.Vec2{0, 0}
+
+	// Reset time scale and proximity effects
+	sg.TimeScale = 1.0
+	sg.TargetTimeScale = 1.0
+	sg.ProximityZoom = 1.0
+	sg.TargetProximityZoom = 1.0
 
 	return nil
 }

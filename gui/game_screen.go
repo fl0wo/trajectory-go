@@ -22,8 +22,22 @@ func NewGameScreenWrapper() (*GameScreenWrapper, error) {
 }
 
 func (gsw *GameScreenWrapper) LoadLevel(levelNum int) error {
-	// Load the level into the game
-	return gsw.game.LoadLevel(levelNum)
+	// Create a fresh game instance to ensure clean state
+	newGame, err := space.NewGame()
+	if err != nil {
+		return err
+	}
+
+	// Load the specific level into the fresh game instance
+	err = newGame.LoadLevel(levelNum)
+	if err != nil {
+		return err
+	}
+
+	// Replace the existing game with the fresh instance
+	gsw.game = newGame
+
+	return nil
 }
 
 func (gsw *GameScreenWrapper) Update() error {
