@@ -9,8 +9,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/you/trajectory/space"
+	"github.com/you/trajectory/space/colors"
 	Models "github.com/you/trajectory/space/model"
-	"image/color"
 	"log"
 	"math"
 	"time"
@@ -638,7 +638,7 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 		h.drawNebulaBackground(screen)
 	} else {
 		// Fallback to solid color background
-		screen.Fill(color.RGBA{15, 25, 50, 255})
+		screen.Fill(colors.BorderPreviewLevel)
 	}
 
 	margin := h.layout.GetMargin()
@@ -652,7 +652,7 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 
 	starOp := &text.DrawOptions{}
 	starOp.GeoM.Translate(float64(margin), float64(margin))
-	starOp.ColorScale.ScaleWithColor(color.RGBA{255, 215, 0, 255}) // Gold color
+	starOp.ColorScale.ScaleWithColor(colors.BorderPreviewLevel)
 	text.Draw(screen, starText, starFace, starOp)
 
 	// Draw settings icon in top-right corner
@@ -660,7 +660,7 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 	h.settingsButtonX = float32(h.layout.Width-margin) - h.settingsButtonSize
 	h.settingsButtonY = float32(margin)
 
-	DrawSettingsIcon(screen, h.settingsButtonX, h.settingsButtonY, h.settingsButtonSize, color.RGBA{255, 255, 255, 255})
+	DrawSettingsIcon(screen, h.settingsButtonX, h.settingsButtonY, h.settingsButtonSize, colors.BorderPreviewLevel)
 
 	// Draw game title at top
 	titleText := "Throw The Alien"
@@ -677,11 +677,11 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 
 	titleOp := &text.DrawOptions{}
 	titleOp.GeoM.Translate(float64(titleX), float64(titleY))
-	titleOp.ColorScale.ScaleWithColor(color.RGBA{R: 255, G: 255, B: 255, A: 255})
+	titleOp.ColorScale.ScaleWithColor(colors.BorderPreviewLevel)
 	text.Draw(screen, titleText, titleFace, titleOp)
 
 	// Draw connecting lines between level nodes first (so they appear behind rectangles)
-	lineColor := color.RGBA{R: 100, G: 150, B: 255, A: 180} // Light blue connecting lines
+	lineColor := colors.BorderPreviewLevel // Light blue connecting lines
 	for i := 0; i < len(h.levelNodes)-1; i++ {
 		currentNode := h.levelNodes[i]
 		nextNode := h.levelNodes[i+1]
@@ -740,7 +740,7 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 
 	instructionOp := &text.DrawOptions{}
 	instructionOp.GeoM.Translate(float64(instructionX), float64(instructionY))
-	instructionOp.ColorScale.ScaleWithColor(color.RGBA{128, 128, 128, 255})
+	instructionOp.ColorScale.ScaleWithColor(colors.BorderPreviewLevel)
 	text.Draw(screen, instructionText, instructionFace, instructionOp)
 }
 

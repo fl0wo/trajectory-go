@@ -48,8 +48,8 @@ var (
 	AsteroidBodyAlt = color.RGBA{R: 255, G: 50, B: 255, A: 50} // Transparent magenta
 	AsteroidOrbit   = util.RGBAColor(87.0, 96.0, 111.0, 255.0)
 
-	BorderIndicator = util.RGBAColor(255, 255, 255, 255) // Border indicator color (purple-ish)
-
+	BorderIndicator         = util.RGBAColor(255, 255, 255, 255)     // Border indicator color (purple-ish)
+	BorderPreviewLevel      = util.RGBAColor(255, 255, 255, 100)     // Border preview level color (faded white)
 	TransparentColor        = color.RGBA{R: 0, G: 0, B: 0, A: 0}     // Fully transparent color
 	LastCollisionCrossColor = color.RGBA{R: 255, G: 0, B: 0, A: 255} // Red cross for last collision
 
