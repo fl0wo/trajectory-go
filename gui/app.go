@@ -20,7 +20,7 @@ func NewApp() (*App, error) {
 	screenManager.SetSettingsScreen(settingsScreen)
 
 	// Create game screen wrapper with level support
-	gameScreen, err := NewGameScreenWrapper()
+	gameScreen, err := NewGameScreenWrapper(screenManager)
 	if err != nil {
 		return nil, err
 	}

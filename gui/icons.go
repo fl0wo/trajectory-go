@@ -239,3 +239,39 @@ func DrawConnectionLine(screen *ebiten.Image, x1, y1, x2, y2 float32, lineColor 
 		vector.StrokeLine(screen, x1+perpX, y1+perpY, x2+perpX, y2+perpY, 1, lineColor, true)
 	}
 }
+
+// DrawBackButton draws a back arrow icon at the specified position
+func DrawBackButton(screen *ebiten.Image, x, y, size float32, iconColor color.RGBA) {
+	centerX := x + size/2
+	centerY := y + size/2
+
+	// Draw circular background
+	bgColor := color.RGBA{40, 40, 40, 200} // Semi-transparent dark background
+	vector.DrawFilledCircle(screen, centerX, centerY, size/2, bgColor, true)
+
+	// Draw back arrow shape
+	arrowSize := size * 0.3
+	arrowThickness := size * 0.06
+
+	// Arrow points left, so we draw from right to left
+	// Arrow shaft (horizontal line)
+	shaftY := centerY
+	shaftStartX := centerX + arrowSize/2
+	shaftEndX := centerX - arrowSize/2
+	vector.StrokeLine(screen, shaftStartX, shaftY, shaftEndX, shaftY, arrowThickness, iconColor, true)
+
+	// Arrow head (two lines forming a V pointing left)
+	headSize := arrowSize * 0.4
+	headStartX := shaftEndX
+	headStartY := shaftY
+
+	// Upper arrow head line
+	headEndX1 := headStartX + headSize*0.7
+	headEndY1 := headStartY - headSize*0.7
+	vector.StrokeLine(screen, headStartX, headStartY, headEndX1, headEndY1, arrowThickness, iconColor, true)
+
+	// Lower arrow head line
+	headEndX2 := headStartX + headSize*0.7
+	headEndY2 := headStartY + headSize*0.7
+	vector.StrokeLine(screen, headStartX, headStartY, headEndX2, headEndY2, arrowThickness, iconColor, true)
+}

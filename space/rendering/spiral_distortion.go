@@ -12,9 +12,9 @@ var Time float        // (unused here, but you can animate Strength if you like)
 var NumBlackHoles int // number of active black holes (0-3)
 
 // Arrays for up to 3 black holes (6 floats for positions, 3 for radii, 3 for strengths)
-var BHPositions [6]float    // x1,y1, x2,y2, x3,y3 
-var OrbitRadii [3]float     // radius1, radius2, radius3
-var Strengths [3]float      // strength1, strength2, strength3
+var BHPositions [6]float // x1,y1, x2,y2, x3,y3
+var OrbitRadii [3]float  // radius1, radius2, radius3
+var Strengths [3]float   // strength1, strength2, strength3
 
 func applyBlackHoleDistortion(srcPos vec2, bhPos vec2, orbitRadius float, strength float) vec2 {
 	// vector from center → this pixel
@@ -49,12 +49,12 @@ func Fragment(dstPos vec4, srcPos vec2, _ vec4) vec4 {
 		if i >= NumBlackHoles {
 			break
 		}
-		
+
 		// Extract position from flattened array (x,y pairs)
 		bhPos := vec2(BHPositions[i*2], BHPositions[i*2+1])
 		orbitRadius := OrbitRadii[i]
 		strength := Strengths[i]
-		
+
 		samplePos = applyBlackHoleDistortion(samplePos, bhPos, orbitRadius, strength)
 	}
 
