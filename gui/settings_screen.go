@@ -2,6 +2,7 @@ package gui
 
 import (
 	"bytes"
+	"github.com/you/trajectory/constants"
 	"image/color"
 	"log"
 
@@ -33,8 +34,8 @@ func NewSettingsScreen(screenManager *ScreenManager) *SettingsScreenImpl {
 	return &SettingsScreenImpl{
 		screenManager: screenManager,
 		textFace:      textFace,
-		screenWidth:   1920,
-		screenHeight:  1080,
+		screenWidth:   constants.ScreenWidth,
+		screenHeight:  constants.ScreenHeight,
 	}
 }
 

@@ -2,12 +2,14 @@ package gui
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/you/trajectory/constants"
 )
 
 type ScreenType int
 
 const (
-	HomeScreen ScreenType = iota
+	InitScreenType ScreenType = iota
+	HomeScreen
 	GameScreen
 	SettingsScreen
 )
@@ -21,6 +23,7 @@ type Screen interface {
 type ScreenManager struct {
 	currentScreen  Screen
 	currentType    ScreenType
+	initScreen     Screen
 	gameScreen     Screen
 	homeScreen     Screen
 	settingsScreen Screen
@@ -28,7 +31,7 @@ type ScreenManager struct {
 
 func NewScreenManager() *ScreenManager {
 	return &ScreenManager{
-		currentType: HomeScreen,
+		currentType: InitScreenType,
 	}
 }
 
@@ -36,12 +39,21 @@ func (sm *ScreenManager) SetScreen(screenType ScreenType) {
 	sm.currentType = screenType
 
 	switch screenType {
+	case InitScreenType:
+		sm.currentScreen = sm.initScreen
 	case HomeScreen:
 		sm.currentScreen = sm.homeScreen
 	case GameScreen:
 		sm.currentScreen = sm.gameScreen
 	case SettingsScreen:
 		sm.currentScreen = sm.settingsScreen
+	}
+}
+
+func (sm *ScreenManager) SetInitScreen(screen Screen) {
+	sm.initScreen = screen
+	if sm.currentType == InitScreenType {
+		sm.currentScreen = screen
 	}
 }
 
@@ -77,7 +89,7 @@ func (sm *ScreenManager) Layout(outsideWidth, outsideHeight int) (screenWidth, s
 	if sm.currentScreen != nil {
 		return sm.currentScreen.Layout(outsideWidth, outsideHeight)
 	}
-	return 1920, 1080
+	return constants.ScreenWidth, constants.ScreenHeight
 }
 
 func (sm *ScreenManager) GetCurrentType() ScreenType {
@@ -88,6 +100,8 @@ func (sm *ScreenManager) SetScreenWithLevel(screenType ScreenType, levelNum int)
 	sm.currentType = screenType
 
 	switch screenType {
+	case InitScreenType:
+		sm.currentScreen = sm.initScreen
 	case HomeScreen:
 		sm.currentScreen = sm.homeScreen
 	case GameScreen:

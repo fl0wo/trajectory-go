@@ -6,7 +6,6 @@ import (
 	"github.com/you/trajectory/constants"
 	"github.com/you/trajectory/space/colors"
 	Models "github.com/you/trajectory/space/model"
-	"github.com/you/trajectory/space/resources"
 	"golang.org/x/image/math/f32"
 	"image/color"
 	"math"
@@ -27,20 +26,7 @@ func (r *Renderer) drawPlayer(screen *ebiten.Image, model *Models.SpaceGame) {
 	}
 
 	// Render player with image if ImagePath is provided, otherwise use green circle
-	if player.ImagePath != "" {
-		playerImg := resources.LoadImage(player.ImagePath)
-		if playerImg != nil {
-			// Calculate rotation based on velocity direction
-			var rotation float64 = 0
-			if player.IsMoving() {
-				rotation = math.Atan2(float64(player.Velocity[1]), float64(player.Velocity[0]))
-			}
-			r.drawPlayerWithImage(screen, playerScreenPos, playerRadius, player.ImagePath, rotation)
-		} else {
-			// Fallback to green circle if image loading fails
-			vector.DrawFilledCircle(screen, playerScreenPos[0], playerScreenPos[1], playerRadius, colors.PlayerBody, true)
-		}
-	} else {
+	{
 		// Draw simple green circle when no ImagePath is provided
 		vector.DrawFilledCircle(screen, playerScreenPos[0], playerScreenPos[1], playerRadius, colors.PlayerBody, true)
 	}
@@ -117,44 +103,6 @@ func (r *Renderer) drawPlayerTrail(screen *ebiten.Image, model *Models.SpaceGame
 			r.drawLineWithShader(screen, prevScreen, currScreen, width, trailColor, r.playerTrailShader, uniforms)
 		}
 	}
-}
-
-// drawPlayerWithImage renders the player using an image texture with rotation based on movement
-func (r *Renderer) drawPlayerWithImage(screen *ebiten.Image, screenPos f32.Vec2, radius float32, imagePath string, rotation float64) {
-	// Load the image
-	img := resources.LoadImage(imagePath)
-	if img == nil {
-		// Fallback to circle if image loading fails
-		vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], radius, colors.PlayerBody, true)
-		return
-	}
-
-	// Calculate scaling to fit the desired radius
-	imgSize := img.Bounds().Size()
-	imgRadius := float32(imgSize.X) / 2.0 // Assume square images
-	if imgSize.Y > imgSize.X {
-		imgRadius = float32(imgSize.Y) / 2.0
-	}
-
-	scale := (radius * 2.0) / (imgRadius * 2.0) // Scale to fit diameter
-
-	// Create draw options
-	op := &ebiten.DrawImageOptions{}
-
-	// Move image center to origin for rotation/scaling
-	op.GeoM.Translate(-float64(imgSize.X)/2, -float64(imgSize.Y)/2)
-
-	// Apply rotation (astronaut points in direction of movement)
-	op.GeoM.Rotate(rotation)
-
-	// Scale the image to the desired size
-	op.GeoM.Scale(float64(scale), float64(scale))
-
-	// Move to final screen position
-	op.GeoM.Translate(float64(screenPos[0]), float64(screenPos[1]))
-
-	// Draw the image
-	screen.DrawImage(img, op)
 }
 
 // DrawTrajectoryArrow draws trajectory arrow (called from main game loop with drag info)

@@ -126,8 +126,6 @@ func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceG
 		return
 	}
 
-	sw := float32(constants.ScreenWidth)
-	sh := float32(constants.ScreenHeight)
 	zoom := model.Camera.GetTotalZoom()
 	t := float32(time.Since(r.startTime).Seconds())
 
@@ -153,7 +151,7 @@ func (r *Renderer) DrawPlanetWithFace(screen *ebiten.Image, model *Models.SpaceG
 		"Zoom":              zoom,
 		"Radius":            planet.GetRadius(),
 		"Time":              t,
-		"ScreenSize":        []float32{sw, sh},
+		"ScreenSize":        []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
 		"BaseColor":         []float32{float32(planet.BaseColor.R) / 255.0, float32(planet.BaseColor.G) / 255.0, float32(planet.BaseColor.B) / 255.0},
 		"Seed":              planet.Seed,
 		"ShakeTimer":        shakeTimer,
@@ -178,8 +176,6 @@ func (r *Renderer) DrawBlackHoleWithFace(screen *ebiten.Image, model *Models.Spa
 		return
 	}
 
-	sw := float32(constants.ScreenWidth)
-	sh := float32(constants.ScreenHeight)
 	zoom := model.Camera.GetTotalZoom()
 	t := float32(time.Since(r.startTime).Seconds())
 
@@ -191,7 +187,7 @@ func (r *Renderer) DrawBlackHoleWithFace(screen *ebiten.Image, model *Models.Spa
 		"Zoom":                 zoom,
 		"Radius":               worldRadius,
 		"Time":                 t,
-		"ScreenSize":           []float32{sw, sh},
+		"ScreenSize":           []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
 		//// Orbit overlap detection uniforms
 		//"NumOtherOrbits":    numOtherOrbits,
 		//"OtherOrbitCenters": otherOrbitCenters,
@@ -216,8 +212,6 @@ func (r *Renderer) DrawWhiteHoleWithFace(screen *ebiten.Image, model *Models.Spa
 		return
 	}
 
-	sw := float32(constants.ScreenWidth)
-	sh := float32(constants.ScreenHeight)
 	zoom := model.Camera.GetTotalZoom()
 	t := float32(time.Since(r.startTime).Seconds())
 
@@ -229,7 +223,7 @@ func (r *Renderer) DrawWhiteHoleWithFace(screen *ebiten.Image, model *Models.Spa
 		"Zoom":                 zoom,
 		"Radius":               worldRadius,
 		"Time":                 t,
-		"ScreenSize":           []float32{sw, sh},
+		"ScreenSize":           []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
 	}
 
 	// Draw directly to screen using the shader - no intermediate texture needed

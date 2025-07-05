@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/you/trajectory/constants"
 	"github.com/you/trajectory/gui"
 	"log"
 )
@@ -13,7 +14,7 @@ func main() {
 	}
 	// w, h := ebiten.Monitor().Size()
 	// ebiten.SetWindowSize(int(float32(w)/1.5), int(float32(h)/1.5))
-	ebiten.SetWindowSize(800, 450) // Set a fixed window size for simplicity
+	ebiten.SetWindowSize(constants.ScreenWidth, constants.ScreenHeight)
 	ebiten.SetWindowTitle("Trajectory Space Game")
 	if err := ebiten.RunGame(app); err != nil {
 		log.Fatal(err)

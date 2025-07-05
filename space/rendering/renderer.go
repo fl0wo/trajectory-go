@@ -3,20 +3,27 @@ package rendering
 import (
 	"bytes"
 	_ "embed"
+	"image/color"
+	"log"
+	"math"
+	"sync"
+	"time"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"golang.org/x/image/math/f32"
+
 	"github.com/you/trajectory/constants"
 	"github.com/you/trajectory/space/colors"
 	Models "github.com/you/trajectory/space/model"
 	"github.com/you/trajectory/space/shadows"
-	"golang.org/x/image/math/f32"
-	"image/color"
-	"log"
-	"math"
-	"time"
 )
+
+//----------------------------------------------------------------
+// Shader embedding
+//----------------------------------------------------------------
 
 //go:embed orbit_light.go
 var orbitLightShader []byte
@@ -54,6 +61,10 @@ var spiralDistortionShader []byte
 //go:embed portal_distortion.go
 var portalDistortionShader []byte
 
+//----------------------------------------------------------------
+// Text rendering setup
+//----------------------------------------------------------------
+
 var (
 	mplusFaceSource *text.GoTextFaceSource
 )
@@ -66,17 +77,42 @@ func init() {
 	mplusFaceSource = s
 }
 
-const (
-	fovLight = 90.0
-)
+//----------------------------------------------------------------
+// Shader cache (singleton-style), to avoid recompilation
+//----------------------------------------------------------------
 
 const (
+	fovLight      = 90.0       // default field of view for light source
 	baseArm       = float32(8) // half-length of each arm by default
 	stretchFactor = float32(1) // how much longer the interior arms get
 	lineWidth     = float32(2.25)
 )
 
-// Renderer handles all rendering operations for the game
+var (
+	shaderCacheMu sync.Mutex
+	shaderCache   = make(map[string]*ebiten.Shader)
+)
+
+func getShader(key string, src []byte) *ebiten.Shader {
+	shaderCacheMu.Lock()
+	defer shaderCacheMu.Unlock()
+	if s, ok := shaderCache[key]; ok {
+		// Uncomment for debugging: log.Printf("Retrieved shader %s from cache", key)
+		return s
+	}
+	// Uncomment for debugging: log.Printf("Compiling shader %s", key)
+	s, err := ebiten.NewShader(src)
+	if err != nil {
+		log.Fatalf("failed to compile shader %s: %v", key, err)
+	}
+	shaderCache[key] = s
+	return s
+}
+
+//----------------------------------------------------------------
+// Renderer definition
+//----------------------------------------------------------------
+
 type Renderer struct {
 	shadowSystem           *shadows.ShadowSystem
 	orbitShader            *ebiten.Shader
@@ -90,172 +126,148 @@ type Renderer struct {
 	blackHoleShader        *ebiten.Shader
 	whiteHoleShader        *ebiten.Shader
 	spiralDistortionShader *ebiten.Shader
-	wormholeShader         *ebiten.Shader
 	portalDistortionShader *ebiten.Shader
-	whiteTexture           *ebiten.Image
-	intermediateBuffer     *ebiten.Image // Persistent buffer for post-processing
-	spiralBuffer           *ebiten.Image // Persistent buffer for spiral overlay result
-	portalBuffer1          *ebiten.Image // Persistent buffer for portal distortion ping-pong
-	portalBuffer2          *ebiten.Image // Persistent buffer for portal distortion ping-pong
-	startTime              time.Time     // Game start time for shader animations
+
+	whiteTexture       *ebiten.Image
+	intermediateBuffer *ebiten.Image
+	spiralBuffer       *ebiten.Image
+	portalBuffer1      *ebiten.Image
+	portalBuffer2      *ebiten.Image
+
+	startTime time.Time
 }
 
-// NewRenderer creates a new renderer instance
+// NewRenderer constructs a Renderer, compiling each shader once.
 func NewRenderer() *Renderer {
-	// Initialize orbit shader
-	var orbitShader *ebiten.Shader
-	if shader, err := ebiten.NewShader(orbitLightShader); err == nil {
-		orbitShader = shader
-	}
-
-	// Initialize player trail shader
-	var playerTrailShaderObj *ebiten.Shader
-	if shader, err := ebiten.NewShader(playerTrailShader); err == nil {
-		playerTrailShaderObj = shader
-	}
-
-	// Initialize trajectory arrow shader
-	var trajectoryArrowShaderObj *ebiten.Shader
-	if shader, err := ebiten.NewShader(trajectoryArrowShader); err == nil {
-		trajectoryArrowShaderObj = shader
-	}
-
-	// Initialize nebula background shader
-	var nebulaShader *ebiten.Shader
-	if shader, err := ebiten.NewShader(nebulaBackgroundShader); err == nil {
-		nebulaShader = shader
-	}
-
-	// Initialize invert on light shader
-	var invertOnLightShaderObj *ebiten.Shader
-	if shader, err := ebiten.NewShader(invertOnLightShader); err == nil {
-		invertOnLightShaderObj = shader
-	}
-
-	// Initialize reveal on light shader
-	var revealOnLightShaderObj *ebiten.Shader
-	if shader, err := ebiten.NewShader(revealOnLightShader); err == nil {
-		revealOnLightShaderObj = shader
-	}
-
-	// Initialize alien trail shader
-	var alienTrailShaderObj *ebiten.Shader
-	if shader, err := ebiten.NewShader(alienTrailShader); err == nil {
-		alienTrailShaderObj = shader
-	} else {
-		log.Println("Failed to load alien trail shader:", err)
-	}
-
-	// Initialize planet shader
-	var planetShaderObj *ebiten.Shader
-	if shader, err := ebiten.NewShader(planetShader); err == nil {
-		planetShaderObj = shader
-	} else {
-		log.Println("Failed to load planet shader:", err)
-	}
-
-	// Initialize black hole shader
-	var blackHoleShaderObj *ebiten.Shader
-	if shader, err := ebiten.NewShader(blackHoleShader); err == nil {
-		blackHoleShaderObj = shader
-	} else {
-		log.Println("Failed to load black hole shader:", err)
-	}
-
-	// Initialize white hole shader
-	var whiteHoleShaderObj *ebiten.Shader
-	if shader, err := ebiten.NewShader(whiteHoleShader); err == nil {
-		whiteHoleShaderObj = shader
-	} else {
-		log.Println("Failed to load white hole shader:", err)
-	}
-
-	// Initialize spiral distortion shader
-	var spiralDistortionShaderObj *ebiten.Shader
-	if shader, err := ebiten.NewShader(spiralDistortionShader); err == nil {
-		spiralDistortionShaderObj = shader
-	} else {
-		log.Println("Failed to load spiral distortion shader:", err)
-	}
-
-	// Initialize portal distortion shader
-	var portalDistortionShaderObj *ebiten.Shader
-	if shader, err := ebiten.NewShader(portalDistortionShader); err == nil {
-		portalDistortionShaderObj = shader
-	} else {
-		log.Println("Failed to load portal distortion shader:", err)
-	}
-
-	// Create a white texture matching screen size for shaders that need a source image
-	whiteTexture := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
-	whiteTexture.Fill(color.White)
-
-	// Create persistent intermediate buffer for post-processing
-	intermediateBuffer := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
-
-	// Create persistent spiral buffer for spiral overlay result
-	spiralBuffer := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
-
-	// Create persistent portal buffers for multi-portal distortion ping-pong
-	portalBuffer1 := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
-	portalBuffer2 := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
+	// Create persistent images
+	w, h := constants.ScreenWidth, constants.ScreenHeight
+	whiteTex := ebiten.NewImage(w, h)
+	whiteTex.Fill(color.White)
 
 	return &Renderer{
-		shadowSystem:           shadows.NewShadowSystem(constants.ScreenWidth, constants.ScreenHeight),
-		orbitShader:            orbitShader,
-		playerTrailShader:      playerTrailShaderObj,
-		trajectoryArrowShader:  trajectoryArrowShaderObj,
-		nebulaShader:           nebulaShader,
-		invertOnLightShader:    invertOnLightShaderObj,
-		revealOnLightShader:    revealOnLightShaderObj,
-		alienTrailShader:       alienTrailShaderObj,
-		planetShader:           planetShaderObj,
-		blackHoleShader:        blackHoleShaderObj,
-		whiteHoleShader:        whiteHoleShaderObj,
-		spiralDistortionShader: spiralDistortionShaderObj,
-		portalDistortionShader: portalDistortionShaderObj,
-		whiteTexture:           whiteTexture,
-		intermediateBuffer:     intermediateBuffer,
-		spiralBuffer:           spiralBuffer,
-		portalBuffer1:          portalBuffer1,
-		portalBuffer2:          portalBuffer2,
-		startTime:              time.Now(), // Initialize start time for shader animations
+		shadowSystem:           shadows.NewShadowSystem(w, h),
+		orbitShader:            getShader("orbitLight", orbitLightShader),
+		playerTrailShader:      getShader("playerTrail", playerTrailShader),
+		trajectoryArrowShader:  getShader("trajectoryArrow", trajectoryArrowShader),
+		nebulaShader:           getShader("nebulaBackground", nebulaBackgroundShader),
+		invertOnLightShader:    getShader("invertOnLight", invertOnLightShader),
+		revealOnLightShader:    getShader("revealOnLight", revealOnLightShader),
+		alienTrailShader:       getShader("alienTrail", alienTrailShader),
+		planetShader:           getShader("planet", planetShader),
+		blackHoleShader:        getShader("blackhole", blackHoleShader),
+		whiteHoleShader:        getShader("whitehole", whiteHoleShader),
+		spiralDistortionShader: getShader("spiralDistortion", spiralDistortionShader),
+		portalDistortionShader: getShader("portalDistortion", portalDistortionShader),
+
+		whiteTexture:       whiteTex,
+		intermediateBuffer: ebiten.NewImage(w, h),
+		spiralBuffer:       ebiten.NewImage(w, h),
+		portalBuffer1:      ebiten.NewImage(w, h),
+		portalBuffer2:      ebiten.NewImage(w, h),
+
+		startTime: time.Now(),
 	}
 }
 
-// Draw renders the complete game scene with spiral distortion and portal effects
+// InitializeShaders forces all shaders to be fully initialized by performing dummy renders
+func (r *Renderer) InitializeShaders() {
+	// Create a 1x1 white texture for dummy renders
+	tempTexture := ebiten.NewImage(1, 1)
+	tempTexture.Fill(color.White)
+	defer tempTexture.Dispose()
+
+	// Create a minimal target image for dummy renders
+	tempImage := ebiten.NewImage(1, 1)
+	defer tempImage.Dispose()
+
+	// Define basic dummy uniforms that should work with most shaders
+	dummyUniforms := map[string]interface{}{
+		"Time":           float32(0),
+		"ScreenSize":     []float32{1, 1},
+		"PlayerPos":      []float32{0, 0},
+		"CameraPos":      []float32{0, 0},
+		"Zoom":           float32(1),
+		"Radius":         float32(1),
+		"Velocity":       []float32{0, 0},
+		"PlayerColor":    []float32{1, 1, 1, 1},
+		"DropCount":      int(1),
+		"TrailLength":    float32(1),
+		"DropSizeMin":    float32(0.1),
+		"DropSizeMax":    float32(0.2),
+		"JitterAmt":      float32(0),
+		"SpawnRate":      float32(1),
+		"Lifetime":       float32(1),
+		"OriginalColor":  []float32{1, 1, 1, 1},
+		"LightPos":       []float32{0, 0},
+		"LightDirection": []float32{0, 0},
+		"FOVAngle":       float32(0),
+		"MaxDistance":    float32(0),
+		"NumBlackHoles":  int(0),
+		"BHPositions":    []float32{0, 0, 0, 0, 0, 0},
+		"OrbitRadii":     []float32{1, 1, 1},
+		"Strengths":      []float32{1, 1, 1},
+		"Portal_Pos":     []float32{0, 0},
+		"Portal_Radius":  float32(1),
+		"Portal_Color":   []float32{1, 1, 1},
+		"IsActive":       float32(1),
+	}
+
+	// List of all shaders to initialize
+	shaders := []*ebiten.Shader{
+		r.orbitShader,
+		r.playerTrailShader,
+		r.trajectoryArrowShader,
+		r.nebulaShader,
+		r.invertOnLightShader,
+		r.revealOnLightShader,
+		r.alienTrailShader,
+		r.planetShader,
+		r.blackHoleShader,
+		r.whiteHoleShader,
+		r.spiralDistortionShader,
+		r.portalDistortionShader,
+	}
+
+	// Perform dummy render for each shader
+	for _, shader := range shaders {
+		if shader != nil {
+			opts := &ebiten.DrawRectShaderOptions{
+				Uniforms: dummyUniforms,
+			}
+			opts.Images[0] = tempTexture
+			tempImage.DrawRectShader(1, 1, shader, opts)
+		}
+	}
+}
+
+// Draw renders the full scene with post-processing effects.
 func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
-	// For testing, always apply the shader (remove this condition later)
-	if r.spiralDistortionShader != nil {
-		// Clear the persistent intermediate buffer
-		r.intermediateBuffer.Clear()
-
-		// Render everything to intermediate buffer first (EXCLUDING black holes and portals)
-		r.drawNebulaBackground(r.intermediateBuffer, model)
-		r.renderShadows(r.intermediateBuffer, model)
-		r.drawCelestialBodies(r.intermediateBuffer, model) // Now excludes black holes
-		r.drawAsteroids(r.intermediateBuffer, model)
-		r.drawPortals(r.intermediateBuffer, model) // Simple portals for intermediate buffer
-		r.drawPlayerTrail(r.intermediateBuffer, model)
-		r.drawPlayer(r.intermediateBuffer, model)
-		r.drawTrajectoryArrow(r.intermediateBuffer, model)
-		r.drawLastCollisionMarker(r.intermediateBuffer, model)
-		r.drawBorderIndicators(r.intermediateBuffer, model)
-		r.drawFPS(r.intermediateBuffer)
-
-		// Apply spiral distortion post-processing effect first
-		blackHoles := r.getBlackHoles(model)
-
-		// Clear the persistent spiral buffer and use it for spiral overlay result
-		r.spiralBuffer.Clear()
-		r.applySpiralOverlay(r.spiralBuffer, r.intermediateBuffer, model, blackHoles)
-		// Apply portal distortion as second post-processing effect
-		r.applyPortalDistortion(screen, r.spiralBuffer, model)
-
-		// Draw black holes AFTER all distortion effects
-		r.DrawBlackHoles(screen, model)
+	if r.spiralDistortionShader == nil {
+		return
 	}
+
+	r.intermediateBuffer.Clear()
+	r.drawNebulaBackground(r.intermediateBuffer, model)
+	r.renderShadows(r.intermediateBuffer, model)
+	r.drawCelestialBodies(r.intermediateBuffer, model)
+	r.drawAsteroids(r.intermediateBuffer, model)
+	r.drawPortals(r.intermediateBuffer, model)
+	r.drawPlayerTrail(r.intermediateBuffer, model)
+	r.drawPlayer(r.intermediateBuffer, model)
+	r.drawTrajectoryArrow(r.intermediateBuffer, model)
+	r.drawLastCollisionMarker(r.intermediateBuffer, model)
+	r.drawBorderIndicators(r.intermediateBuffer, model)
+	r.drawFPS(r.intermediateBuffer)
+
+	r.spiralBuffer.Clear()
+	r.applySpiralOverlay(r.spiralBuffer, r.intermediateBuffer, model, r.getBlackHoles(model))
+	r.applyPortalDistortion(screen, r.spiralBuffer, model)
+	r.DrawBlackHoles(screen, model)
 }
+
+// (Implement drawDirect, drawNebulaBackground, renderShadows, etc. exactly
+// as in your original code, unchanged.)
+// For brevity, those methods are omitted here but should be copied verbatim.
 
 // getBlackHoles extracts black holes from the celestial bodies
 func (r *Renderer) getBlackHoles(model *Models.SpaceGame) []*Models.BlackHole {

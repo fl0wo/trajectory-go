@@ -11,6 +11,10 @@ type App struct {
 func NewApp() (*App, error) {
 	screenManager := NewScreenManager()
 
+	// Create init screen (for shader initialization)
+	initScreen := NewInitScreen(screenManager)
+	screenManager.SetInitScreen(initScreen)
+
 	// Create home screen
 	homeScreen := NewHomeScreen(screenManager)
 	screenManager.SetHomeScreen(homeScreen)
@@ -26,8 +30,8 @@ func NewApp() (*App, error) {
 	}
 	screenManager.SetGameScreen(gameScreen)
 
-	// Start with home screen
-	screenManager.SetScreen(HomeScreen)
+	// Start with init screen (will automatically transition to home screen)
+	screenManager.SetScreen(InitScreenType)
 
 	return &App{
 		screenManager: screenManager,

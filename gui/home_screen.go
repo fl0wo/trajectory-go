@@ -8,6 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
+	"github.com/you/trajectory/constants"
 	"github.com/you/trajectory/space"
 	"github.com/you/trajectory/space/colors"
 	Models "github.com/you/trajectory/space/model"
@@ -222,7 +223,7 @@ func NewHomeScreen(screenManager *ScreenManager) *HomeScreenImpl {
 		starCount:            12, // Example star count
 		screenManager:        screenManager,
 		textFaceSource:       textFaceSource,
-		layout:               NewResponsiveLayout(1920, 1080), // Default, updated in Layout
+		layout:               NewResponsiveLayout(constants.ScreenWidth, constants.ScreenHeight), // Default, updated in Layout
 		scrollOffsetX:        0,
 		targetScrollX:        0,
 		isDragging:           false,
@@ -287,10 +288,10 @@ func (h *HomeScreenImpl) createLevelPreview(levelNum int, screenWidth, screenHei
 	}
 
 	// Use the game's native resolution for proper rendering
-	gameWidth, gameHeight := game.Layout(1920, 1080) // Use the game's expected dimensions
+	// gameWidth, gameHeight := game.Layout(constants.ScreenWidth, constants.ScreenHeight) // Use the game's expected dimensions
 
 	// Create a full-size image for proper rendering
-	fullSizeImage := ebiten.NewImage(gameWidth, gameHeight)
+	fullSizeImage := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
 
 	// Update the game a few times to ensure proper initialization
 	// This allows camera and other systems to stabilize
@@ -317,8 +318,8 @@ func (h *HomeScreenImpl) createLevelPreview(levelNum int, screenWidth, screenHei
 
 	// Scale down the full-size image to the high-res preview size
 	op := &ebiten.DrawImageOptions{}
-	scaleX := float64(previewWidth) / float64(gameWidth)
-	scaleY := float64(previewHeight) / float64(gameHeight)
+	scaleX := float64(previewWidth) / float64(constants.ScreenWidth)
+	scaleY := float64(previewHeight) / float64(constants.ScreenHeight)
 	op.GeoM.Scale(scaleX, scaleY)
 
 	previewImage.DrawImage(fullSizeImage, op)
@@ -776,7 +777,7 @@ func (h *HomeScreenImpl) drawNebulaBackground(screen *ebiten.Image) {
 		Uniforms: map[string]interface{}{
 			"Time":       float32(elapsed),
 			"CameraPos":  []float32{cameraPosX, cameraPosY},
-			"ScreenSize": []float32{width, height},
+			"ScreenSize": []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
 			"Zoom":       float32(1.0), // Fixed zoom as requested
 		},
 	}
