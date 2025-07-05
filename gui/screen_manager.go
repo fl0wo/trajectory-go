@@ -31,7 +31,7 @@ type ScreenManager struct {
 
 func NewScreenManager() *ScreenManager {
 	return &ScreenManager{
-		currentType: InitScreenType,
+		currentType: HomeScreen,
 	}
 }
 

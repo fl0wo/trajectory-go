@@ -169,99 +169,36 @@ func NewRenderer() *Renderer {
 	}
 }
 
-// InitializeShaders forces all shaders to be fully initialized by performing dummy renders
-func (r *Renderer) InitializeShaders() {
-	// Create a 1x1 white texture for dummy renders
-	tempTexture := ebiten.NewImage(1, 1)
-	tempTexture.Fill(color.White)
-	defer tempTexture.Dispose()
-
-	// Create a minimal target image for dummy renders
-	tempImage := ebiten.NewImage(1, 1)
-	defer tempImage.Dispose()
-
-	// Define basic dummy uniforms that should work with most shaders
-	dummyUniforms := map[string]interface{}{
-		"Time":           float32(0),
-		"ScreenSize":     []float32{1, 1},
-		"PlayerPos":      []float32{0, 0},
-		"CameraPos":      []float32{0, 0},
-		"Zoom":           float32(1),
-		"Radius":         float32(1),
-		"Velocity":       []float32{0, 0},
-		"PlayerColor":    []float32{1, 1, 1, 1},
-		"DropCount":      int(1),
-		"TrailLength":    float32(1),
-		"DropSizeMin":    float32(0.1),
-		"DropSizeMax":    float32(0.2),
-		"JitterAmt":      float32(0),
-		"SpawnRate":      float32(1),
-		"Lifetime":       float32(1),
-		"OriginalColor":  []float32{1, 1, 1, 1},
-		"LightPos":       []float32{0, 0},
-		"LightDirection": []float32{0, 0},
-		"FOVAngle":       float32(0),
-		"MaxDistance":    float32(0),
-		"NumBlackHoles":  int(0),
-		"BHPositions":    []float32{0, 0, 0, 0, 0, 0},
-		"OrbitRadii":     []float32{1, 1, 1},
-		"Strengths":      []float32{1, 1, 1},
-		"Portal_Pos":     []float32{0, 0},
-		"Portal_Radius":  float32(1),
-		"Portal_Color":   []float32{1, 1, 1},
-		"IsActive":       float32(1),
-	}
-
-	// List of all shaders to initialize
-	shaders := []*ebiten.Shader{
-		r.orbitShader,
-		r.playerTrailShader,
-		r.trajectoryArrowShader,
-		r.nebulaShader,
-		r.invertOnLightShader,
-		r.revealOnLightShader,
-		r.alienTrailShader,
-		r.planetShader,
-		r.blackHoleShader,
-		r.whiteHoleShader,
-		r.spiralDistortionShader,
-		r.portalDistortionShader,
-	}
-
-	// Perform dummy render for each shader
-	for _, shader := range shaders {
-		if shader != nil {
-			opts := &ebiten.DrawRectShaderOptions{
-				Uniforms: dummyUniforms,
-			}
-			opts.Images[0] = tempTexture
-			tempImage.DrawRectShader(1, 1, shader, opts)
-		}
-	}
-}
-
 // Draw renders the full scene with post-processing effects.
 func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
 	if r.spiralDistortionShader == nil {
 		return
 	}
 
-	r.intermediateBuffer.Clear()
-	r.drawNebulaBackground(r.intermediateBuffer, model)
-	r.renderShadows(r.intermediateBuffer, model)
-	r.drawCelestialBodies(r.intermediateBuffer, model)
-	r.drawAsteroids(r.intermediateBuffer, model)
-	r.drawPortals(r.intermediateBuffer, model)
-	r.drawPlayerTrail(r.intermediateBuffer, model)
-	r.drawPlayer(r.intermediateBuffer, model)
-	r.drawTrajectoryArrow(r.intermediateBuffer, model)
-	r.drawLastCollisionMarker(r.intermediateBuffer, model)
-	r.drawBorderIndicators(r.intermediateBuffer, model)
-	r.drawFPS(r.intermediateBuffer)
+	// Draw all game objects directly on screen
+	r.drawNebulaBackground(screen, model)
+	r.renderShadows(screen, model)
+	r.drawCelestialBodies(screen, model)
+	r.drawAsteroids(screen, model)
+	r.drawPortals(screen, model)
+	r.drawPlayerTrail(screen, model)
+	r.drawPlayer(screen, model)
+	r.drawTrajectoryArrow(screen, model)
+	r.drawLastCollisionMarker(screen, model)
+	r.drawBorderIndicators(screen, model)
+	r.drawFPS(screen)
 
-	r.spiralBuffer.Clear()
-	r.applySpiralOverlay(r.spiralBuffer, r.intermediateBuffer, model, r.getBlackHoles(model))
-	r.applyPortalDistortion(screen, r.spiralBuffer, model)
+	// Apply full-screen effects if needed
+	blackHoles := r.getBlackHoles(model)
+	if len(blackHoles) > 0 {
+		r.applySpiralOverlay(screen, model, blackHoles)
+	}
+
+	if len(model.Portals) > 0 {
+		r.applyPortalDistortion(screen, model)
+	}
+
+	// Draw black holes on top
 	r.DrawBlackHoles(screen, model)
 }
 
@@ -282,71 +219,70 @@ func (r *Renderer) getBlackHoles(model *Models.SpaceGame) []*Models.BlackHole {
 
 func (r *Renderer) applySpiralOverlay(
 	screen *ebiten.Image,
-	source *ebiten.Image,
 	model *Models.SpaceGame,
 	blackHoles []*Models.BlackHole,
 ) {
-	// If there are black holes, apply distortion for up to 3 of them
-	if len(blackHoles) > 0 {
-		// elapsed time
-		t := float32(time.Since(r.startTime).Seconds())
+	// Create a clone of the current screen content as source
+	source := ebiten.NewImageFromImage(screen)
+	defer source.Deallocate()
 
-		// Determine how many black holes to process (max 3)
-		numBH := len(blackHoles)
-		if numBH > 3 {
-			numBH = 3
-		}
+	// elapsed time
+	t := float32(time.Since(r.startTime).Seconds())
 
-		// Prepare arrays for shader uniforms
-		bhPositions := make([]float32, 6) // x1,y1, x2,y2, x3,y3
-		orbitRadii := make([]float32, 3)  // radius1, radius2, radius3
-		strengths := make([]float32, 3)   // strength1, strength2, strength3
-
-		// Fill arrays with black hole data
-		for i := 0; i < numBH; i++ {
-			bh := blackHoles[i]
-			c := model.Camera.WorldToScreen(bh.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
-			orbitRadius := model.Camera.RadiusToScreen(bh.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
-
-			// Store position as x,y pairs in flattened array
-			bhPositions[i*2] = c[0]   // x
-			bhPositions[i*2+1] = c[1] // y
-
-			orbitRadii[i] = orbitRadius
-			strengths[i] = float32(0.68) // strength for each black hole
-		}
-
-		uniforms := map[string]any{
-			"NumBlackHoles": numBH,
-			"Time":          t,
-			"BHPositions":   bhPositions,
-			"OrbitRadii":    orbitRadii,
-			"Strengths":     strengths,
-		}
-
-		opts := &ebiten.DrawRectShaderOptions{
-			Uniforms: uniforms,
-		}
-		opts.Images[0] = source
-
-		// draw full-screen quad with our pixel-mode shader
-		screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.spiralDistortionShader, opts)
-	} else {
-		// No black holes, just draw the source directly
-		screen.DrawImage(source, nil)
+	// Determine how many black holes to process (max 3)
+	numBH := len(blackHoles)
+	if numBH > 3 {
+		numBH = 3
 	}
+
+	// Prepare arrays for shader uniforms
+	bhPositions := make([]float32, 6) // x1,y1, x2,y2, x3,y3
+	orbitRadii := make([]float32, 3)  // radius1, radius2, radius3
+	strengths := make([]float32, 3)   // strength1, strength2, strength3
+
+	// Fill arrays with black hole data
+	for i := 0; i < numBH; i++ {
+		bh := blackHoles[i]
+		c := model.Camera.WorldToScreen(bh.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
+		orbitRadius := model.Camera.RadiusToScreen(bh.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
+
+		// Store position as x,y pairs in flattened array
+		bhPositions[i*2] = c[0]   // x
+		bhPositions[i*2+1] = c[1] // y
+
+		orbitRadii[i] = orbitRadius
+		strengths[i] = float32(0.68) // strength for each black hole
+	}
+
+	uniforms := map[string]any{
+		"NumBlackHoles": numBH,
+		"Time":          t,
+		"BHPositions":   bhPositions,
+		"OrbitRadii":    orbitRadii,
+		"Strengths":     strengths,
+	}
+
+	opts := &ebiten.DrawRectShaderOptions{
+		Uniforms: uniforms,
+	}
+	opts.Images[0] = source
+
+	// draw full-screen quad with our pixel-mode shader
+	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.spiralDistortionShader, opts)
 }
 
 func (r *Renderer) applyPortalDistortion(
 	screen *ebiten.Image,
-	source *ebiten.Image,
 	model *Models.SpaceGame,
 ) {
-	// Skip if no portal distortion shader or no portals
-	if r.portalDistortionShader == nil || len(model.Portals) == 0 {
-		screen.DrawImage(source, nil)
+	// Skip if no portal distortion shader
+	if r.portalDistortionShader == nil {
 		return
 	}
+
+	// Create a clone of the current screen content as source
+	source := ebiten.NewImageFromImage(screen)
+	defer source.Deallocate()
 
 	camera := model.Camera
 
