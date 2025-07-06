@@ -235,7 +235,7 @@ func NewHomeScreen(screenManager *ScreenManager) *HomeScreenImpl {
 		snapTarget:           0,
 		snapTimer:            0,
 		userStoppedScrolling: false,
-		startTime:            time.Now(),
+		startTime:            time.Now().Add(-10 * time.Second),
 		levelPreviews:        make(map[int]*ebiten.Image),
 	}
 

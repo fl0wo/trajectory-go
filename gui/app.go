@@ -39,6 +39,7 @@ func (a *App) Update() error {
 }
 
 func (a *App) Draw(screen *ebiten.Image) {
+
 	a.screenManager.Draw(screen)
 }
 

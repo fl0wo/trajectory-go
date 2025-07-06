@@ -107,7 +107,12 @@ func (sm *ScreenManager) SetScreenWithLevel(screenType ScreenType, levelNum int)
 	case GameScreen:
 		// Create a new game screen with the specified level
 		if gameScreen, ok := sm.gameScreen.(GameScreenWithLevel); ok {
-			gameScreen.LoadLevel(levelNum)
+			err := gameScreen.LoadLevel(levelNum)
+			if err != nil {
+				// Handle error (e.g., log it, show an error message)
+				print("Error loading level:", err)
+				return
+			}
 			sm.currentScreen = gameScreen
 		} else {
 			sm.currentScreen = sm.gameScreen
@@ -117,7 +122,7 @@ func (sm *ScreenManager) SetScreenWithLevel(screenType ScreenType, levelNum int)
 	}
 }
 
-// Interface for game screens that support level loading
+// GameScreenWithLevel Interface for game screens that support level loading
 type GameScreenWithLevel interface {
 	Screen
 	LoadLevel(levelNum int) error

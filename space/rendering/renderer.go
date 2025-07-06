@@ -165,7 +165,8 @@ func NewRenderer() *Renderer {
 		portalBuffer1:      ebiten.NewImage(w, h),
 		portalBuffer2:      ebiten.NewImage(w, h),
 
-		startTime: time.Now(),
+		// now subtracted 10sec
+		startTime: time.Now().Add(-10 * time.Second),
 	}
 }
 
@@ -271,87 +272,63 @@ func (r *Renderer) applySpiralOverlay(
 	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.spiralDistortionShader, opts)
 }
 
+func (r *Renderer) ResetShaderTime() {
+	r.startTime = time.Now()
+}
 func (r *Renderer) applyPortalDistortion(
 	screen *ebiten.Image,
 	model *Models.SpaceGame,
 ) {
-	// Skip if no portal distortion shader
 	if r.portalDistortionShader == nil {
 		return
 	}
 
-	// Create a clone of the current screen content as source
-	source := ebiten.NewImageFromImage(screen)
-	defer source.Deallocate()
-
+	buf := r.portalBuffer1
 	camera := model.Camera
-
-	// Portal colors (different colors for different pair IDs)
-	portalColors := []color.RGBA{
-		{R: 0, G: 204, B: 255, A: 180},   // Cyan
-		{R: 255, G: 102, B: 204, A: 180}, // Pink
-		{R: 204, G: 255, B: 51, A: 180},  // Lime
-		{R: 255, G: 153, B: 0, A: 180},   // Orange
-		{R: 153, G: 51, B: 255, A: 180},  // Purple
-		{R: 255, G: 255, B: 51, A: 180},  // Yellow
-	}
-
-	// Get current time for animations
 	t := float32(time.Since(r.startTime).Seconds())
 
-	// Use ping-pong buffers for multiple portal distortions
-	var currentSource *ebiten.Image = source
-	var currentTarget *ebiten.Image
+	portalColors := []color.RGBA{
+		{0, 204, 255, 180},
+		{255, 102, 204, 180},
+		{204, 255, 51, 180},
+		{255, 153, 0, 180},
+		{153, 51, 255, 180},
+		{255, 255, 51, 180},
+	}
 
-	// Apply distortion for each portal sequentially
-	for i, portal := range model.Portals {
-		// Select color based on pair ID
-		colorIndex := portal.PairID % len(portalColors)
-		portalColor := portalColors[colorIndex]
+	for _, portal := range model.Portals {
+		// 1) copy *current* screen contents into buf
+		buf.Clear()
+		buf.DrawImage(screen, nil)
 
-		// Use the average of width and height as the circle radius
-		portalRadius := portal.GetOrbitRadius()
-
-		// Calculate activity factor (1.0 if active, 0.0 if cooldown)
-		isActive := float32(1.0)
-		if !portal.IsActive || portal.CooldownTimer > 0 {
-			isActive = 0.0
-		}
-
-		// Set up shader uniforms
+		// 2) build this portal’s uniforms
+		idx := portal.PairID % len(portalColors)
+		c := portalColors[idx]
 		uniforms := map[string]any{
 			"Portal_Pos":    []float32{portal.Position[0], portal.Position[1]},
-			"Portal_Radius": portalRadius,
-			"Portal_Color":  []float32{float32(portalColor.R) / 255, float32(portalColor.G) / 255, float32(portalColor.B) / 255},
+			"Portal_Radius": portal.GetOrbitRadius(),
+			"Portal_Color":  []float32{float32(c.R) / 255, float32(c.G) / 255, float32(c.B) / 255},
 			"CameraPos":     []float32{camera.Position[0], camera.Position[1]},
 			"Zoom":          camera.GetTotalZoom(),
 			"Time":          t,
 			"ScreenSize":    []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
-			"IsActive":      isActive,
+			"IsActive": func() float32 {
+				if portal.IsActive && portal.CooldownTimer <= 0 {
+					return 1
+				}
+				return 0
+			}(),
 		}
 
-		// Set up shader options
-		opts := &ebiten.DrawRectShaderOptions{
-			Uniforms: uniforms,
-		}
-		opts.Images[0] = currentSource
-
-		// For the last portal, draw directly to screen
-		if i == len(model.Portals)-1 {
-			screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.portalDistortionShader, opts)
-		} else {
-			// Use ping-pong buffers for intermediate portals
-			if i%2 == 0 {
-				currentTarget = r.portalBuffer1
-			} else {
-				currentTarget = r.portalBuffer2
-			}
-
-			// Clear the target buffer and apply distortion
-			currentTarget.Clear()
-			currentTarget.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.portalDistortionShader, opts)
-			currentSource = currentTarget
-		}
+		// 3) draw full-screen quad, sampling from buf, **onto** screen
+		opts := &ebiten.DrawRectShaderOptions{Uniforms: uniforms}
+		opts.Images[0] = buf
+		screen.DrawRectShader(
+			constants.ScreenWidth,
+			constants.ScreenHeight,
+			r.portalDistortionShader,
+			opts,
+		)
 	}
 }
 

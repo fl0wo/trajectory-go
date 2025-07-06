@@ -40,6 +40,7 @@ func NewGame() (*Game, error) {
 		renderer:   rendering.NewRenderer(),
 		controller: gamecontrol.NewGameController(),
 	}
+
 	var err error
 	g.model, err = Models.NewSpaceGame()
 	if err != nil {

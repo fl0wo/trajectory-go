@@ -52,6 +52,14 @@ var PredefinedLevels = map[int]*Level{
 			0.025,
 		)
 
+		portal3, portal4 := NewPortalPair(2,
+			f32.Vec2{0.65, 0.3}, f32.Vec2{0.25, 0.7},
+			0.0,
+			90.0,
+			0.025,
+			0.025,
+		)
+
 		return NewLevelWithPortals("Level 2 - Portal Gateway",
 			f32.Vec2{0.2, 0.3},
 			[]CelestialBody{
@@ -72,7 +80,7 @@ var PredefinedLevels = map[int]*Level{
 				},
 			},
 			// following XOR for portals
-			[]*Portal{portal1, portal2},
+			[]*Portal{portal1, portal2, portal3, portal4},
 		)
 	}(),
 
