@@ -9,7 +9,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/you/trajectory/constants"
-	"github.com/you/trajectory/space"
+	"github.com/you/trajectory/gui/resources"
 	"github.com/you/trajectory/space/colors"
 	Models "github.com/you/trajectory/space/model"
 	"log"
@@ -263,68 +263,15 @@ func (h *HomeScreenImpl) generateLevelPreviews() {
 	// Get total number of levels
 	totalLevels := len(Models.PredefinedLevels)
 
-	// Create preview images for each level
+	// Load static preview images for each level
 	for levelNum := 1; levelNum <= totalLevels; levelNum++ {
-		previewImage := h.createLevelPreview(levelNum, h.layout.Width, h.layout.Height)
+		previewImage := resources.LoadLevelPreview(levelNum)
 		if previewImage != nil {
 			h.levelPreviews[levelNum] = previewImage
+		} else {
+			log.Printf("Failed to load static preview for level %d", levelNum)
 		}
 	}
-}
-
-func (h *HomeScreenImpl) createLevelPreview(levelNum int, screenWidth, screenHeight int) *ebiten.Image {
-	// Create a temporary game instance
-	game, err := space.NewGame()
-	if err != nil {
-		log.Printf("Failed to create game for level preview %d: %v", levelNum, err)
-		return nil
-	}
-
-	// Load the specific level
-	err = game.LoadLevel(levelNum)
-	if err != nil {
-		log.Printf("Failed to load level %d for preview: %v", levelNum, err)
-		return nil
-	}
-
-	// Use the game's native resolution for proper rendering
-	// gameWidth, gameHeight := game.Layout(constants.ScreenWidth, constants.ScreenHeight) // Use the game's expected dimensions
-
-	// Create a full-size image for proper rendering
-	fullSizeImage := ebiten.NewImage(constants.ScreenWidth, constants.ScreenHeight)
-
-	// Update the game a few times to ensure proper initialization
-	// This allows camera and other systems to stabilize
-	for i := 0; i < 3; i++ {
-		_ = game.Update() // Ignore error for preview generation
-	}
-
-	// Draw the game at full resolution
-	game.Draw(fullSizeImage)
-
-	// Calculate high-resolution preview dimensions based on screen size
-	// Use a percentage of screen width for preview resolution, maintaining aspect ratio
-	previewWidth := int(float32(screenWidth) * PreviewResolutionScale)
-	previewHeight := int(float32(previewWidth) / PreviewAspectRatio)
-
-	// Ensure minimum resolution for quality
-	minWidth := int(PreviewRectWidth * 2) // At least 2x the display size
-	if previewWidth < minWidth {
-		previewWidth = minWidth
-		previewHeight = int(float32(previewWidth) / PreviewAspectRatio)
-	}
-
-	previewImage := ebiten.NewImage(previewWidth, previewHeight)
-
-	// Scale down the full-size image to the high-res preview size
-	op := &ebiten.DrawImageOptions{}
-	scaleX := float64(previewWidth) / float64(constants.ScreenWidth)
-	scaleY := float64(previewHeight) / float64(constants.ScreenHeight)
-	op.GeoM.Scale(scaleX, scaleY)
-
-	previewImage.DrawImage(fullSizeImage, op)
-
-	return previewImage
 }
 
 func (h *HomeScreenImpl) generateLevelNodes() {

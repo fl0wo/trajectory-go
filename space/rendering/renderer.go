@@ -323,6 +323,7 @@ func (r *Renderer) applyPortalDistortion(
 		// 3) draw full-screen quad, sampling from buf, **onto** screen
 		opts := &ebiten.DrawRectShaderOptions{Uniforms: uniforms}
 		opts.Images[0] = buf
+
 		screen.DrawRectShader(
 			constants.ScreenWidth,
 			constants.ScreenHeight,

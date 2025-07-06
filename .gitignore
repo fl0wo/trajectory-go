@@ -205,4 +205,6 @@ trajectory
 
 trajectory-gui
 
+tools/tools
+
 # End of https://www.toptal.com/developers/gitignore/api/goland,go,intellij+all
