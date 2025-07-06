@@ -187,14 +187,14 @@ func (sg *SpaceGame) NumNonAsteroids() int {
 
 // CalculateBorders computes the current game border corners.
 //
-//	1 celestial body: square 50% bigger than its orbit radius
+//	1 celestial body: square 50% bigger than its orbit radius and the rect expands to include player position as well
 //	2 celestial bodies: rectangle using biggest orbit as one side, distance between orbits as other side, + 50% padding
 //	3+ celestial bodies: build their AABB and pad it by 50%
 //	0 celestial bodies: fall back to a fixed box: x∈[-0.5,1.5], y∈[-0.5,1.5]
 func (sg *SpaceGame) CalculateBorders() Border {
 	numBodies := sg.NumNonAsteroids()
 
-	const extraBorderPadding float32 = 0.25 // 10% padding on each side
+	const extraBorderPadding float32 = 0.5 // 10% padding on each side
 
 	switch numBodies {
 	case 0:
@@ -207,18 +207,29 @@ func (sg *SpaceGame) CalculateBorders() Border {
 		}
 
 	case 1:
-		// Single body: square 50% bigger than its orbit radius
+		// Single body: square 50% bigger than its orbit radius + include player
 		body := sg.CelestialBodies[0]
-		pos := body.GetPosition()
-		orbitRadius := body.GetOrbitRadius()
+		bPos := body.GetPosition()
+		orbitR := body.GetOrbitRadius()
 
-		// Create square centered on the body, size = orbit diameter + 50%
-		squareHalfSize := orbitRadius * (1.0 + extraBorderPadding) // 50% bigger than orbit radius
+		// half‐size = orbitRadius * (1 + padding)
+		half := float64(orbitR) * float64(1.0+extraBorderPadding)
 
-		minX := float64(pos[0]) - float64(squareHalfSize)
-		maxX := float64(pos[0]) + float64(squareHalfSize)
-		minY := float64(pos[1]) - float64(squareHalfSize)
-		maxY := float64(pos[1]) + float64(squareHalfSize)
+		// initial bounds centered on the body
+		minX := float64(bPos[0]) - half
+		maxX := float64(bPos[0]) + half
+		minY := float64(bPos[1]) - half
+		maxY := float64(bPos[1]) + half
+
+		// include the player’s position
+		pPos := sg.CurrentLevel.PlayerStart
+		px := float64(pPos[0])
+		py := float64(pPos[1])
+
+		minX = math.Min(minX, px)
+		maxX = math.Max(maxX, px)
+		minY = math.Min(minY, py)
+		maxY = math.Max(maxY, py)
 
 		return Border{
 			BottomLeft:  f32.Vec2{float32(minX), float32(minY)},
