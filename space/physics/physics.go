@@ -72,7 +72,8 @@ func (p *PhysicsSystem) UpdateGame(model *Models.SpaceGame, deltaTime float32, t
 			if body.GetType() == Models.CelestialBodyTypeWhiteHole {
 				// Victory! Move to next level
 				nextLevel := model.CurrentLevelNum + 1
-				if nextLevel > 9 {
+				allLevels := Models.GetNLevels()
+				if nextLevel > allLevels {
 					// If beyond level 9, restart from level 1
 					nextLevel = 1
 				}

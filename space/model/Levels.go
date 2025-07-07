@@ -1159,3 +1159,7 @@ func GetLevel(levelNumber int) *Level {
 	}
 	return PredefinedLevels[1] // Fallback to Level 1 if invalid
 }
+
+func GetNLevels() int {
+	return len(PredefinedLevels)
+}
