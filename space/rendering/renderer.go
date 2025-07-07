@@ -192,68 +192,58 @@ func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
 
 func (r *Renderer) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM, model *Models.SpaceGame) {
 	// Apply full-screen effects if needed
-	blackHoles := r.getBlackHoles(model)
 	if len(model.Portals) > 0 {
 		r.applyPortalDistortion(offscreen, model)
 	}
-	if len(blackHoles) > 0 {
-		r.applySpiralOverlay(offscreen, model, blackHoles)
-	}
+
+	r.applySpiralOverlay(offscreen, model)
+
 	r.DrawBlackHoles(offscreen, model)
 
-	screen.DrawImage(offscreen, nil)
+	screen.DrawImage(offscreen, &ebiten.DrawImageOptions{GeoM: geoM})
 }
 
 // (Implement drawDirect, drawNebulaBackground, renderShadows, etc. exactly
 // as in your original code, unchanged.)
 // For brevity, those methods are omitted here but should be copied verbatim.
 
-// getBlackHoles extracts black holes from the celestial bodies
-func (r *Renderer) getBlackHoles(model *Models.SpaceGame) []*Models.BlackHole {
-	var blackHoles []*Models.BlackHole
-	for _, body := range model.CelestialBodies {
-		if blackHole, ok := body.(*Models.BlackHole); ok {
-			blackHoles = append(blackHoles, blackHole)
-		}
-	}
-	return blackHoles
-}
-
 func (r *Renderer) applySpiralOverlay(
 	screen *ebiten.Image,
 	model *Models.SpaceGame,
-	blackHoles []*Models.BlackHole,
 ) {
-	// Create a clone of the current screen content as source
 	source := ebiten.NewImageFromImage(screen)
+	if source == nil {
+		return
+	}
 	defer source.Deallocate()
 
-	// elapsed time
 	t := float32(time.Since(r.startTime).Seconds())
 
-	// Determine how many black holes to process (max 3)
-	numBH := len(blackHoles)
-	if numBH > 3 {
-		numBH = 3
-	}
+	bhPositions := make([]float32, 6)
+	orbitRadii := make([]float32, 3)
+	strengths := make([]float32, 3)
 
-	// Prepare arrays for shader uniforms
-	bhPositions := make([]float32, 6) // x1,y1, x2,y2, x3,y3
-	orbitRadii := make([]float32, 3)  // radius1, radius2, radius3
-	strengths := make([]float32, 3)   // strength1, strength2, strength3
+	numBH := 0
 
-	// Fill arrays with black hole data
-	for i := 0; i < numBH; i++ {
-		bh := blackHoles[i]
+	// First pass: draw black hole orbits
+	for i, body := range model.CelestialBodies {
+		// Only render black holes
+		if body.GetType() != Models.CelestialBodyTypeBlackHole {
+			continue
+		}
+		bh := body.(*Models.BlackHole)
 		c := model.Camera.WorldToScreen(bh.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
 		orbitRadius := model.Camera.RadiusToScreen(bh.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
-
-		// Store position as x,y pairs in flattened array
-		bhPositions[i*2] = c[0]   // x
-		bhPositions[i*2+1] = c[1] // y
-
+		bhPositions[i*2] = c[0]
+		bhPositions[i*2+1] = c[1]
 		orbitRadii[i] = orbitRadius
-		strengths[i] = float32(0.68) // strength for each black hole
+		strengths[i] = 0.68
+		numBH++
+	}
+
+	if numBH == 0 {
+		// No black holes, skip shader application
+		return
 	}
 
 	uniforms := map[string]any{
@@ -269,13 +259,13 @@ func (r *Renderer) applySpiralOverlay(
 	}
 	opts.Images[0] = source
 
-	// draw full-screen quad with our pixel-mode shader
 	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.spiralDistortionShader, opts)
 }
 
 func (r *Renderer) ResetShaderTime() {
 	r.startTime = time.Now()
 }
+
 func (r *Renderer) applyPortalDistortion(
 	screen *ebiten.Image,
 	model *Models.SpaceGame,
