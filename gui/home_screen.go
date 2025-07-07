@@ -693,7 +693,9 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 }
 
 func (h *HomeScreenImpl) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM) {
-	screen.DrawImage(offscreen, nil)
+	screen.DrawImage(offscreen, &ebiten.DrawImageOptions{
+		GeoM: geoM,
+	})
 }
 
 func (h *HomeScreenImpl) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
