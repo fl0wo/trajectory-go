@@ -193,13 +193,13 @@ func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
 func (r *Renderer) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM, model *Models.SpaceGame) {
 	// Apply full-screen effects if needed
 	blackHoles := r.getBlackHoles(model)
-	if len(blackHoles) > 0 {
-		r.applySpiralOverlay(offscreen, model, blackHoles)
-	}
 	if len(model.Portals) > 0 {
 		r.applyPortalDistortion(offscreen, model)
 	}
-	// r.DrawBlackHoles(offscreen, model)
+	if len(blackHoles) > 0 {
+		r.applySpiralOverlay(offscreen, model, blackHoles)
+	}
+	r.DrawBlackHoles(offscreen, model)
 
 	screen.DrawImage(offscreen, nil)
 }
