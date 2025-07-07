@@ -88,6 +88,10 @@ func (s *SettingsScreenImpl) Draw(screen *ebiten.Image) {
 	text.Draw(screen, backText, backFace, backOp)
 }
 
+func (s *SettingsScreenImpl) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM) {
+	screen.DrawImage(offscreen, nil)
+}
+
 func (s *SettingsScreenImpl) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	s.screenWidth = outsideWidth
 	s.screenHeight = outsideHeight

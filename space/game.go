@@ -33,6 +33,13 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 }
 
+func (g *Game) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM) {
+	// Draw the final screen using the renderer
+	g.renderer.DrawFinalScreen(screen, offscreen, geoM, g.model)
+
+	// Optionally, draw any additional UI elements here
+}
+
 // NewGame generates a new Game object.
 func NewGame() (*Game, error) {
 	g := &Game{

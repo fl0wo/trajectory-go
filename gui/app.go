@@ -39,8 +39,27 @@ func (a *App) Update() error {
 }
 
 func (a *App) Draw(screen *ebiten.Image) {
-
 	a.screenManager.Draw(screen)
+}
+
+func (a *App) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM) {
+	//if g.screenManager. == nil {
+	//	s, err := ebiten.NewShader(crtGo)
+	//	if err != nil {
+	//		panic(fmt.Sprintf("flappy: failed to compiled the CRT shader: %v", err))
+	//	}
+	//	g.crtShader = s
+	//}
+	//
+	//os := offscreen.Bounds().Size()
+	//
+	//op := &ebiten.DrawRectShaderOptions{}
+	//op.Images[0] = offscreen
+	//op.GeoM = geoM
+	//screen.DrawRectShader(os.X, os.Y, g.crtShader, op)
+
+	a.screenManager.DrawFinalScreen(screen, offscreen, geoM)
+
 }
 
 func (a *App) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {

@@ -17,6 +17,7 @@ const (
 type Screen interface {
 	Update() error
 	Draw(screen *ebiten.Image)
+	DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM)
 	Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int)
 }
 
@@ -82,6 +83,12 @@ func (sm *ScreenManager) Update() error {
 func (sm *ScreenManager) Draw(screen *ebiten.Image) {
 	if sm.currentScreen != nil {
 		sm.currentScreen.Draw(screen)
+	}
+}
+
+func (sm *ScreenManager) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM) {
+	if sm.currentScreen != nil {
+		sm.currentScreen.DrawFinalScreen(screen, offscreen, geoM)
 	}
 }
 

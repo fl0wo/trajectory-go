@@ -692,6 +692,10 @@ func (h *HomeScreenImpl) Draw(screen *ebiten.Image) {
 	text.Draw(screen, instructionText, instructionFace, instructionOp)
 }
 
+func (h *HomeScreenImpl) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM) {
+	screen.DrawImage(offscreen, nil)
+}
+
 func (h *HomeScreenImpl) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	h.layout = NewResponsiveLayout(outsideWidth, outsideHeight)
 	return outsideWidth, outsideHeight

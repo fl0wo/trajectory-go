@@ -74,6 +74,11 @@ func (gsw *GameScreenWrapper) Draw(screen *ebiten.Image) {
 	DrawBackButton(screen, gsw.backButtonX, gsw.backButtonY, gsw.backButtonSize, colors.BorderPreviewLevel)
 }
 
+func (gsw *GameScreenWrapper) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM) {
+	// call the game.DrawFinalScreen method
+	gsw.game.DrawFinalScreen(screen, offscreen, geoM)
+}
+
 func (gsw *GameScreenWrapper) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	return gsw.game.Layout(outsideWidth, outsideHeight)
 }

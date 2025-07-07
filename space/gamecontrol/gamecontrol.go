@@ -49,6 +49,16 @@ func (gc *GameController) ProcessInput(model *Models.SpaceGame, inputHandler *in
 		return nil // Exit early since level was changed
 	}
 
+	rightArrowPressed := inputHandler.IsRightArrowPressed()
+	leftArrowPressed := inputHandler.IsLeftArrowPressed()
+	if rightArrowPressed {
+		// next level
+		model.NextLevel()
+	} else if leftArrowPressed {
+		// previous level
+		model.PreviousLevel()
+	}
+
 	// Handle scroll zoom
 	scrollDelta := inputHandler.GetScrollDelta()
 	if scrollDelta != 0 {

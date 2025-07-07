@@ -5,6 +5,7 @@ import (
 	"github.com/you/trajectory/space/resources"
 	"golang.org/x/image/math/f32"
 	"image/color"
+	"log"
 	"math"
 	"math/rand"
 )
@@ -801,6 +802,30 @@ func (sg *SpaceGame) GetWinPosition() f32.Vec2 {
 		}
 	}
 	return f32.Vec2{0, 0} // Default if no white hole found
+}
+
+func (sg *SpaceGame) NextLevel() {
+	// Increment level number and load the next level
+	nextLevelNum := sg.CurrentLevelNum + 1
+	if nextLevelNum > GetNLevels() {
+		nextLevelNum = 1 // Loop back to level 1 if at the end
+	}
+	err := sg.LoadLevel(nextLevelNum)
+	if err != nil {
+		log.Printf("Error loading next level %d: %v", nextLevelNum, err)
+	}
+}
+
+func (sg *SpaceGame) PreviousLevel() {
+	// Decrement level number and load the previous level
+	prevLevelNum := sg.CurrentLevelNum - 1
+	if prevLevelNum < 1 {
+		prevLevelNum = GetNLevels() // Loop back to the last level if at the beginning
+	}
+	err := sg.LoadLevel(prevLevelNum)
+	if err != nil {
+		log.Printf("Error loading previous level %d: %v", prevLevelNum, err)
+	}
 }
 
 func randomCelestialBodies(numBodies int, margin float32) []CelestialBody {
