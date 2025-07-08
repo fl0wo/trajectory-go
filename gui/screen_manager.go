@@ -21,6 +21,11 @@ type Screen interface {
 	Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int)
 }
 
+type ResettableScreen interface {
+	Screen
+	ResetScrollingState()
+}
+
 type ScreenManager struct {
 	currentScreen  Screen
 	currentType    ScreenType
@@ -44,6 +49,9 @@ func (sm *ScreenManager) SetScreen(screenType ScreenType) {
 		sm.currentScreen = sm.initScreen
 	case HomeScreen:
 		sm.currentScreen = sm.homeScreen
+		if resettableScreen, ok := sm.homeScreen.(ResettableScreen); ok {
+			resettableScreen.ResetScrollingState()
+		}
 	case GameScreen:
 		sm.currentScreen = sm.gameScreen
 	case SettingsScreen:

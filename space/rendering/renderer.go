@@ -257,6 +257,11 @@ func (r *Renderer) applySpiralOverlay(
 		"BHPositions":   bhPositions,
 		"OrbitRadii":    orbitRadii,
 		"Strengths":     strengths,
+
+		"ScreenSize": []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
+		"Zoom":       model.Camera.GetTotalZoom(),
+		"CameraPos":  []float32{model.Camera.Position[0], model.Camera.Position[1]},
+		"Radius":     model.Camera.RadiusToScreen(1.0, constants.ScreenWidth, constants.ScreenHeight),
 	}
 
 	opts := &ebiten.DrawRectShaderOptions{

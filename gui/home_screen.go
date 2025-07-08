@@ -212,6 +212,17 @@ type HomeScreenImpl struct {
 	levelPreviews map[int]*ebiten.Image // Cache of rendered level previews
 }
 
+func (h *HomeScreenImpl) ResetScrollingState() {
+	h.scrollVelocity = 0
+	h.isDragging = false
+	h.isSnapping = false
+	h.dragHistory = h.dragHistory[:0]
+	h.dragHistoryTimes = h.dragHistoryTimes[:0]
+	h.userStoppedScrolling = false
+	h.snapTimer = 0
+	h.targetScrollX = h.scrollOffsetX
+}
+
 func NewHomeScreen(screenManager *ScreenManager) *HomeScreenImpl {
 	// Create text face source
 	textFaceSource, err := text.NewGoTextFaceSource(bytes.NewReader(fonts.MPlus1pRegular_ttf))
