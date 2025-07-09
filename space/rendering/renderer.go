@@ -191,23 +191,122 @@ func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
 }
 
 func (r *Renderer) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM, model *Models.SpaceGame) {
-	// Apply full-screen effects if needed
-	if len(model.Portals) > 0 {
-		// uses intermitted buffer to bridge from offscreen to offscreen
-		r.applyPortalDistortion(offscreen, offscreen, model, geoM)
+	// Apply all full-screen effects in sequence
+	r.applyFullScreenEffects(offscreen, model, geoM)
+	r.DrawBlackHoles(offscreen, model)
+
+	screen.DrawImage(offscreen, &ebiten.DrawImageOptions{GeoM: geoM})
+}
+
+func (r *Renderer) applyFullScreenEffects(offscreen *ebiten.Image, model *Models.SpaceGame, geoM ebiten.GeoM) {
+	t := float32(time.Since(r.startTime).Seconds())
+	buf := r.spiralBuffer
+	intermediate := r.intermediateBuffer
+	camera := model.Camera
+
+	// Start with the offscreen image
+	intermediate.Clear()
+	intermediate.DrawImage(offscreen, nil)
+
+	// Apply portal distortions first (if any)
+	if len(model.Portals) > 0 && r.portalDistortionShader != nil {
+		portalColors := []color.RGBA{
+			{0, 204, 255, 180},
+			{255, 102, 204, 180},
+			{204, 255, 51, 180},
+			{255, 153, 0, 180},
+			{153, 51, 255, 180},
+			{255, 255, 51, 180},
+		}
+
+		for _, portal := range model.Portals {
+			// 1) copy *current* accumulated result into buf
+			buf.Clear()
+			buf.DrawImage(intermediate, nil)
+
+			// 2) build this portal's uniforms
+			idx := portal.PairID % len(portalColors)
+			c := portalColors[idx]
+			uniforms := map[string]any{
+				"Portal_Pos":    []float32{portal.Position[0], portal.Position[1]},
+				"Portal_Radius": portal.GetOrbitRadius(),
+				"Portal_Color":  []float32{float32(c.R) / 255, float32(c.G) / 255, float32(c.B) / 255},
+				"CameraPos":     []float32{camera.Position[0], camera.Position[1]},
+				"Zoom":          camera.GetTotalZoom(),
+				"Time":          t,
+				"ScreenSize":    []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
+				"IsActive": func() float32 {
+					if portal.IsActive && portal.CooldownTimer <= 0 {
+						return 1
+					}
+					return 0
+				}(),
+			}
+
+			// 3) draw full-screen quad, sampling from buf, **onto** intermediate
+			opts := &ebiten.DrawRectShaderOptions{
+				Uniforms: uniforms,
+			}
+			opts.Images[0] = buf
+
+			intermediate.Clear()
+			intermediate.DrawRectShader(
+				constants.ScreenWidth,
+				constants.ScreenHeight,
+				r.portalDistortionShader,
+				opts,
+			)
+		}
 	}
 
-	hasBlackholes := r.applySpiralOverlay(screen, offscreen, model, geoM)
-	if hasBlackholes {
-		// r.DrawBlackHoles(offscreen, model)
-	} else {
-		// If no black holes, just draw the offscreen image directly
-		screen.DrawImage(offscreen, &ebiten.DrawImageOptions{GeoM: geoM})
+	// Apply spiral distortions (black holes) second
+	if r.spiralDistortionShader != nil {
+		for _, body := range model.CelestialBodies {
+			// Only render black holes
+			if body.GetType() != Models.CelestialBodyTypeBlackHole {
+				continue
+			}
+
+			bh := body.(*Models.BlackHole)
+
+			// 1) copy *current* accumulated result into buf
+			buf.Clear()
+			buf.DrawImage(intermediate, nil)
+
+			// 2) build this black hole's uniforms
+			screenPos := camera.WorldToScreen(bh.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
+			orbitRadius := camera.RadiusToScreen(bh.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
+
+			uniforms := map[string]any{
+				"BH_Pos":      []float32{screenPos[0], screenPos[1]},
+				"BH_Radius":   orbitRadius,
+				"BH_Strength": float32(0.68),
+				"Time":        t,
+			}
+
+			// 3) draw full-screen quad, sampling from buf, **onto** intermediate
+			opts := &ebiten.DrawRectShaderOptions{
+				Uniforms: uniforms,
+			}
+			opts.Images[0] = buf
+
+			intermediate.Clear()
+			intermediate.DrawRectShader(
+				constants.ScreenWidth,
+				constants.ScreenHeight,
+				r.spiralDistortionShader,
+				opts,
+			)
+		}
 	}
+
+	// Finally, copy the accumulated result back to offscreen
+	offscreen.Clear()
+	offscreen.DrawImage(intermediate, nil)
 }
 
 func (r *Renderer) applySpiralOverlay(
-	screen ebiten.FinalScreen,
+	screen *ebiten.Image,
 	offscreen *ebiten.Image,
 	model *Models.SpaceGame,
 	geoM ebiten.GeoM,
@@ -218,60 +317,61 @@ func (r *Renderer) applySpiralOverlay(
 	}
 
 	t := float32(time.Since(r.startTime).Seconds())
+	buf := r.spiralBuffer
+	intermediate := r.intermediateBuffer
+	hasBlackHoles := false
 
-	bhPositions := make([]float32, 8)
-	orbitRadii := make([]float32, 4)
-	strengths := make([]float32, 4)
+	// Start with the offscreen image
+	intermediate.Clear()
+	intermediate.DrawImage(offscreen, nil)
 
-	numBH := 0
-	// First pass: draw black hole orbits
-	for i, body := range model.CelestialBodies {
+	// Loop through each black hole individually
+	for _, body := range model.CelestialBodies {
 		// Only render black holes
 		if body.GetType() != Models.CelestialBodyTypeBlackHole {
 			continue
 		}
 
 		bh := body.(*Models.BlackHole)
-		c := model.Camera.WorldToScreen(bh.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
+
+		// 1) copy *current* accumulated result into buf
+		buf.Clear()
+		buf.DrawImage(intermediate, nil)
+
+		// 2) build this black hole's uniforms
+		screenPos := model.Camera.WorldToScreen(bh.GetPosition(), constants.ScreenWidth, constants.ScreenHeight)
 		orbitRadius := model.Camera.RadiusToScreen(bh.GetOrbitRadius(), constants.ScreenWidth, constants.ScreenHeight)
-		bhPositions[i*2] = c[0]
-		bhPositions[i*2+1] = c[1]
-		orbitRadii[i] = orbitRadius
-		strengths[i] = 0.68
-		numBH++
+
+		uniforms := map[string]any{
+			"BH_Pos":      []float32{screenPos[0], screenPos[1]},
+			"BH_Radius":   orbitRadius,
+			"BH_Strength": float32(0.68),
+			"Time":        t,
+		}
+
+		// 3) draw full-screen quad, sampling from buf, **onto** intermediate
+		opts := &ebiten.DrawRectShaderOptions{
+			Uniforms: uniforms,
+		}
+		opts.Images[0] = buf
+
+		intermediate.Clear()
+		intermediate.DrawRectShader(
+			constants.ScreenWidth,
+			constants.ScreenHeight,
+			r.spiralDistortionShader,
+			opts,
+		)
+
+		hasBlackHoles = true
 	}
 
-	if numBH == 0 {
-		// No black holes, skip shader application
-		return false
+	// Finally draw the accumulated result to screen
+	if hasBlackHoles {
+		screen.DrawImage(intermediate, nil) // &ebiten.DrawImageOptions{GeoM: geoM})
 	}
 
-	if numBH > 4 {
-		print("Warning: More than 4 black holes detected, limiting to 4.\n")
-		numBH = 4 // Limit to 4 black holes
-	}
-
-	uniforms := map[string]any{
-		"NumBlackHoles": numBH,
-		"Time":          t,
-		"BHPositions":   bhPositions,
-		"OrbitRadii":    orbitRadii,
-		"Strengths":     strengths,
-
-		"ScreenSize": []float32{float32(constants.ScreenWidth), float32(constants.ScreenHeight)},
-		"Zoom":       model.Camera.GetTotalZoom(),
-		"CameraPos":  []float32{model.Camera.Position[0], model.Camera.Position[1]},
-		"Radius":     model.Camera.RadiusToScreen(1.0, constants.ScreenWidth, constants.ScreenHeight),
-	}
-
-	opts := &ebiten.DrawRectShaderOptions{
-		Uniforms: uniforms,
-		GeoM:     geoM,
-	}
-	opts.Images[0] = offscreen
-	screen.DrawRectShader(constants.ScreenWidth, constants.ScreenHeight, r.spiralDistortionShader, opts)
-
-	return true
+	return hasBlackHoles
 }
 
 func (r *Renderer) ResetShaderTime() {
@@ -279,7 +379,7 @@ func (r *Renderer) ResetShaderTime() {
 }
 
 func (r *Renderer) applyPortalDistortion(
-	screen ebiten.FinalScreen,
+	screen *ebiten.Image,
 	offscreen *ebiten.Image,
 	model *Models.SpaceGame,
 	geoM ebiten.GeoM,
