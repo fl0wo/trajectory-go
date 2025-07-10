@@ -31,7 +31,7 @@ type RingAsteroid struct {
 }
 
 // NewRingAsteroid creates a new ring asteroid orbiting a host planet
-func NewRingAsteroid(hostPlanet CelestialBody, orbitRadius, radius, mass, orbitSpeed float32, startAngle float32, clockwise bool, imagePath string) *RingAsteroid {
+func NewRingAsteroid(hostPlanet CelestialBody, orbitRadius, radius, mass, orbitSpeed float32, startAngle float32, clockwise bool) *RingAsteroid {
 	direction := 1
 	if !clockwise {
 		direction = -1

@@ -6,7 +6,6 @@ import (
 	"github.com/you/trajectory/constants"
 	"github.com/you/trajectory/space/colors"
 	Models "github.com/you/trajectory/space/model"
-	"github.com/you/trajectory/space/resources"
 	"github.com/you/trajectory/space/util"
 	"golang.org/x/image/math/f32"
 	"image/color"
@@ -241,49 +240,10 @@ func (r *Renderer) drawAsteroids(screen *ebiten.Image, model *Models.SpaceGame) 
 		screenPos := camera.WorldToScreen(asteroidPos, constants.ScreenWidth, constants.ScreenHeight)
 		radius := camera.RadiusToScreen(asteroid.GetRadius(), constants.ScreenWidth, constants.ScreenHeight)
 
-		if asteroid.ImagePath != "" {
-			// Render with image
-			r.drawCelestialBodyWithImage(screen, screenPos, radius, asteroid.ImagePath)
-		} else {
-			// Fallback to circle rendering
-			vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], radius, colors.AsteroidBody, true)
-		}
+		// Fallback to circle rendering
+		vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], radius, colors.AsteroidBody, true)
+
 	}
-}
-
-// drawCelestialBodyWithImage renders a celestial body using an image texture
-func (r *Renderer) drawCelestialBodyWithImage(screen *ebiten.Image, screenPos f32.Vec2, radius float32, imagePath string) {
-	// Load the image
-	img := resources.LoadImage(imagePath)
-	if img == nil {
-		// Fallback to circle if image loading fails
-		vector.DrawFilledCircle(screen, screenPos[0], screenPos[1], radius, colors.PlanetBody, true)
-		return
-	}
-
-	// Calculate scaling to fit the desired radius
-	imgSize := img.Bounds().Size()
-	imgRadius := float32(imgSize.X) / 2.0 // Assume square images
-	if imgSize.Y > imgSize.X {
-		imgRadius = float32(imgSize.Y) / 2.0
-	}
-
-	scale := (radius * 2.0) / (imgRadius * 2.0) // Scale to fit diameter
-
-	// Create draw options
-	op := &ebiten.DrawImageOptions{}
-
-	// Move image center to origin for rotation/scaling
-	op.GeoM.Translate(-float64(imgSize.X)/2, -float64(imgSize.Y)/2)
-
-	// Scale the image to the desired size
-	op.GeoM.Scale(float64(scale), float64(scale))
-
-	// Move to final screen position
-	op.GeoM.Translate(float64(screenPos[0]), float64(screenPos[1]))
-
-	// Draw the image
-	screen.DrawImage(img, op)
 }
 
 // drawOrbitCircleWithLight draws a dashed orbit circle with light inversion effect

@@ -127,6 +127,12 @@ func (b *BatchPreviewGenerator) Draw(screen *ebiten.Image) {
 		// Draw the game
 		b.game.Draw(screen)
 
+		buf := ebiten.NewImage(screen.Bounds().Dx(), screen.Bounds().Dy())
+		// Draw the game state to a buffer
+		b.game.Draw(buf)
+
+		b.game.DrawFinalScreen(screen, buf, ebiten.GeoM{})
+
 		// Capture the frame when we've reached the target
 		if b.frameCount >= b.targetFrames && b.capturedImage == nil {
 			// Create a copy of the screen

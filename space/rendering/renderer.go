@@ -187,7 +187,7 @@ func (r *Renderer) Draw(screen *ebiten.Image, model *Models.SpaceGame) {
 	r.drawTrajectoryArrow(screen, model)
 	r.drawLastCollisionMarker(screen, model)
 	r.drawBorderIndicators(screen, model)
-	r.drawFPS(screen)
+	// r.drawFPS(screen)
 }
 
 func (r *Renderer) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM, model *Models.SpaceGame) {

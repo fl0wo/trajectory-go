@@ -5,7 +5,6 @@ import (
 	"math"
 
 	"github.com/you/trajectory/space/colors"
-	"github.com/you/trajectory/space/resources"
 	"golang.org/x/image/math/f32"
 )
 
@@ -215,7 +214,7 @@ var PredefinedLevels = map[int]*Level{
 			Seed:        13.0,
 		}
 		asteroids := []*RingAsteroid{
-			NewRingAsteroid(planet, 0.18, 0.015, 1.0, 1.0, 0, true, resources.Asteroid1Image),
+			NewRingAsteroid(planet, 0.18, 0.015, 1.0, 1.0, 0, true),
 		}
 		return NewLevelWithAsteroids("Level 7 - Asteroid Dance",
 			f32.Vec2{0.1, 0.5},
@@ -244,8 +243,8 @@ var PredefinedLevels = map[int]*Level{
 			Seed:        14.0,
 		}
 		asteroids := []*RingAsteroid{
-			NewRingAsteroid(planet, 0.18, 0.015, 1.0, 1.0, 0, true, resources.Asteroid1Image),
-			NewRingAsteroid(planet, 0.22, 0.012, 0.8, 0.7, math.Pi, false, resources.Asteroid2Image),
+			NewRingAsteroid(planet, 0.18, 0.015, 1.0, 1.0, 0, true),
+			NewRingAsteroid(planet, 0.22, 0.012, 0.8, 0.7, math.Pi, false),
 		}
 		return NewLevelWithAsteroids("Level 8 - Double Ring Puzzle",
 			f32.Vec2{0.1, 0.5},

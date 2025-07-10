@@ -2,7 +2,6 @@ package Models
 
 import (
 	"github.com/you/trajectory/constants"
-	"github.com/you/trajectory/space/resources"
 	"golang.org/x/image/math/f32"
 	"image/color"
 	"log"
@@ -864,7 +863,6 @@ func randomCelestialBodies(numBodies int, margin float32) []CelestialBody {
 				Mass:        mass,
 				Radius:      radius,
 				OrbitRadius: radius * 4.0, // orbit radius is 4x the blackhole radius
-				ImagePath:   resources.BlackHoleImage,
 			}
 		}
 	}
