@@ -10,6 +10,11 @@ import (
 	"sort"
 )
 
+const (
+	rayLength       = 3000 // Length for player rays
+	portalRayLength = 150  // Shorter length for portal rays (adjust as needed)
+)
+
 //go:embed stepped_light.go
 var steppedLightShader []byte
 
@@ -211,7 +216,7 @@ func rayCastingWithPortals(
 	portalRotations []float32, // how much the portal is rotated in radians
 	portalRadii []float32,
 ) (playerRays []line, portalRaySets map[int][]line) {
-	const rayLength = 3000
+
 	occluderLines, occluderTypes, occluderIndices := getAllOccluderLines(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
 	allPortalLines := getAllPortalLines(portalPositions, portalRadii)
 	points := getAllOccluderPoints(celestialPositions, celestialRadii, asteroidPositions, asteroidRadii, portalPositions, portalRadii)
@@ -258,11 +263,11 @@ func rayCastingWithPortals(
 
 					rotationDiff := float64(portalRotations[pairedIdx] - portalRotations[hitPortalIdx])
 					rotatedAngle := normalizeAngle(rayAngle + rotationDiff)
-					portalRay := clipRay(pairedX, pairedY, rayLength, rotatedAngle, occluderLines, occluderTypes, occluderIndices, pairedIdx)
+					portalRay := clipRay(pairedX, pairedY, portalRayLength, rotatedAngle, occluderLines, occluderTypes, occluderIndices, pairedIdx)
 					portalRaySets[pairedIdx] = append(portalRaySets[pairedIdx], portalRay)
 				}
 			} else if occluderHit {
-				// Occluder (or portal as occluder) hit first; clip player ray
+				// Occluder (or portal as occlude) hit first; clip player ray
 				playerRays = append(playerRays, line{lightX, lightY, closestOccluder[0], closestOccluder[1]})
 			} else {
 				// No hits; use full ray length
