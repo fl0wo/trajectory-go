@@ -981,7 +981,7 @@ var PredefinedLevels = map[int]*Level{
 			0.025, 0.025,
 		)
 		return NewLevelWithPortals("Level 31 - Vortex Jump",
-			f32.Vec2{0.1, 0.5},
+			f32.Vec2{0.2, 0.5},
 			[]CelestialBody{
 				&BlackHole{
 					Position:    f32.Vec2{0.8, 0.5},
